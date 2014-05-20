@@ -1,7 +1,6 @@
 package sami.mission;
 
 import com.perc.mitpas.adi.mission.planning.task.Task;
-import sami.mission.TokenSpecification.TokenType;
 import sami.proxy.ProxyInt;
 
 /**
@@ -10,6 +9,14 @@ import sami.proxy.ProxyInt;
  */
 public class Token {
 
+    // There are 3 "types" of tokens
+    //  Generic tokens do not have a proxy or task associated with them
+    //  Proxy tokens have a non-specific proxy, but no task, associated with them
+    //  Task tokens have a specific task and potentially a proxy associated with them
+    public enum TokenType {
+
+        Task, Proxy, Generic
+    };
     private final String name;
     private ProxyInt proxy;
     private final Task task;

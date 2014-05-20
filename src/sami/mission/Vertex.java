@@ -8,18 +8,16 @@ import sami.gui.GuiConfig;
  *
  * @author pscerri
  */
-public class Vertex implements java.io.Serializable {
+public abstract class Vertex implements java.io.Serializable {
 
     public enum FunctionMode {
 
         Nominal, Recovery, HiddenRecovery
     };
-    static final long serialVersionUID = 4L;
+    static final long serialVersionUID = 5L;
     protected String name = "";
     protected FunctionMode functionMode = null;
     protected GuiConfig.VisibilityMode visibilityMode = GuiConfig.VisibilityMode.Full;
-    protected ArrayList<Edge> inEdges = new ArrayList<Edge>();
-    protected ArrayList<Edge> outEdges = new ArrayList<Edge>();
     protected ArrayList<ReflectedEventSpecification> eventSpecs = new ArrayList<ReflectedEventSpecification>();
     transient protected String tag = "", shortTag = "";
     transient protected boolean beingModified = false;
@@ -29,30 +27,6 @@ public class Vertex implements java.io.Serializable {
         this.functionMode = functionMode;
         tag = name;
         shortTag = shorten(name, GuiConfig.MAX_STRING_LENGTH);
-    }
-
-    public void addInEdge(Edge edge) {
-        inEdges.add(edge);
-    }
-
-    public boolean removeInEdge(Edge edge) {
-        return inEdges.remove(edge);
-    }
-
-    public ArrayList<Edge> getInEdges() {
-        return inEdges;
-    }
-
-    public void addOutEdge(Edge edge) {
-        outEdges.add(edge);
-    }
-
-    public boolean removeOutEdge(Edge edge) {
-        return outEdges.remove(edge);
-    }
-
-    public ArrayList<Edge> getOutEdges() {
-        return outEdges;
     }
 
     public FunctionMode getFunctionMode() {
@@ -114,18 +88,6 @@ public class Vertex implements java.io.Serializable {
     public void setEventSpecs(ArrayList<ReflectedEventSpecification> eventSpecs) {
         this.eventSpecs = eventSpecs;
         updateTag();
-    }
-
-    public void prepareForRemoval() {
-        // Remove each edge
-        ArrayList<Edge> edgeList = (ArrayList<Edge>)inEdges.clone();
-        for(Edge inEdge : edgeList) {
-            inEdge.prepareForRemoval();
-        }
-        edgeList = (ArrayList<Edge>)outEdges.clone();
-        for(Edge outEdge : edgeList) {
-            outEdge.prepareForRemoval();
-        }
     }
 
     public void updateTag() {

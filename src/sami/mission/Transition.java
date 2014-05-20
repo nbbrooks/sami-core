@@ -19,7 +19,9 @@ import sami.markup.ReflectedMarkupSpecification;
 public class Transition extends Vertex {
 
     private static final Logger LOGGER = Logger.getLogger(Place.class.getName());
-    static final long serialVersionUID = 5L;
+    static final long serialVersionUID = 6L;
+    protected ArrayList<InEdge> inEdges = new ArrayList<InEdge>();
+    protected ArrayList<OutEdge> outEdges = new ArrayList<OutEdge>();
     private ArrayList<Place> inPlaces = new ArrayList<Place>();
     private ArrayList<Place> outPlaces = new ArrayList<Place>();
     transient private ArrayList<InputEvent> inputEvents = new ArrayList<InputEvent>();
@@ -27,6 +29,30 @@ public class Transition extends Vertex {
 
     public Transition(String name, FunctionMode functionMode) {
         super(name, functionMode);
+    }
+
+    public void addInEdge(InEdge edge) {
+        inEdges.add(edge);
+    }
+
+    public boolean removeInEdge(InEdge edge) {
+        return inEdges.remove(edge);
+    }
+
+    public ArrayList<InEdge> getInEdges() {
+        return inEdges;
+    }
+
+    public void addOutEdge(OutEdge edge) {
+        outEdges.add(edge);
+    }
+
+    public boolean removeOutEdge(OutEdge edge) {
+        return outEdges.remove(edge);
+    }
+
+    public ArrayList<OutEdge> getOutEdges() {
+        return outEdges;
     }
 
     public void addInPlace(Place p) {
@@ -53,10 +79,6 @@ public class Transition extends Vertex {
         this.inPlaces = inPlaces;
     }
 
-    public void setOutPlaces(ArrayList<Place> outPlaces) {
-        this.outPlaces = outPlaces;
-    }
-
     public void addOutPlace(Place p) {
         if (outPlaces.contains(p)) {
             LOGGER.severe("Tried to add pre-existing outPlace: " + p);
@@ -75,6 +97,10 @@ public class Transition extends Vertex {
 
     public ArrayList<Place> getOutPlaces() {
         return outPlaces;
+    }
+
+    public void setOutPlaces(ArrayList<Place> outPlaces) {
+        this.outPlaces = outPlaces;
     }
 
     /**
@@ -158,6 +184,18 @@ public class Transition extends Vertex {
 
     public String toString() {
         return "Transition:" + name;
+    }
+
+    public void prepareForRemoval() {
+        // Remove each edge
+        ArrayList<InEdge> inEdgesClone = (ArrayList<InEdge>) inEdges.clone();
+        for (InEdge inEdge : inEdgesClone) {
+            inEdge.prepareForRemoval();
+        }
+        ArrayList<OutEdge> outEdgesClone = (ArrayList<OutEdge>) outEdges.clone();
+        for (OutEdge outEdge : outEdgesClone) {
+            outEdge.prepareForRemoval();
+        }
     }
 
     public Transition copyWithoutConnections() {

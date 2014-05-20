@@ -1,66 +1,31 @@
 package sami.mission;
 
-import java.io.IOException;
 import sami.gui.GuiConfig;
 import sami.mission.Vertex.FunctionMode;
-import java.io.ObjectInputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
 
 /**
  *
  * @author pscerri
  */
-public class Edge implements java.io.Serializable {
+public abstract class Edge implements java.io.Serializable {
 
-    static final long serialVersionUID = 4L;
-    protected String name = "";
+    static final long serialVersionUID = 5L;
     protected FunctionMode functionMode = null;
     protected GuiConfig.VisibilityMode visibilityMode = GuiConfig.VisibilityMode.Full;
-    private Vertex startVertex, endVertex;
-    // Store class names of Tokens used in this Edge for display purposes
-    //  Originally an instance of the Token was stored, but this caused 
-    //  serialization issues
-    private ArrayList<String> tokenNames = new ArrayList<String>();
-
     transient String tag = "", shortTag = "";
-    transient private ArrayList<Token> tokenRequirements = new ArrayList<Token>();
 
-    public Edge(Vertex inVertex, Vertex outVertex, FunctionMode functionMode) {
-        this.startVertex = inVertex;
-        this.endVertex = outVertex;
-        this.functionMode = functionMode;
-    }
+    public abstract void updateTag();
 
-    public Vertex getEnd() {
-        return endVertex;
-    }
+    public abstract void prepareForRemoval();
 
-    public void setEnd(Vertex endVertex) {
-        this.endVertex = endVertex;
-    }
+    public abstract Vertex getStart();
 
-    public Vertex getStart() {
-        return startVertex;
-    }
+    public abstract Vertex getEnd();
 
-    public void setStart(Vertex startVertex) {
-        this.startVertex = startVertex;
-    }
+    public abstract ArrayList<? extends TokenRequirement> getTokenRequirements();
 
-    /**
-     * Called when reading in a spec to run a mission, not when creating the
-     * mission in the GUI
-     *
-     * @param e
-     */
-    public void addTokenRequirement(Token token) {
-        tokenRequirements.add(token);
-    }
-
-    public ArrayList<Token> getTokenRequirements() {
-        return tokenRequirements;
-    }
+    public abstract void clearTokenRequirements();
 
     public FunctionMode getFunctionMode() {
         return functionMode;
@@ -100,49 +65,6 @@ public class Edge implements java.io.Serializable {
         return shortTag;
     }
 
-    public void addTokenName(String className) {
-        tokenNames.add(className);
-        updateTag();
-    }
-
-    public void clearTokenNames() {
-        tokenNames.clear();
-        updateTag();
-    }
-
-    public void prepareForRemoval() {
-        if (startVertex instanceof Place && endVertex instanceof Transition) {
-            Place startPlace = (Place) startVertex;
-            Transition endTransition = (Transition) endVertex;
-            startPlace.removeOutTransition(endTransition);
-            startPlace.removeOutEdge(this);
-            endTransition.removeInPlace(startPlace);
-            endTransition.removeInEdge(this);
-        } else if (startVertex instanceof Transition && endVertex instanceof Place) {
-            Transition startTransition = (Transition) startVertex;
-            Place endPlace = (Place) endVertex;
-            startTransition.removeOutPlace(endPlace);
-            startTransition.removeOutEdge(this);
-            endPlace.removeInTransition(startTransition);
-            endPlace.removeInEdge(this);
-        }
-    }
-
-    public void updateTag() {
-        tag = "";
-        shortTag = "";
-        if (GuiConfig.DRAW_TOKEN_REQS && tokenNames.size() > 0) {
-            tag += "<html>";
-            shortTag += "<html>";
-            for (String tokenName : tokenNames) {
-                tag += "<font color=" + GuiConfig.TOKEN_REQ_TEXT_COLOR + ">" + tokenName + "</font><br>";
-                shortTag += "<font color=" + GuiConfig.TOKEN_REQ_TEXT_COLOR + ">" + shorten(tokenName, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
-            }
-            tag += "</html>";
-            shortTag += "</html>";
-        }
-    }
-
     public String shorten(String full, int maxLength) {
         String reduced = "";
         int upperCount = 0;
@@ -163,39 +85,5 @@ public class Edge implements java.io.Serializable {
             }
         }
         return reduced;
-    }
-
-    public String toString() {
-        String ret = "Edge";
-        if (startVertex.getName() != null && !startVertex.getName().equals("") && endVertex.getName() != null && !endVertex.getName().equals("")) {
-            ret += ":" + startVertex.getName() + "\u21e8" + endVertex.getName();
-        }
-        return ret;
-    }
-
-    public Edge copy(HashMap<Vertex, Vertex> vertexMap) {
-        Edge edge = new Edge(vertexMap.get(startVertex), vertexMap.get(endVertex), functionMode);
-        return edge;
-    }
-
-    public Edge copyWithoutConnections() {
-        Edge copy = new Edge(null, null, functionMode);
-        copy.name = name;
-        copy.visibilityMode = visibilityMode;
-        copy.tokenNames = (ArrayList<String>) tokenNames.clone();
-        copy.updateTag();
-        return copy;
-    }
-
-    private void readObject(ObjectInputStream ois) {
-        try {
-            ois.defaultReadObject();
-            tokenRequirements = new ArrayList<Token>();
-            updateTag();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        }
     }
 }

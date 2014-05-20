@@ -112,7 +112,7 @@ public class DomainConfig implements java.io.Serializable {
                     agentTree = temp;
                 }
             } else {
-                LOGGER.warning("Could not open agent list file path: \"" + agentTreeFilePath + "\"");
+                LOGGER.warning("Could not open agent list file path: \"" + agentTreeFilePath + "\", using cached values");
             }
         } else {
             LOGGER.warning("Agent list file path is not set");
@@ -125,7 +125,7 @@ public class DomainConfig implements java.io.Serializable {
                     assetTree = temp;
                 }
             } else {
-                LOGGER.warning("Could not open asset list file path: \"" + assetTreeFilePath + "\"");
+                LOGGER.warning("Could not open asset list file path: \"" + assetTreeFilePath + "\", using cached values");
             }
         } else {
             LOGGER.warning("Asset list file path is not set");
@@ -138,7 +138,7 @@ public class DomainConfig implements java.io.Serializable {
                     componentGeneratorList = temp;
                 }
             } else {
-                LOGGER.warning("Could not open component generator list file path: \"" + componentGeneratorListFilePath + "\"");
+                LOGGER.warning("Could not open component generator list file path: \"" + componentGeneratorListFilePath + "\", using cached values");
             }
         } else {
             LOGGER.warning("Component generator file path is not set");
@@ -151,7 +151,7 @@ public class DomainConfig implements java.io.Serializable {
                     fromUiMessageGeneratorList = temp;
                 }
             } else {
-                LOGGER.warning("Could not open component generator list file path: \"" + componentGeneratorListFilePath + "\"");
+                LOGGER.warning("Could not open component generator list file path: \"" + componentGeneratorListFilePath + "\", using cached values");
             }
         } else {
             LOGGER.warning("Component generator file path is not set");
@@ -164,7 +164,7 @@ public class DomainConfig implements java.io.Serializable {
                     eventTree = temp;
                 }
             } else {
-                LOGGER.warning("Could not open event list file path: \"" + eventTreeFilePath + "\"");
+                LOGGER.warning("Could not open event list file path: \"" + eventTreeFilePath + "\", using cached values");
             }
         } else {
             LOGGER.warning("Event list file path is not set");
@@ -177,7 +177,7 @@ public class DomainConfig implements java.io.Serializable {
                     eventHandlerMapping = temp;
                 }
             } else {
-                LOGGER.warning("Could not open event handler mapping file path: \"" + eventHandlerMappingFilePath + "\"");
+                LOGGER.warning("Could not open event handler mapping file path: \"" + eventHandlerMappingFilePath + "\", using cached values");
             }
         } else {
             LOGGER.warning("Event handler mapping file path is not set");
@@ -190,7 +190,7 @@ public class DomainConfig implements java.io.Serializable {
                     markupTree = temp;
                 }
             } else {
-                LOGGER.warning("Could not open markup list file path: \"" + markupTreeFilePath + "\"");
+                LOGGER.warning("Could not open markup list file path: \"" + markupTreeFilePath + "\", using cached values");
             }
         } else {
             LOGGER.warning("Markup list file path is not set");
@@ -203,7 +203,7 @@ public class DomainConfig implements java.io.Serializable {
                     serverList = temp;
                 }
             } else {
-                LOGGER.warning("Could not open server list file path: \"" + serverListFilePath + "\"");
+                LOGGER.warning("Could not open server list file path: \"" + serverListFilePath + "\", using cached values");
             }
         } else {
             LOGGER.warning("Server list file path is not set");
@@ -216,7 +216,7 @@ public class DomainConfig implements java.io.Serializable {
                     taskTree = temp;
                 }
             } else {
-                LOGGER.warning("Could not open task list file path: \"" + taskTreeFilePath + "\"");
+                LOGGER.warning("Could not open task list file path: \"" + taskTreeFilePath + "\", using cached values");
             }
         } else {
             LOGGER.warning("Task list file path is not set");
@@ -229,7 +229,7 @@ public class DomainConfig implements java.io.Serializable {
                     uiList = temp;
                 }
             } else {
-                LOGGER.warning("Could not open ui list file path: \"" + uiListFilePath + "\"");
+                LOGGER.warning("Could not open ui list file path: \"" + uiListFilePath + "\", using cached values");
             }
         } else {
             LOGGER.warning("Ui list file path is not set");

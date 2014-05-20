@@ -330,6 +330,7 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
                 } catch (AccessControlException e) {
                     LOGGER.severe("Failed to save preferences");
                 }
+                setTitle("Mission Monitor: " + specLocation.toString());
             }
 
         } catch (ClassNotFoundException ex) {

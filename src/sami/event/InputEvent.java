@@ -26,6 +26,7 @@ public class InputEvent extends Event {
     protected ArrayList<ProxyInt> relevantProxyList = null;
     protected ResourceAllocation allocation = null;
     protected UUID relevantOutputEventId;
+    protected boolean blocking = false;
 
     public InputEvent() {
     }
@@ -104,6 +105,14 @@ public class InputEvent extends Event {
         // This will be used as a separate event, so it needs a unique UUID
         copy.id = UUID.randomUUID();
         return copy;
+    }
+
+    public boolean getBlocking() {
+        return blocking;
+    }
+
+    public void setBlocking(boolean blocking) {
+        this.blocking = blocking;
     }
 
     @Override

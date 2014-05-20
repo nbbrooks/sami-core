@@ -5,7 +5,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.security.AccessControlException;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.prefs.Preferences;
 import javax.swing.JFileChooser;
@@ -27,7 +26,7 @@ public class DomainConfigManager {
         }
         // If it fails, have the user specify a dcf
         if (domainConfiguration == null || !domainConfiguration.complete) {
-            JOptionPane.showMessageDialog(null, "Could not load last used domain configuration, please specify a DCF");
+            JOptionPane.showMessageDialog(null, "Could not load last used domain configuration (.DCF), please specify file");
             String path = getPath();
             domainConfiguration = load(path);
         }

@@ -60,40 +60,12 @@ public class ReflectedEventSpecification implements java.io.Serializable {
         fieldNameToTransDefinition = newFieldNameToObject;
     }
 
-    /**
-     * Override the default serialization This is required because Fields are
-     * not serializable
-     *
-     * @param os
-     */
-    private void writeObject(ObjectOutputStream os) {
-        try {
-            fieldNameToSerialDefinition = SerializableHelper.transientToSerial(fieldNameToTransDefinition);
-            os.defaultWriteObject();
-        } catch (IOException ex) {
-            Logger.getLogger(ReflectedEventSpecification.class.getName()).log(Level.SEVERE, null, ex);
-            ex.printStackTrace();
-        }
-    }
-
-    private void readObject(ObjectInputStream ois) {
-        try {
-            ois.defaultReadObject();
-            fieldNameToTransDefinition = SerializableHelper.serialToTransient(className, fieldNameToSerialDefinition);
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        }
-    }
-
     public ArrayList<ReflectedMarkupSpecification> getMarkupSpecs() {
         return markupSpecs;
     }
 
     public void setMarkupSpecs(ArrayList<ReflectedMarkupSpecification> markupSpecs) {
         this.markupSpecs = markupSpecs;
-//        System.out.println("### set markupSpecs: " + markupSpecs);
     }
 
     public Object getFieldDefinition(String fieldName) {
@@ -206,33 +178,6 @@ public class ReflectedEventSpecification implements java.io.Serializable {
             if (event != null) {
                 instantiateEventVariables(event, fieldNameToTransDefinition);
                 instantiateMarkups(event, markupSpecs);
-
-//                System.out.println("### markupSpecs: " + markupSpecs.toString());
-//                System.out.println("### Instatianted event");
-//                System.out.println("### Class: " + event.getClass().getSimpleName());
-//                System.out.println("###\t Fields:");
-//                for (Field field : event.getClass().getDeclaredFields()) {
-//                    try {
-//                        System.out.println("###\t\t " + field.get(event));
-//                    } catch (IllegalArgumentException ex) {
-//                        Logger.getLogger(ReflectedEventSpecification.class.getName()).log(Level.SEVERE, null, ex);
-//                    } catch (IllegalAccessException ex) {
-//                        Logger.getLogger(ReflectedEventSpecification.class.getName()).log(Level.SEVERE, null, ex);
-//                    }
-//                }
-//                System.out.println("###\t Markups:");
-//                for (Markup markup : event.getMarkups()) {
-//                    System.out.println("###\t\t Markup: " + markup.getClass().getSimpleName());
-//                    for (Field field : markup.getClass().getDeclaredFields()) {
-//                        try {
-//                            System.out.println("###\t\t\t " + field.get(markup));
-//                        } catch (IllegalArgumentException ex) {
-//                            Logger.getLogger(ReflectedEventSpecification.class.getName()).log(Level.SEVERE, null, ex);
-//                        } catch (IllegalAccessException ex) {
-//                            Logger.getLogger(ReflectedEventSpecification.class.getName()).log(Level.SEVERE, null, ex);
-//                        }
-//                    }
-//                }
             } else {
                 LOGGER.log(Level.SEVERE, "Creation of instance failed for " + className, this);
             }
@@ -309,5 +254,32 @@ public class ReflectedEventSpecification implements java.io.Serializable {
             }
         }
         return copy;
+    }
+
+    /**
+     * Override the default serialization This is required because Fields are
+     * not serializable
+     *
+     * @param os
+     */
+    private void writeObject(ObjectOutputStream os) {
+        try {
+            fieldNameToSerialDefinition = SerializableHelper.transientToSerial(fieldNameToTransDefinition);
+            os.defaultWriteObject();
+        } catch (IOException ex) {
+            Logger.getLogger(ReflectedEventSpecification.class.getName()).log(Level.SEVERE, null, ex);
+            ex.printStackTrace();
+        }
+    }
+
+    private void readObject(ObjectInputStream ois) {
+        try {
+            ois.defaultReadObject();
+            fieldNameToTransDefinition = SerializableHelper.serialToTransient(className, fieldNameToSerialDefinition);
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
     }
 }

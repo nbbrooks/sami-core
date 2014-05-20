@@ -5,7 +5,6 @@ import com.perc.mitpas.adi.mission.planning.task.ITask;
 import com.perc.mitpas.adi.mission.planning.task.Task;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Map;
@@ -15,21 +14,23 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import sami.event.AbortMission;
 import sami.event.AbortMissionReceived;
-import sami.event.BlockingInputEvent;
 import sami.event.GeneratedEventListenerInt;
 import sami.event.InputEvent;
 import sami.event.MissingParamsReceived;
 import sami.event.MissingParamsRequest;
 import sami.event.OutputEvent;
 import sami.event.ReflectedEventSpecification;
-import sami.gui.GuiConfig;
 import sami.handler.EventHandlerInt;
-import sami.mission.Edge;
+import sami.mission.InEdge;
+import sami.mission.InTokenRequirement;
 import sami.mission.MissionPlanSpecification;
+import sami.mission.OutEdge;
+import sami.mission.OutTokenRequirement;
 import sami.mission.Place;
+import sami.mission.TaskSpecification;
 import sami.mission.Token;
-import sami.mission.TokenSpecification;
-import sami.mission.TokenSpecification.TokenType;
+import sami.mission.Token.TokenType;
+import sami.mission.TokenRequirement;
 import sami.mission.Transition;
 import sami.mission.Vertex;
 import sami.mission.Vertex.FunctionMode;
@@ -53,10 +54,14 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     // Blocking queue of generated input events waiting to be matched to a parameter input event
     private ArrayBlockingQueue<InputEvent> generatorEventQueue = new ArrayBlockingQueue<InputEvent>(20);
     ArrayList<InputEvent> activeInputEvents = new ArrayList<InputEvent>();
-    ArrayList<Place> placesBeingEntered = new ArrayList<Place>();
+    final ArrayList<Place> placesBeingEntered = new ArrayList<Place>();
     // List of tokens on the mission spec's edges to be used as the default list of tokens to put in the starting place
     //  Null PROXY and ALL tokens are not added to this list
     private ArrayList<Token> defaultStartTokens = new ArrayList<Token>();
+    // Lookup table used for retrieving task based tokens (ie for updating a token after a resource allocation is received)
+    private HashMap<String, Task> taskNameToTask = new HashMap<String, Task>();
+    private HashMap<ITask, Token> taskToToken = new HashMap<ITask, Token>();
+    private HashMap<TaskSpecification, Token> tokenSpecToToken = new HashMap<TaskSpecification, Token>();
     // Keeps track of variables coming in from InputEvents, to be used in OutputEvents
     private HashMap<String, Object> variableNameToValue = new HashMap<String, Object>();
     // Lookup table used during processing of generated and updated parameter input events
@@ -69,6 +74,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     private Place startPlace;
     private String planName;
     public final UUID missionId;
+    // Logging levels
+    final Level CHECK_T_LVL = Level.FINE;
+    final Level EXE_T_LVL = Level.FINE;
 
     public PlanManager(final MissionPlanSpecification mSpec, UUID missionId, String planName) {
         LOGGER.info("Creating PlanManager for mSpec " + mSpec + " with mission ID " + missionId + " and planName " + planName);
@@ -76,8 +84,15 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         this.missionId = missionId;
         this.planName = planName;
 
-//        mSpec.printGraph();
         startPlace = mSpec.getUninstantiatedStart();
+
+        // Create task tokens
+        LOGGER.info("Creating task tokens for task specifications");
+        for (TaskSpecification taskSpec : mSpec.getTaskSpecList()) {
+            Token taskToken = createToken(taskSpec);
+            LOGGER.info("\t" + taskSpec + " -> " + taskToken);
+            defaultStartTokens.add(taskToken);
+        }
 
         // If there are any parameters on the events that need to be filled in, request from the operator
         ArrayList<ReflectedEventSpecification> editableEventSpecs = mSpec.getEventSpecsRequestingParams();
@@ -87,14 +102,14 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             // Create vertices to get missing parameters
             Place missingParamsPlace = new Place("Get Params", FunctionMode.Nominal);
             Transition missingParamsTransition = new Transition("Got Params", FunctionMode.Nominal);
-            Edge edge1 = new Edge(missingParamsPlace, missingParamsTransition, FunctionMode.Nominal);
-            Edge edge2 = new Edge(missingParamsTransition, startPlace, FunctionMode.Nominal);
+            InEdge edge1 = new InEdge(missingParamsPlace, missingParamsTransition, FunctionMode.Nominal);
+            OutEdge edge2 = new OutEdge(missingParamsTransition, startPlace, FunctionMode.Nominal);
             // Add vetices to plan
             missingParamsPlace.addOutTransition(missingParamsTransition);
             missingParamsTransition.addInPlace(missingParamsPlace);
             missingParamsTransition.addOutPlace(startPlace);
-            edge1.addTokenRequirement(Engine.getInstance().getNoReqToken());
-            edge2.addTokenRequirement(Engine.getInstance().getTakeAllToken());
+            edge1.addTokenRequirement(new InTokenRequirement(TokenRequirement.MatchCriteria.None, null));
+            edge2.addTokenRequirement(new OutTokenRequirement(TokenRequirement.MatchCriteria.AnyToken, TokenRequirement.MatchQuantity.All, TokenRequirement.MatchAction.Take));
             missingParamsPlace.addOutEdge(edge1);
             missingParamsTransition.addInEdge(edge1);
             missingParamsTransition.addOutEdge(edge2);
@@ -176,14 +191,14 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             AbortMission abortMission = new AbortMission(missionId);
             abortPlace.addOutputEvent(abortMission);
             // Add edges
-            Edge abortInEdge = new Edge(missingParamsPlace, abortTransition, FunctionMode.Recovery);
-            abortInEdge.addTokenRequirement(Engine.getInstance().getNoReqToken());
+            InEdge abortInEdge = new InEdge(missingParamsPlace, abortTransition, FunctionMode.Recovery);
+            abortInEdge.addTokenRequirement(new InTokenRequirement(TokenRequirement.MatchCriteria.None, null));
             abortTransition.addInEdge(abortInEdge);
             missingParamsPlace.addOutEdge(abortInEdge);
             abortTransition.addInPlace(missingParamsPlace);
             missingParamsPlace.addOutTransition(abortTransition);
-            Edge abortOutEdge = new Edge(abortTransition, abortPlace, FunctionMode.Recovery);
-            abortOutEdge.addTokenRequirement(Engine.getInstance().getTakeAllToken());
+            OutEdge abortOutEdge = new OutEdge(abortTransition, abortPlace, FunctionMode.Recovery);
+            abortOutEdge.addTokenRequirement(new OutTokenRequirement(TokenRequirement.MatchCriteria.AnyToken, TokenRequirement.MatchQuantity.All, TokenRequirement.MatchAction.Take));
             abortTransition.addOutEdge(abortOutEdge);
             abortPlace.addInEdge(abortOutEdge);
             abortTransition.addOutPlace(abortPlace);
@@ -195,48 +210,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             }
         }
 
-        // Load TokenSpecifications from the spec and put the corresponding Token in the appropriate edges
-        //@todo Should this be in plan.getInstantiatedStart() instead ?
-        LOGGER.log(Level.FINE, "Loading tokens from edge token specifications");
-        Token token;
-        Collection<Edge> edges = mSpec.getGraph().getEdges();
-        Map<Edge, ArrayList<TokenSpecification>> edgeToTokenSpecs = mSpec.getEdgeToTokenSpecListMap();
-        for (Edge edge : edges) {
-            LOGGER.log(Level.FINE, "\tFor edge " + edge);
-            ArrayList<TokenSpecification> tokenSpecs = edgeToTokenSpecs.get(edge);
-            if (tokenSpecs == null) {
-                LOGGER.log(Level.WARNING, "\t\tNo labeled token specs for edge " + edge);
-            } else {
-                for (TokenSpecification tokenSpec : tokenSpecs) {
-                    LOGGER.log(Level.FINE, "\t\tFor tokenSpec " + tokenSpec);
-
-                    // Retreive or create token for the token specification
-                    token = Engine.getInstance().getToken(tokenSpec);
-                    if (token != null) {
-                        LOGGER.log(Level.FINE, "\t\t\tRetrieved token " + token);
-                        if (!defaultStartTokens.contains(token) && (token.getType() == TokenType.MatchGeneric || token.getType() == TokenType.Task)) {
-                            // Update default list of tokens to add to the starting place
-                            defaultStartTokens.add(token);
-                        }
-                    } else {
-                        token = Engine.getInstance().createToken(tokenSpec);
-                        LOGGER.log(Level.FINE, "\t\t\tCreated token " + token);
-                    }
-                    // Add the token to the edge requirements
-                    if (token != null) {
-                        edge.addTokenRequirement(token);
-                    } else {
-                        LOGGER.log(Level.SEVERE, "\t\t\tTried to add a null token for edge " + edge + " token specification requirement " + tokenSpec);
-                    }
-                }
-            }
-        }
         generatedEventThread.start();
     }
 
-    public PlanManager(final MissionPlanSpecification plan, UUID missionId) {
-        this(plan, missionId, plan.getName());
-    }
     Thread generatedEventThread = new Thread() {
         public void run() {
             while (true) {
@@ -283,9 +259,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
         if (!checkedForTransition) {
             for (Transition transition : startPlace.getOutTransitions()) {
-                HashMap<Place, ArrayList<Token>> tokensToRemove = checkTransition(transition);
-                if (tokensToRemove != null) {
-                    executeTransition(transition, tokensToRemove);
+                boolean execute = checkTransition(transition);
+                if (execute) {
+                    executeTransition(transition);
                 };
             }
         }
@@ -294,29 +270,23 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         Engine.getInstance().started(this);
     }
 
-    private synchronized HashMap<Place, ArrayList<Token>> checkTransition(Transition transition) {
-        LOGGER.log(Level.FINE, "Checking " + transition);
-        String debug = "input event fulfillment is currently:";
-        for (InputEvent ie : transition.getInputEvents()) {
-            debug += "\n\t" + ie + ": " + transition.getInputEventStatus(ie);
-        }
+    private synchronized boolean checkTransition(Transition transition) {
+        LOGGER.log(CHECK_T_LVL, "Checking " + transition);
 
         boolean failure = false;
-        HashMap<Place, ArrayList<Token>> placeToMatchedTokens = new HashMap<Place, ArrayList<Token>>();
-        HashMap<Place, ArrayList<Token>> placeToRemovedTokens = new HashMap<Place, ArrayList<Token>>();
 
         ////
         // Check that each InputEvent has occurred
         ////
         ArrayList<InputEvent> inputEvents = transition.getInputEvents();
-        LOGGER.log(Level.FINE, "\tChecking for input events: " + inputEvents);
+        LOGGER.log(CHECK_T_LVL, "\tChecking for input events: " + inputEvents);
         for (InputEvent ie : inputEvents) {
             if (!transition.getInputEventStatus(ie)) {
-                LOGGER.log(Level.FINE, "\t\tInput event " + ie + " is not ready");
+                LOGGER.log(CHECK_T_LVL, "\t\tInput event " + ie + " is not ready");
                 failure = true;
                 break;
             } else {
-                LOGGER.log(Level.FINE, "\t\tInput event " + ie + " is ready");
+                LOGGER.log(CHECK_T_LVL, "\t\tInput event " + ie + " is ready");
             }
         }
 
@@ -325,483 +295,1160 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             // Check the token requirements of each incoming edge
             ////
             check:
-            for (Edge edge : transition.getInEdges()) {
+            for (InEdge inEdge : transition.getInEdges()) {
                 // Get incoming Place
-                Vertex vertex = edge.getStart();
-                if (!(vertex instanceof Place)) {
-                    LOGGER.log(Level.SEVERE, "\tPreceding Vertex " + vertex + " is not a Place!");
-                    System.exit(0);
-                }
-                Place place = (Place) vertex;
+                Place inPlace = inEdge.getStart();
 
                 ////
                 // Check that if there is a sub-mission that it has completed
                 ////
-                if (place.getSubMission() != null && !place.getSubMissionComplete()) {
-                    LOGGER.log(Level.FINE, "\tSub-mission " + place.getSubMission() + " is not yet complete");
+                if (inPlace.getSubMission() != null && !inPlace.getSubMissionComplete()) {
+                    LOGGER.log(CHECK_T_LVL, "\tSub-mission " + inPlace.getSubMission() + " on " + inPlace + " is not yet complete");
                     failure = true;
                     break check;
-                } else if (place.getSubMission() != null && place.getSubMissionComplete()) {
-                    LOGGER.log(Level.FINE, "\tSub-mission " + place.getSubMission() + " is complete");
+                } else if (inPlace.getSubMission() != null && inPlace.getSubMissionComplete()) {
+                    LOGGER.log(CHECK_T_LVL, "\tSub-mission " + inPlace.getSubMission() + " on " + inPlace + " is complete");
                 }
 
                 ////
                 // Check edge requirements
                 ////
-                ArrayList<Token> matchedTokens = new ArrayList<Token>();
-                ArrayList<Token> placeTokens = (ArrayList<Token>) place.getTokens();
-                ArrayList<Token> removedTokens = new ArrayList<Token>();
-                placeToMatchedTokens.put(place, matchedTokens);
-                placeToRemovedTokens.put(place, removedTokens);
-                LOGGER.log(Level.FINE, "\tChecking incoming " + edge + " with reqs [" + edge.getTokenRequirements() + "] against " + place + " with [" + placeTokens + "]");
-                LOGGER.log(Level.FINE, "Engine's tokens are:\n" + Engine.getInstance().getAllTokens().toString());
-                for (Token edgeToken : edge.getTokenRequirements()) {
-                    // NoRequirement, RelevantProxy, Generic, Task
-                    LOGGER.log(Level.FINE, "Handling edge token requirement: " + edgeToken + " and place with tokens: " + placeTokens);
-                    switch (edgeToken.getType()) {
-                        case MatchNoReq:
-                            if (!matchedTokens.isEmpty()) {
-                                LOGGER.severe("Edge has \"No Req\" label AND a token requirement!");
-                                matchedTokens.clear();
-                            }
-                            break;
-                        case HasProxy:
-                            boolean foundProxy = false;
-                            for (Token placeToken : placeTokens) {
-                                LOGGER.log(Level.FINE, "\t\t\t !!!Checking if token " + placeToken + " matches any unmatched relevant proxies");
-                                if (placeToken.getProxy() != null) {
-                                    LOGGER.log(Level.FINE, "\t\t\t !!!Token " + placeToken + " with proxy " + placeToken.getProxy() + ", satifies HasProxy label");
-                                    foundProxy = true;
-                                    break;
-                                }
-                            }
-                            if(!foundProxy) {
-                                    LOGGER.log(Level.FINE, "\t\t\t !!!Failed to find proxy for has proxy token");
-                            }
-                            failure = !foundProxy;
-                            break;
-                        case MatchRelevantProxy:
-                            for (InputEvent ie : transition.getInputEvents()) {
-                                if (ie.getGeneratorEvent() == null) {
-                                    LOGGER.log(Level.FINE, "\tie: " + ie + "\tgeneratorEvent is null: should be a null RP blocking IE: param IE RP = " + ie.getRelevantProxyList());
-                                    continue;
-                                }
-                                if (ie.getGeneratorEvent().getRelevantProxyList() == null) {
-                                    LOGGER.log(Level.FINE, "\tie: " + ie + "\trelevantProxyList is null");
-                                    continue;
-                                }
-                                LOGGER.log(Level.FINE, "\tie: " + ie + "\trelevantProxyList: " + ie.getGeneratorEvent().getRelevantProxyList());
-                                for (ProxyInt proxy : ie.getGeneratorEvent().getRelevantProxyList()) {
-                                    boolean relevantProxyMatched = false;
+                ArrayList<Token> placeTokens = (ArrayList<Token>) inPlace.getTokens();
+                LOGGER.log(CHECK_T_LVL, "\tChecking " + inEdge + " with in reqs [" + inEdge.getTokenRequirements() + "] against in " + inPlace + " with [" + placeTokens + "]");
+                for (TokenRequirement inReq : inEdge.getTokenRequirements()) {
+                    LOGGER.log(CHECK_T_LVL, "\t\tChecking in req: " + inReq + " and incoming place with tokens: " + placeTokens);
+                    if (inReq.getMatchQuantity() == TokenRequirement.MatchQuantity.Number && inReq.getQuantity() == 0) {
+                        LOGGER.severe("\t\t\tMatch number quantity is zero, ignoring token requirement: " + inReq);
+                        continue;
+                    } else if (inReq.getMatchQuantity() == TokenRequirement.MatchQuantity.Number && inReq.getQuantity() < 0) {
+                        LOGGER.severe("\t\t\tMatch number quantity is negative, ignoring token requirement: " + inReq);
+                        continue;
+                    }
+                    switch (inReq.getMatchCriteria()) {
+                        case AnyProxy:
+                            switch (inReq.getMatchQuantity()) {
+                                case None:
+                                    // Check that there are no proxy tokens
                                     for (Token placeToken : placeTokens) {
-                                        LOGGER.log(Level.FINE, "\t\t\tChecking if token " + placeToken + " matches any unmatched relevant proxies");
-                                        if (placeToken.getProxy() == proxy) {
-                                            LOGGER.log(Level.FINE, "\t\t\tUsing place token " + placeToken + " for input event/edge proxy token");
-                                            matchedTokens.add(placeToken);
-                                            relevantProxyMatched = true;
+                                        if (placeToken.getType() == TokenType.Proxy) {
+                                            failure = true;
                                             break;
                                         }
                                     }
-                                    if (!relevantProxyMatched) {
-                                        LOGGER.log(Level.FINE, "\t\tFailed to find token in place matching IE relevant proxy " + proxy);
-                                        failure = true;
-                                        break check;
+                                    break;
+                                case Number:
+                                    // Check that there are at least n proxy tokens
+                                    int proxyTokenCount = 0;
+                                    for (Token placeToken : placeTokens) {
+                                        if (placeToken.getType() == TokenType.Proxy) {
+                                            proxyTokenCount++;
+                                        }
                                     }
-                                }
+                                    if (proxyTokenCount < inReq.getQuantity()) {
+                                        failure = true;
+                                    }
+                                    break;
+                                default:
+                                    LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + inReq);
+                                    failure = true;
+                                    break;
                             }
                             break;
-                        case MatchGeneric:
-                            failure = !placeTokens.remove(edgeToken);
-                            if (!failure) {
-                                matchedTokens.add(edgeToken);
-                                removedTokens.add(edgeToken);
-                            } else {
-                                LOGGER.fine("\t Failed G check");
+                        case AnyTask:
+                            switch (inReq.getMatchQuantity()) {
+                                case None:
+                                    // Check that there are no task tokens
+                                    for (Token placeToken : placeTokens) {
+                                        if (placeToken.getType() == TokenType.Task) {
+                                            failure = true;
+                                            break;
+                                        }
+                                    }
+                                    break;
+                                case Number:
+                                    // Check that there are at least n task tokens
+                                    int taskTokenCount = 0;
+                                    for (Token placeToken : placeTokens) {
+                                        if (placeToken.getType() == TokenType.Task) {
+                                            taskTokenCount++;
+                                        }
+                                    }
+                                    if (taskTokenCount < inReq.getQuantity()) {
+                                        failure = true;
+                                    }
+                                    break;
+                                default:
+                                    LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + inReq);
+                                    failure = true;
+                                    break;
                             }
                             break;
-                        case Task:
-                            failure = !placeTokens.remove(edgeToken);
-                            if (!failure) {
-                                matchedTokens.add(edgeToken);
-                                removedTokens.add(edgeToken);
-                            } else {
-                                LOGGER.fine("\t Failed Task check");
+                        case AnyToken:
+                            switch (inReq.getMatchQuantity()) {
+                                case None:
+                                    // Check that there are no tokens
+                                    if (!placeTokens.isEmpty()) {
+                                        failure = true;
+                                    }
+                                    break;
+                                case Number:
+                                    // Check that there are at least n tokens
+                                    if (placeTokens.size() < inReq.getQuantity()) {
+                                        failure = true;
+                                    }
+                                    break;
+                                default:
+                                    LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + inReq);
+                                    failure = true;
+                                    break;
+                            }
+                            break;
+                        case Generic:
+                            switch (inReq.getMatchQuantity()) {
+                                case None:
+                                    // Check that there are no generic tokens
+                                    for (Token placeToken : placeTokens) {
+                                        if (placeToken.getType() == TokenType.Generic) {
+                                            failure = true;
+                                            break;
+                                        }
+                                    }
+                                    break;
+                                case Number:
+                                    // Check that there are at least n generic tokens
+                                    int genericTokenCount = 0;
+                                    for (Token placeToken : placeTokens) {
+                                        if (placeToken.getType() == TokenType.Generic) {
+                                            genericTokenCount++;
+                                        }
+                                    }
+                                    if (genericTokenCount < inReq.getQuantity()) {
+                                        failure = true;
+                                    }
+                                    break;
+                                default:
+                                    LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + inReq);
+                                    failure = true;
+                                    break;
+                            }
+                            break;
+                        case None:
+                            break;
+                        case RelevantToken:
+                            ArrayList<ProxyInt> relevantProxies;
+                            switch (inReq.getMatchQuantity()) {
+                                case None:
+                                    // Check that there are no copies of any of the relevant proxy tokens
+                                    relevantProxies = getRelevantProxies(transition);
+                                    for (Token placeToken : placeTokens) {
+                                        if (placeToken.getType() == TokenType.Proxy
+                                                && placeToken.getProxy() != null
+                                                && relevantProxies.contains(placeToken.getProxy())) {
+                                            failure = true;
+                                            break;
+                                        }
+                                    }
+                                    break;
+                                case Number:
+                                    // Check that there is at least n copies of each relevant proxy token
+                                    // Get n copies of relevant proxies
+                                    relevantProxies = new ArrayList<ProxyInt>();
+                                    for (int count = inReq.getQuantity(); count > 0; count--) {
+                                        relevantProxies.addAll(getRelevantProxies(transition));
+                                    }
+                                    // Go through token list and remove item from relevant proxy list where appropriate 
+                                    for (Token placeToken : placeTokens) {
+                                        if (placeToken.getType() == TokenType.Proxy
+                                                && placeToken.getProxy() != null
+                                                && relevantProxies.contains(placeToken.getProxy())) {
+                                            relevantProxies.remove(placeToken.getProxy());
+                                        }
+                                    }
+                                    // If anything is still left in the relevant proxies list, the check fails
+                                    if (!relevantProxies.isEmpty()) {
+                                        failure = true;
+                                    }
+                                    break;
+                                default:
+                                    LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + inReq);
+                                    failure = true;
+                                    break;
+                            }
+                            break;
+                        case SpecificTask:
+                            String taskName = inReq.getTaskName();
+                            Task task = taskNameToTask.get(taskName);
+                            switch (inReq.getMatchQuantity()) {
+                                case None:
+                                    // Check that there is no copy of the specific task token
+                                    for (Token placeToken : placeTokens) {
+                                        if (placeToken.getType() == TokenType.Task
+                                                && placeToken.getTask() != null
+                                                && placeToken.getTask() == task) {
+                                            failure = true;
+                                            break;
+                                        }
+                                    }
+                                    break;
+                                case Number:
+                                    // Check that there are n copies of the specific task token
+                                    int count = 0;
+                                    for (Token placeToken : placeTokens) {
+                                        if (placeToken.getType() == TokenType.Task
+                                                && placeToken.getTask() != null
+                                                && placeToken.getTask() == task) {
+                                            count++;
+                                        }
+                                    }
+                                    if (count < inReq.getQuantity()) {
+                                        failure = true;
+                                    }
+                                    break;
+                                default:
+                                    LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + inReq);
+                                    failure = true;
+                                    break;
                             }
                             break;
                         default:
-                            LOGGER.severe("Edge has unexpected token requirements: " + edgeToken);
+                            LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + inReq);
                             failure = true;
                             break;
                     }
                     if (failure) {
-                        LOGGER.log(Level.FINE, "\tFailed check");
+                        LOGGER.log(CHECK_T_LVL, "\t\t\tFailed check");
                         break check;
                     }
                 }
                 if (failure) {
                     LOGGER.severe("Logic error - I should not be here");
                 }
-                LOGGER.log(Level.FINE, "\tEdge requirements have been met");
+                LOGGER.log(CHECK_T_LVL, "\t\tEdge requirements have been met");
             }
         }
 
-        // Return all removed tokens
-        for (Place place : placeToRemovedTokens.keySet()) {
-            place.getTokens().addAll(placeToRemovedTokens.get(place));
-        }
-
         if (!failure) {
-            LOGGER.log(Level.FINE, "\tAll event requirements have been met");
-            LOGGER.log(Level.FINE, "\tTransition " + transition + " is ready!");
-            return placeToMatchedTokens;
+            LOGGER.log(CHECK_T_LVL, "\tTransition " + transition + " is ready!");
+            return true;
         }
-        return null;
+        return false;
     }
 
-    private synchronized void executeTransition(Transition transition, HashMap<Place, ArrayList<Token>> matchedTokens) {
-        LOGGER.info("Executing " + transition + ", have matched tokens " + matchedTokens + ", inPlaces: " + transition.getInPlaces() + ", inEdges: " + transition.getInEdges() + ", outPlaces: " + transition.getOutPlaces() + ", outEdges: " + transition.getOutEdges());
+    private synchronized void executeTransition(Transition transition) {
+        LOGGER.info("Executing " + transition + ", inPlaces: " + transition.getInPlaces() + ", inEdges: " + transition.getInEdges() + ", outPlaces: " + transition.getOutPlaces() + ", outEdges: " + transition.getOutEdges());
 
         synchronized (placesBeingEntered) {
             for (Place place : transition.getInPlaces()) {
                 if (placesBeingEntered.contains(place)) {
-                    LOGGER.log(Level.FINE, "\tAborting executeTransition becaues an incoming place is still being entered: " + place);
+                    LOGGER.log(EXE_T_LVL, "\tAborting executeTransition becaues an incoming place is still being entered: " + place);
                     return;
                 }
             }
         }
 
-        // Get lists of various token groups ready ahead of time
-        ArrayList<ProxyInt> relevantProxies = new ArrayList<ProxyInt>();
-        for (InputEvent ie : transition.getInputEvents()) {
-            if (ie.getGeneratorEvent() == null) {
-                LOGGER.log(Level.FINE, "\tie: " + ie + "\tgeneratorEvent is null: should be a null RP blocking IE: param IE RP = " + ie.getRelevantProxyList());
-            }
-            if (ie.getGeneratorEvent() != null && ie.getGeneratorEvent().getRelevantProxyList() != null) {
-                LOGGER.log(Level.FINE, "\tie: " + ie + "\tgeneratorEvent is not null and has RP: " + ie.getGeneratorEvent().getRelevantProxyList());
-                relevantProxies.addAll(ie.getGeneratorEvent().getRelevantProxyList());
-            }
-        }
-
-        boolean proxyTokensFound = true;
-        ArrayList<Token> relevantProxyTokens = new ArrayList<Token>();
-        if (!relevantProxies.isEmpty()) {
-            for (Place inPlace : transition.getInPlaces()) {
-                boolean tokenMatchFound = false;
-                for (Token token : inPlace.getTokens()) {
-                    if (relevantProxies.contains(token.getProxy())) {
-                        relevantProxyTokens.add(token);
-                        tokenMatchFound = true;
-                    }
-                }
-                if (!tokenMatchFound) {
-                    proxyTokensFound = false;
-                }
-            }
-        }
-        boolean taskTokensFound = true;
-        ArrayList<Token> relevantTaskTokens = new ArrayList<Token>();
-        if (!relevantProxies.isEmpty()) {
-            for (Place inPlace : transition.getInPlaces()) {
-                boolean tokenMatchFound = false;
-                for (Token token : inPlace.getTokens()) {
-                    if (relevantProxies.contains(token.getProxy())
-                            && token.getType() == TokenType.Task) {
-                        relevantTaskTokens.add(token);
-                        tokenMatchFound = true;
-                    }
-                }
-                if (!tokenMatchFound) {
-                    taskTokensFound = false;
-                }
-            }
-        }
-        ArrayList<Token> allTokens = new ArrayList<Token>();
-        for (Place inPlace : transition.getInPlaces()) {
-            for (Token token : inPlace.getTokens()) {
-                allTokens.add(token);
-            }
-        }
-        ArrayList<Token> allTaskTokens = new ArrayList<Token>();
-        for (Place inPlace : transition.getInPlaces()) {
-            for (Token token : inPlace.getTokens()) {
-                if (token.getType() == TokenType.Task) {
-                    allTaskTokens.add(token);
-                }
-            }
-        }
-        ArrayList<Token> allProxyTokens = new ArrayList<Token>();
-        for (Place inPlace : transition.getInPlaces()) {
-            for (Token token : inPlace.getTokens()) {
-                if (token.getType() == TokenType.Proxy) {
-                    allProxyTokens.add(token);
-                }
-            }
-        }
-
-        // Explicity named task tokens
-        HashMap<Place, ArrayList<Token>> inPlaceToTaskTokensToRemove = new HashMap<Place, ArrayList<Token>>();
-        HashMap<Place, ArrayList<Token>> outPlaceToTaskTokensToAdd = new HashMap<Place, ArrayList<Token>>();
-        // Number of generic tokens to add/remove
-        HashMap<Place, Integer> inPlaceToGenericToRemove = new HashMap<Place, Integer>();
-        HashMap<Place, Integer> outPlaceToGenericToAdd = new HashMap<Place, Integer>();
-        // boolean[5] corrensponds to add/remove [ All, RelevantTasks, RelevantProxies, Tasks, Proxies ]
-        HashMap<Place, boolean[]> inPlaceToListsToRemove = new HashMap<Place, boolean[]>();
-        HashMap<Place, boolean[]> outPlaceToListsToAdd = new HashMap<Place, boolean[]>();
-
-        for (Place inPlace : transition.getInPlaces()) {
-            inPlaceToTaskTokensToRemove.put(inPlace, new ArrayList<Token>());
-            inPlaceToGenericToRemove.put(inPlace, 0);
-            inPlaceToListsToRemove.put(inPlace, new boolean[]{false, false, false, false, false});
-        }
-        for (Place outPlace : transition.getOutPlaces()) {
-            outPlaceToTaskTokensToAdd.put(outPlace, new ArrayList<Token>());
-            outPlaceToGenericToAdd.put(outPlace, 0);
-            outPlaceToListsToAdd.put(outPlace, new boolean[]{false, false, false, false, false});
-        }
-
         ////
         // Figure out what to add and remove
         ////
-        for (Edge outEdge : transition.getOutEdges()) {
-            // Get outgoing Place
-            Vertex vertex = outEdge.getEnd();
-            if (!(vertex instanceof Place)) {
-                LOGGER.log(Level.SEVERE, "\tPreceding Vertex " + vertex + " is not a Place!");
-                System.exit(0);
-            }
-            Place place = (Place) vertex;
+        // For each outgoing place
+        // For each out place, which tokens from in places should be added to the out place?
+        Hashtable<Place, Hashtable<Place, boolean[]>> outPlaceToInPlaceToTokenAdd = new Hashtable<Place, Hashtable<Place, boolean[]>>();
+        // For each in place, which tokens should be removed?
+        Hashtable<Place, boolean[]> inPlaceToTokenRemove = new Hashtable<Place, boolean[]>();
+        // For each out place, which tokens from input event's relevant token list should be added to the out place?
+        Hashtable<Place, Hashtable<InputEvent, boolean[]>> outPlaceToIeToRelTokenAdd = new Hashtable<Place, Hashtable<InputEvent, boolean[]>>();
+        // For each out place, which specifically named task tokens should be added?
+        Hashtable<Place, ArrayList<Token>> outPlaceToTaskTokensToAdd = new Hashtable<Place, ArrayList<Token>>();
+        // For each out place, how many generic tokens should be added?
+        Hashtable<Place, Integer> outPlaceToGenericTokenAdd = new Hashtable<Place, Integer>();
 
-            ArrayList<Token> taskTokensToAdd = outPlaceToTaskTokensToAdd.get(place);
-            Integer genericToAdd = outPlaceToGenericToAdd.get(place);
-            // boolean[5] corrensponds to add/remove [ All, RelevantTasks, RelevantProxies, TakeTask, TakeProxy ]
-            boolean[] listsToAdd = outPlaceToListsToAdd.get(place);
-
-            token:
-            for (Token edgeToken : outEdge.getTokenRequirements()) {
-                switch (edgeToken.getType()) {
-                    case TakeAll:
-                        listsToAdd[0] = true;
-                        for (Place inPlace : transition.getInPlaces()) {
-                            boolean[] listsToRemove = inPlaceToListsToRemove.get(inPlace);
-                            listsToRemove[0] = true;
-                        }
-                        break;
-                    case CopyRelevantTask:
-                        listsToAdd[1] = true;
-                        break;
-                    case CopyRelevantProxy:
-                        listsToAdd[2] = true;
-                        break;
-                    case TakeRelevantTask:
-                        listsToAdd[1] = true;
-                        for (Place inPlace : transition.getInPlaces()) {
-                            boolean[] listsToRemove = inPlaceToListsToRemove.get(inPlace);
-                            listsToRemove[1] = true;
-                        }
-                        break;
-                    case TakeRelevantProxy:
-                        listsToAdd[2] = true;
-                        for (Place inPlace : transition.getInPlaces()) {
-                            boolean[] listsToRemove = inPlaceToListsToRemove.get(inPlace);
-                            listsToRemove[2] = true;
-                        }
-                        break;
-                    case TakeTask:
-                        listsToAdd[3] = true;
-                        for (Place inPlace : transition.getInPlaces()) {
-                            boolean[] listsToRemove = inPlaceToListsToRemove.get(inPlace);
-                            listsToRemove[3] = true;
-                        }
-                        break;
-                    case TakeProxy:
-                        listsToAdd[4] = true;
-                        for (Place inPlace : transition.getInPlaces()) {
-                            boolean[] listsToRemove = inPlaceToListsToRemove.get(inPlace);
-                            listsToRemove[4] = true;
-                        }
-                        break;
-                    case TakeGeneric:
-                        genericToAdd++;
-                        for (Place inPlace : transition.getInPlaces()) {
-                            Integer genericCount = inPlaceToGenericToRemove.get(inPlace);
-                            inPlaceToGenericToRemove.put(inPlace, genericCount + 1);
-                        }
-                        break;
-                    case AddGeneric:
-                        genericToAdd++;
-                        break;
-                    case ConsumeRelevantTask:
-                        for (Place inPlace : transition.getInPlaces()) {
-                            boolean[] listsToRemove = inPlaceToListsToRemove.get(inPlace);
-                            listsToRemove[1] = true;
-                        }
-                        break;
-                    case ConsumeRelevantProxy:
-                        for (Place inPlace : transition.getInPlaces()) {
-                            boolean[] listsToRemove = inPlaceToListsToRemove.get(inPlace);
-                            listsToRemove[2] = true;
-                        }
-                        break;
-                    case ConsumeGeneric:
-                        for (Place inPlace : transition.getInPlaces()) {
-                            Integer genericCount = inPlaceToGenericToRemove.get(inPlace);
-                            inPlaceToGenericToRemove.put(inPlace, genericCount + 1);
-                        }
-                        break;
-                    case Task:
-                        // Add the token to the outgoing place
-                        taskTokensToAdd.add(edgeToken);
-                        // Look at the incoming edges - for those that also have this task token marked, 
-                        //  remove the task token from the connected place
-                        for (Edge inEdge : transition.getInEdges()) {
-                            ArrayList<Token> tokensToRemove = inPlaceToTaskTokensToRemove.get((Place) inEdge.getStart());
-                            if (inEdge.getTokenRequirements().contains(edgeToken)) {
-                                tokensToRemove.add(edgeToken);
-                            }
-                        }
-                        break;
-                    case TakeNone:
-                        break token;
-                    default:
-                        LOGGER.severe("Edge has unexpected token requirements: " + edgeToken);
-                        break;
-                }
+        // Initialize hashtable values
+        Hashtable<InputEvent, boolean[]> ieToRelTokenAddMaster = new Hashtable<InputEvent, boolean[]>();
+        for (InputEvent ie : transition.getInputEvents()) {
+            if (ie.getGeneratorEvent() == null) {
+                LOGGER.log(EXE_T_LVL, "\tie: " + ie + "\tgeneratorEvent is null: should be a null RP blocking IE: param IE RP = " + ie.getRelevantProxyList());
             }
-            // Need to update this hashtable entry
-            outPlaceToGenericToAdd.put(place, genericToAdd);
+            if (ie.getGeneratorEvent() != null && ie.getGeneratorEvent().getRelevantProxyList() != null) {
+                LOGGER.log(EXE_T_LVL, "\tie: " + ie + "\tgeneratorEvent is not null and has RP: " + ie.getGeneratorEvent().getRelevantProxyList());
+                ieToRelTokenAddMaster.put(ie.getGeneratorEvent(), new boolean[ie.getGeneratorEvent().getRelevantProxyList().size()]);
+            }
         }
-
-        ////
-        // Remove things
-        ////
-        // If we have a take all, just remove everything and we're done
-        //  else we have to check for intersections...no double counting
         for (Place inPlace : transition.getInPlaces()) {
-            // boolean[3] corrensponds to add/remove [ All, RelevantTasks, RelevantProxies ]
-            boolean[] listsToRemove = inPlaceToListsToRemove.get(inPlace);
-            LOGGER.log(Level.FINE, "ListsToRemove for Place: " + inPlace + " leading to Transition: " + transition + "\n" + listsToRemove[0] + "\t" + listsToRemove[1] + "\t" + listsToRemove[2]);
-            ArrayList<Token> taskTokensToRemove = inPlaceToTaskTokensToRemove.get(inPlace);
-            LOGGER.log(Level.FINE, "TaskTokensToRemove for Place: " + inPlace + " leading to Transition: " + transition + "\n" + taskTokensToRemove);
-            Integer genericCount = inPlaceToGenericToRemove.get(inPlace);
-            ArrayList<Token> tokensToRemove = new ArrayList<Token>();
+            inPlaceToTokenRemove.put(inPlace, new boolean[inPlace.getTokens().size()]);
+        }
+        for (Place outPlace : transition.getOutPlaces()) {
+            Hashtable<Place, boolean[]> inPlaceToTokenAdd = new Hashtable<Place, boolean[]>();
+            for (Place inPlace : transition.getInPlaces()) {
+                inPlaceToTokenAdd.put(inPlace, new boolean[inPlace.getTokens().size()]);
+            }
+            outPlaceToInPlaceToTokenAdd.put(outPlace, inPlaceToTokenAdd);
+            outPlaceToIeToRelTokenAdd.put(outPlace, (Hashtable<InputEvent, boolean[]>) ieToRelTokenAddMaster.clone());
+            outPlaceToTaskTokensToAdd.put(outPlace, new ArrayList<Token>());
+            outPlaceToGenericTokenAdd.put(outPlace, 0);
+        }
 
-            if (listsToRemove[0]) {
-                // Remove all and finish
-                LOGGER.log(Level.FINER, "\tRemove all");
-                tokensToRemove.addAll(inPlace.getTokens());
-            } else {
-                if (listsToRemove[1]) {
-                    // Remove relevant task tokens
-                    for (Token token : relevantTaskTokens) {
-                        if (!tokensToRemove.contains(token)) {
-                            LOGGER.log(Level.FINER, "\tRemove RT token: " + token);
-                            tokensToRemove.add(token);
-                        }
-                    }
+        // Start filling hashtable values
+        for (OutEdge outEdge : transition.getOutEdges()) {
+            LOGGER.log(EXE_T_LVL, "\tChecking " + outEdge + " with out reqs " + outEdge.getTokenRequirements());
+            // Get outgoing place
+            Place outPlace = outEdge.getEnd();
+            Hashtable<Place, boolean[]> inPlaceToTokenAdd = outPlaceToInPlaceToTokenAdd.get(outPlace);
+
+            for (OutTokenRequirement outReq : outEdge.getTokenRequirements()) {
+                LOGGER.log(EXE_T_LVL, "\t\tChecking " + outReq);
+                if (outReq.getMatchQuantity() == TokenRequirement.MatchQuantity.Number && outReq.getQuantity() == 0) {
+                    LOGGER.severe("\t\t\tMatch number quantity is zero, ignoring token requirement: " + outReq);
+                    continue;
+                } else if (outReq.getMatchQuantity() == TokenRequirement.MatchQuantity.Number && outReq.getQuantity() < 0) {
+                    LOGGER.severe("\t\t\tMatch number quantity is negative, ignoring token requirement: " + outReq);
+                    continue;
                 }
-                if (listsToRemove[2]) {
-                    // Remove relevant proxy tokens
-                    for (Token token : relevantProxyTokens) {
-                        if (!tokensToRemove.contains(token)) {
-                            LOGGER.log(Level.FINER, "\tRemove RP token: " + token);
-                            tokensToRemove.add(token);
+                switch (outReq.getMatchCriteria()) {
+                    case AnyProxy:
+                        switch (outReq.getMatchAction()) {
+                            case Add:
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // Add proxy tokens in all incoming places (including duplicates)
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (inPlaceTokens.get(i).getType() == TokenType.Proxy) {
+                                                    tokenAdd[i] = true;
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    case Number:
+                                        // Add n proxy tokens chosen arbitrarily from incoming places (does not guarantee unique proxies)
+                                        int count = 0;
+                                        boolean done = false;
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (count == outReq.getQuantity()) {
+                                                    done = true;
+                                                    break;
+                                                }
+                                                if (inPlaceTokens.get(i).getType() == TokenType.Proxy) {
+                                                    tokenAdd[i] = true;
+                                                    count++;
+                                                }
+                                            }
+                                            if (done) {
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                        break;
+                                }
+                                break;
+                            case Consume:
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // Remove all proxy tokens in all incoming places
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (inPlaceTokens.get(i).getType() == TokenType.Proxy) {
+                                                    tokenRemove[i] = true;
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    case Number:
+                                        // Remove n proxy tokens chosen arbitrarily from incoming places (does not guarantee unique proxies)
+                                        int count = 0;
+                                        boolean done = false;
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (count == outReq.getQuantity()) {
+                                                    done = true;
+                                                    break;
+                                                }
+                                                if (inPlaceTokens.get(i).getType() == TokenType.Proxy) {
+                                                    tokenRemove[i] = true;
+                                                    count++;
+                                                }
+                                            }
+                                            if (done) {
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                        break;
+                                }
+                                break;
+                            case Take:
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // Remove proxy tokens in all incoming places (including duplicates) and add them to the outgoing place
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (inPlaceTokens.get(i).getType() == TokenType.Proxy) {
+                                                    tokenRemove[i] = true;
+                                                    tokenAdd[i] = true;
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    case Number:
+                                        // Remove n proxy tokens chosen arbitrarily from incoming places (does not guarantee unique proxies) and add them to the outgoing place
+                                        int count = 0;
+                                        boolean done = false;
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (count == outReq.getQuantity()) {
+                                                    done = true;
+                                                    break;
+                                                }
+                                                if (inPlaceTokens.get(i).getType() == TokenType.Proxy) {
+                                                    tokenRemove[i] = true;
+                                                    tokenAdd[i] = true;
+                                                    count++;
+                                                }
+                                            }
+                                            if (done) {
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                        break;
+                                }
+                                break;
+                            default:
+                                LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                break;
                         }
-                    }
-                }
-                if (listsToRemove[3]) {
-                    // Remove all task tokens
-                    for (Token token : inPlace.getTokens()) {
-                        if (token.getType() == TokenType.Task && !tokensToRemove.contains(token)) {
-                            LOGGER.log(Level.FINER, "\tRemove all task token: " + token);
-                            tokensToRemove.add(token);
+                        break;
+                    case AnyTask:
+                        switch (outReq.getMatchAction()) {
+                            case Add:
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // Add all task tokens in all incoming places (including duplicates)
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (inPlaceTokens.get(i).getType() == TokenType.Proxy) {
+                                                    tokenAdd[i] = true;
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    case Number:
+                                        // Add n task tokens chosen arbitrarily from incoming places (does not guarantee unique tasks)
+                                        int count = 0;
+                                        boolean done = false;
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (count == outReq.getQuantity()) {
+                                                    done = true;
+                                                    break;
+                                                }
+                                                if (inPlaceTokens.get(i).getType() == TokenType.Task) {
+                                                    tokenAdd[i] = true;
+                                                    count++;
+                                                }
+                                            }
+                                            if (done) {
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                        break;
+                                }
+                                break;
+                            case Consume:
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // Remove all task tokens in all incoming places
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (inPlaceTokens.get(i).getType() == TokenType.Task) {
+                                                    tokenRemove[i] = true;
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    case Number:
+                                        // Remove n task tokens chosen arbitrarily from incoming places (does not guarantee unique tasks)
+                                        int count = 0;
+                                        boolean done = false;
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (count == outReq.getQuantity()) {
+                                                    done = true;
+                                                    break;
+                                                }
+                                                if (inPlaceTokens.get(i).getType() == TokenType.Task) {
+                                                    tokenRemove[i] = true;
+                                                    count++;
+                                                }
+                                            }
+                                            if (done) {
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                        break;
+                                }
+                                break;
+                            case Take:
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // Remove all task tokens in all incoming places (including duplicates) and add them to the outgoing place
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (inPlaceTokens.get(i).getType() == TokenType.Task) {
+                                                    tokenRemove[i] = true;
+                                                    tokenAdd[i] = true;
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    case Number:
+                                        // Remove n task tokens chosen arbitrarily from incoming places (does not guarantee unique tasks) and add them to the outgoing place
+                                        int count = 0;
+                                        boolean done = false;
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (count == outReq.getQuantity()) {
+                                                    done = true;
+                                                    break;
+                                                }
+                                                if (inPlaceTokens.get(i).getType() == TokenType.Task) {
+                                                    tokenRemove[i] = true;
+                                                    tokenAdd[i] = true;
+                                                    count++;
+                                                }
+                                            }
+                                            if (done) {
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                        break;
+                                }
+                                break;
+                            default:
+                                LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                break;
                         }
-                    }
-                }
-                if (listsToRemove[4]) {
-                    // Remove all proxy tokens
-                    for (Token token : inPlace.getTokens()) {
-                        if (token.getType() == TokenType.Proxy && !tokensToRemove.contains(token)) {
-                            LOGGER.log(Level.FINER, "\tRemove all proxy token: " + token);
-                            tokensToRemove.add(token);
+                        break;
+                    case AnyToken:
+                        switch (outReq.getMatchAction()) {
+                            case Add:
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // Add all tokens in all incoming places (including duplicates)
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                tokenAdd[i] = true;
+                                            }
+                                        }
+                                        break;
+                                    case Number:
+                                        // Add n tokens chosen arbitrarily from incoming places (does not guarantee unique tokens)
+                                        int count = 0;
+                                        boolean done = false;
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (count == outReq.getQuantity()) {
+                                                    done = true;
+                                                    break;
+                                                }
+                                                tokenAdd[i] = true;
+                                            }
+                                            if (done) {
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                        break;
+                                }
+                                break;
+                            case Consume:
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // Remove all tokens in all incoming places
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                tokenRemove[i] = true;
+                                            }
+                                        }
+                                        break;
+                                    case Number:
+                                        // Remove n tokens chosen arbitrarily from incoming places (does not guarantee unique tokens)
+                                        int count = 0;
+                                        boolean done = false;
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (count == outReq.getQuantity()) {
+                                                    done = true;
+                                                    break;
+                                                }
+                                                tokenRemove[i] = true;
+                                            }
+                                            if (done) {
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                        break;
+                                }
+                                break;
+                            case Take:
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // Remove all tokens in all incoming places (including duplicates) and add them to the outgoing place
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                tokenRemove[i] = true;
+                                                tokenAdd[i] = true;
+                                            }
+                                        }
+                                        break;
+                                    case Number:
+                                        // Remove n tokens chosen arbitrarily from incoming places (does not guarantee unique tokens) and add them to the outgoing place
+                                        int count = 0;
+                                        boolean done = false;
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (count == outReq.getQuantity()) {
+                                                    done = true;
+                                                    break;
+                                                }
+                                                tokenRemove[i] = true;
+                                                tokenAdd[i] = true;
+                                            }
+                                            if (done) {
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                        break;
+                                }
+                                break;
+                            default:
+                                LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                break;
                         }
-                    }
-                }
-                if (!taskTokensToRemove.isEmpty()) {
-                    for (Token token : taskTokensToRemove) {
-                        if (!tokensToRemove.contains(token)) {
-                            LOGGER.log(Level.FINER, "\tRemove task token to remove: " + token);
-                            tokensToRemove.add(token);
+                        break;
+                    case Generic:
+                        switch (outReq.getMatchAction()) {
+                            case Add:
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // Add all generic tokens found in incoming places
+                                        for (Place inPlace : inPlaceToTokenAdd.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (inPlaceTokens.get(i).getType() == TokenType.Generic) {
+                                                    tokenAdd[i] = true;
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    case Number:
+                                        // Add n generic tokens
+                                        outPlaceToGenericTokenAdd.put(outPlace, outReq.getQuantity());
+                                        break;
+                                    default:
+                                        LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                        break;
+                                }
+                                break;
+                            case Consume:
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // Remove all generic tokens in all incoming places
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (inPlaceTokens.get(i).getType() == TokenType.Generic) {
+                                                    tokenRemove[i] = true;
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    case Number:
+                                        // Remove n generic tokens chosen arbitrarily from incoming places
+                                        int count = 0;
+                                        boolean done = false;
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (count == outReq.getQuantity()) {
+                                                    done = true;
+                                                    break;
+                                                }
+                                                if (inPlaceTokens.get(i).getType() == TokenType.Generic) {
+                                                    tokenRemove[i] = true;
+                                                    count++;
+                                                }
+                                            }
+                                            if (done) {
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                        break;
+                                }
+                                break;
+                            case Take:
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // Remove all generic tokens in all incoming places and add them to the outgoing place
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (inPlaceTokens.get(i).getType() == TokenType.Generic) {
+                                                    tokenRemove[i] = true;
+                                                    tokenAdd[i] = true;
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    case Number:
+                                        // Remove n generic tokens chosen arbitrarily from incoming places and add them to the outgoing place
+                                        int count = 0;
+                                        boolean done = false;
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (count == outReq.getQuantity()) {
+                                                    done = true;
+                                                    break;
+                                                }
+                                                if (inPlaceTokens.get(i).getType() == TokenType.Generic) {
+                                                    tokenRemove[i] = true;
+                                                    tokenAdd[i] = true;
+                                                    count++;
+                                                }
+                                            }
+                                            if (done) {
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                        break;
+                                }
+                                break;
+                            default:
+                                LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                break;
                         }
-                    }
-                }
-                if (genericCount > 0) {
-                    for (int i = 0; i < genericCount; i++) {
-                        LOGGER.log(Level.FINER, "\tRemove generic");
-                        tokensToRemove.add(Engine.getInstance().getGenericToken());
-                    }
+                        break;
+                    case None:
+                        break;
+                    case RelevantToken:
+                        // A relevant token is a token whose proxy (non-null) is contained in an input event's relevantProxyList
+                        ArrayList<ProxyInt> relevantProxies;
+                        Hashtable<InputEvent, boolean[]> ieToRelTokenAdd = outPlaceToIeToRelTokenAdd.get(outPlace);
+                        switch (outReq.getMatchAction()) {
+                            case Add:
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // Add a copy of each relevant proxy's proxy token to the outgoing place
+                                        for (boolean[] tokenAdd : ieToRelTokenAdd.values()) {
+                                            for (int i = 0; i < tokenAdd.length; i++) {
+                                                tokenAdd[i] = true;
+                                            }
+                                        }
+                                        break;
+                                    case Number:
+                                        // Arbitrarily choose n relevant proxys from input events on the transition and add a copy of their proxy token to the outgoing place
+                                        int count = 0;
+                                        boolean done = false;
+                                        for (boolean[] tokenAdd : ieToRelTokenAdd.values()) {
+                                            for (int i = 0; i < tokenAdd.length; i++) {
+                                                if (count == outReq.getQuantity()) {
+                                                    done = true;
+                                                    break;
+                                                }
+                                                tokenAdd[i] = true;
+                                                count++;
+                                            }
+                                            if (done) {
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                        break;
+                                }
+                                break;
+                            case Consume:
+                                relevantProxies = getRelevantProxies(transition);
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // Remove all relevant tokens from all incoming places
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> placeTokens = (ArrayList<Token>) inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            for (int i = 0; i < tokenRemove.length; i++) {
+                                                Token placeToken = placeTokens.get(i);
+                                                if (placeToken.getType() == TokenType.Proxy
+                                                        && placeToken.getProxy() != null
+                                                        && relevantProxies.contains(placeToken.getProxy())) {
+                                                    tokenRemove[i] = true;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    case Number:
+                                        // Arbitrarily choose a total of n relevant tokens from incoming places and remove them
+                                        int count = 0;
+                                        boolean done = false;
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> placeTokens = (ArrayList<Token>) inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            for (int i = 0; i < tokenRemove.length; i++) {
+                                                if (count == outReq.getQuantity()) {
+                                                    done = true;
+                                                    break;
+                                                }
+                                                Token placeToken = placeTokens.get(i);
+                                                if (placeToken.getType() == TokenType.Proxy
+                                                        && placeToken.getProxy() != null
+                                                        && relevantProxies.contains(placeToken.getProxy())) {
+                                                    tokenRemove[i] = true;
+                                                    count++;
+                                                }
+                                            }
+                                            if (done) {
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                        break;
+                                }
+                                break;
+                            case Take:
+                                relevantProxies = getRelevantProxies(transition);
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // For each relevant proxy add its proxy token to the outgoing place and remove it from all incoming places
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> placeTokens = (ArrayList<Token>) inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
+                                            for (int i = 0; i < tokenRemove.length; i++) {
+                                                Token placeToken = placeTokens.get(i);
+                                                if (placeToken.getType() == TokenType.Proxy
+                                                        && placeToken.getProxy() != null
+                                                        && relevantProxies.contains(placeToken.getProxy())) {
+                                                    tokenRemove[i] = true;
+                                                    tokenAdd[i] = true;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    case Number:
+                                        // Arbitrarily choose n tokens from incoming places with a relevant proxy, remove them, and add them to the outgoing place
+                                        int count = 0;
+                                        boolean done = false;
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            ArrayList<Token> placeTokens = (ArrayList<Token>) inPlace.getTokens();
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
+                                            for (int i = 0; i < tokenRemove.length; i++) {
+                                                if (count == outReq.getQuantity()) {
+                                                    done = true;
+                                                    break;
+                                                }
+                                                Token placeToken = placeTokens.get(i);
+                                                if (placeToken.getType() == TokenType.Proxy
+                                                        && placeToken.getProxy() != null
+                                                        && relevantProxies.contains(placeToken.getProxy())) {
+                                                    tokenRemove[i] = true;
+                                                    tokenAdd[i] = true;
+                                                    count++;
+                                                }
+                                            }
+                                            if (done) {
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                        break;
+                                }
+                                break;
+                            default:
+                                LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                break;
+                        }
+                        break;
+                    case SpecificTask:
+                        String taskName = outReq.getTaskName();
+                        Task task = taskNameToTask.get(taskName);
+                        Token taskToken = null;
+                        if (task != null) {
+                            taskToken = getToken(task);
+                        }
+                        ArrayList<Token> taskTokensToAdd = outPlaceToTaskTokensToAdd.get(outPlace);
+                        switch (outReq.getMatchAction()) {
+                            case Add:
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // Add all copies of the task token found in incoming places
+                                        for (Place inPlace : inPlaceToTokenAdd.keySet()) {
+                                            boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (inPlaceTokens.get(i) == taskToken) {
+                                                    tokenAdd[i] = true;
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    case Number:
+                                        // Add n copies of the task token
+                                        for (int i = 0; i < outReq.getQuantity(); i++) {
+                                            taskTokensToAdd.add(taskToken);
+                                        }
+                                        break;
+                                    default:
+                                        LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                        break;
+                                }
+                                break;
+                            case Consume:
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // Remove any instances of the task's token from incoming places
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (inPlaceTokens.get(i) == taskToken) {
+                                                    tokenRemove[i] = true;
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    case Number:
+                                        // Remove n arbitrary instances of the task's token from incoming places
+                                        int count = 0;
+                                        boolean done = false;
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (count == outReq.getQuantity()) {
+                                                    done = true;
+                                                    break;
+                                                }
+                                                if (inPlaceTokens.get(i) == taskToken) {
+                                                    tokenRemove[i] = true;
+                                                }
+                                            }
+                                            if (done) {
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                        break;
+                                }
+                                break;
+                            case Take:
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // Remove any instances of the task's token from incoming places and add them all to the outgoing place (may have duplicates)
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (inPlaceTokens.get(i) == taskToken) {
+                                                    tokenRemove[i] = true;
+                                                    taskTokensToAdd.add(taskToken);
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    case Number:
+                                        // Remove n arbitrary instances of the task's token from incoming places and add them to the outgoing place
+                                        int count = 0;
+                                        boolean done = false;
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+                                            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                                            for (int i = 0; i < inPlaceTokens.size(); i++) {
+                                                if (count == outReq.getQuantity()) {
+                                                    done = true;
+                                                    break;
+                                                }
+                                                if (inPlaceTokens.get(i) == taskToken) {
+                                                    tokenRemove[i] = true;
+                                                    taskTokensToAdd.add(taskToken);
+                                                }
+                                            }
+                                            if (done) {
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                        break;
+                                }
+                                break;
+                            default:
+                                LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                                break;
+                        }
+                        break;
+                    default:
+                        LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
+                        break;
                 }
             }
-            LOGGER.log(Level.FINE, "TokensToRemove for Place: " + inPlace + " leading to Transition: " + transition + "\n" + tokensToRemove);
-
-            leavePlace(inPlace, tokensToRemove);
         }
 
         ////
-        // Add things
+        // Prepare to remove things
         ////
-        for (Place outPlace : transition.getOutPlaces()) {
-            // boolean[3] corrensponds to add/remove [ All, RelevantTasks, RelevantProxies ]
-            boolean[] listsToAdd = outPlaceToListsToAdd.get(outPlace);
-            ArrayList<Token> taskTokensToAdd = outPlaceToTaskTokensToAdd.get(outPlace);
-            Integer genericCount = outPlaceToGenericToAdd.get(outPlace);
-            ArrayList<Token> tokensToAdd = new ArrayList<Token>();
+        Hashtable<Place, ArrayList<Token>> inPlaceToRemove = new Hashtable<Place, ArrayList<Token>>();
+        for (Place inPlace : transition.getInPlaces()) {
+            boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
+            ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+            ArrayList<Token> tokensToRemove = new ArrayList<Token>();
+            for (int i = 0; i < tokenRemove.length; i++) {
+                if (tokenRemove[i]) {
+                    tokensToRemove.add(inPlaceTokens.get(i));
+                }
+            }
+            inPlaceToRemove.put(inPlace, tokensToRemove);
+        }
 
-            if (listsToAdd[0]) {
-                // Remove all and finish
-                tokensToAdd.addAll(allTokens);
-            } else {
-                if (listsToAdd[1]) {
-                    for (Token token : relevantTaskTokens) {
-                        if (!tokensToAdd.contains(token)) {
-                            tokensToAdd.add(token);
-                        }
-                    }
-                }
-                if (listsToAdd[2]) {
-                    for (Token token : relevantProxyTokens) {
-                        if (!tokensToAdd.contains(token)) {
-                            tokensToAdd.add(token);
-                        }
-                    }
-                }
-                if (listsToAdd[3]) {
-                    for (Token token : allTaskTokens) {
-                        if (!tokensToAdd.contains(token)) {
-                            tokensToAdd.add(token);
-                        }
-                    }
-                }
-                if (listsToAdd[4]) {
-                    for (Token token : allProxyTokens) {
-                        if (!tokensToAdd.contains(token)) {
-                            tokensToAdd.add(token);
-                        }
-                    }
-                }
-                if (!taskTokensToAdd.isEmpty()) {
-                    for (Token token : taskTokensToAdd) {
-                        if (!tokensToAdd.contains(token)) {
-                            tokensToAdd.add(token);
-                        }
-                    }
-                }
-                if (genericCount > 0) {
-                    for (int i = 0; i < genericCount; i++) {
-                        tokensToAdd.add(Engine.getInstance().getGenericToken());
+        ////
+        // Prepare to add things
+        ////
+        Hashtable<Place, ArrayList<Token>> outPlaceToAdd = new Hashtable<Place, ArrayList<Token>>();
+
+        for (Place outPlace : transition.getOutPlaces()) {
+            Hashtable<Place, boolean[]> inPlaceToTokenAdd = outPlaceToInPlaceToTokenAdd.get(outPlace);
+            ArrayList<Token> taskTokensToAdd = outPlaceToTaskTokensToAdd.get(outPlace);
+            Integer genericCount = outPlaceToGenericTokenAdd.get(outPlace);
+            Hashtable<InputEvent, boolean[]> ieToRelTokenAdd = outPlaceToIeToRelTokenAdd.get(outPlace);
+
+            ArrayList<Token> tokensToAdd = new ArrayList<Token>();
+            for (Place inPlace : inPlaceToTokenAdd.keySet()) {
+                ArrayList<Token> inPlaceTokens = inPlace.getTokens();
+                boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
+                for (int i = 0; i < tokenAdd.length; i++) {
+                    if (tokenAdd[i]) {
+                        tokensToAdd.add(inPlaceTokens.get(i));
                     }
                 }
             }
-            enterPlace(outPlace, tokensToAdd, false);
+            tokensToAdd.addAll(taskTokensToAdd);
+            for (int i = 0; i < genericCount; i++) {
+                tokensToAdd.add(Engine.getInstance().getGenericToken());
+            }
+            for (InputEvent ie : ieToRelTokenAdd.keySet()) {
+                ArrayList<ProxyInt> relProxyList = ie.getRelevantProxyList();
+                boolean[] tokenAdd = ieToRelTokenAdd.get(ie);
+                for (int i = 0; i < tokenAdd.length; i++) {
+                    if (tokenAdd[i]) {
+                        Token proxyToken = Engine.getInstance().getToken(relProxyList.get(i));
+                        if (proxyToken != null) {
+                            tokensToAdd.add(proxyToken);
+                        } else {
+                            LOGGER.severe("Could not find proxy token for proxy " + relProxyList.get(i));
+                        }
+                    }
+                }
+            }
+
+            outPlaceToAdd.put(outPlace, tokensToAdd);
+        }
+
+        // Actually remove things
+        for (Place inPlace : transition.getInPlaces()) {
+            leavePlace(inPlace, inPlaceToRemove.get(inPlace));
+        }
+
+        // Actually add things
+        for (Place outPlace : transition.getOutPlaces()) {
+            enterPlace(outPlace, outPlaceToAdd.get(outPlace), false);
+
         }
 
         // If we had a null RP blocking event we cloned for RPs, we should remove the clones
@@ -809,7 +1456,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         // Get a list of blocking IE classes which we cloned
         ArrayList<Class> eventClassesToRemove = new ArrayList<Class>();
         for (InputEvent ie : transition.getInputEvents()) {
-            if (ie instanceof BlockingInputEvent && ie.getRelevantProxyList() == null) {
+            if (ie.getBlocking() && ie.getRelevantProxyList() == null) {
                 eventClassesToRemove.add(ie.getClass());
 
                 // Clear lookup
@@ -840,12 +1487,12 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         ////
         // Now we can check the transitions we added tokens to
         ////
-        LOGGER.log(Level.FINE, "\tDone executing " + transition + ", checking for new transitions");
+        LOGGER.log(EXE_T_LVL, "\tDone executing " + transition + ", checking for new transitions");
         for (Place outPlace : transition.getOutPlaces()) {
             for (Transition t2 : outPlace.getOutTransitions()) {
-                HashMap<Place, ArrayList<Token>> tokensToRemove2 = checkTransition(t2);
-                if (tokensToRemove2 != null) {
-                    executeTransition(t2, tokensToRemove2);
+                boolean execute2 = checkTransition(t2);
+                if (execute2) {
+                    executeTransition(t2);
                 }
             }
         }
@@ -956,9 +1603,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         // 8 - Check if any transitions out of this place should execute
         if (checkForTransition) {
             for (Transition transition : place.getOutTransitions()) {
-                HashMap<Place, ArrayList<Token>> tokensToRemove = checkTransition(transition);
-                if (tokensToRemove != null) {
-                    executeTransition(transition, tokensToRemove);
+                boolean execute = checkTransition(transition);
+                if (execute) {
+                    executeTransition(transition);
                 };
             }
         }
@@ -1111,7 +1758,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             if (generatedEvent.getRelevantProxyList() != null) {
                 if (paramEvent.getRelevantProxyList() == null) {
                     // This is a proxy type event where no relevant proxies were specified in the OE, but relevant proxies exist in the resulting IE
-                    if (paramEvent instanceof BlockingInputEvent) {
+                    if (paramEvent.getBlocking()) {
                         // For blocking input events, we require that all proxies on incoming edges be accounted for 
                         //  (ie, be contained in the RP list of the IE or a copy of it)
                         // For instance, a ProxyExploreArea would compute paths for a set of proxies to take, but each proxy will
@@ -1134,10 +1781,10 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         ArrayList<ProxyInt> proxiesToCheck = new ArrayList<ProxyInt>();
                         // Get list of proxies that we will check that a cloned IE exists for 
                         // First add each proxy in incoming place with RP on the edge
-                        for (Edge inEdge : transition.getInEdges()) {
+                        for (InEdge inEdge : transition.getInEdges()) {
                             boolean hasRpReq = false;
-                            for (Token token : inEdge.getTokenRequirements()) {
-                                if (token.getType() == TokenType.MatchRelevantProxy) {
+                            for (TokenRequirement tokenReq : inEdge.getTokenRequirements()) {
+                                if (tokenReq.getMatchCriteria() == TokenRequirement.MatchCriteria.RelevantToken) {
                                     hasRpReq = true;
                                     break;
                                 }
@@ -1156,18 +1803,19 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         }
                         // Next, look for incoming places with a Task token on the edge
                         //  If the Task token has an assigned proxy, add it to the list of proxies to check
-                        for (Edge inEdge : transition.getInEdges()) {
-                            boolean hasRpReq = false;
-                            for (Token token : inEdge.getTokenRequirements()) {
-                                if (token.getType() == TokenType.Task) {
-                                    if (token.getProxy() != null && !proxiesToCheck.contains(token.getProxy())) {
-                                        proxiesToCheck.add(token.getProxy());
+                        for (InEdge inEdge : transition.getInEdges()) {
+                            for (InTokenRequirement inReq : inEdge.getTokenRequirements()) {
+                                if (inReq.getMatchCriteria() == TokenRequirement.MatchCriteria.SpecificTask) {
+                                    Task task = taskNameToTask.get(inReq.getTaskName());
+                                    if (task == null) {
+                                        LOGGER.severe("Failed to find task with name " + inReq.getTaskName());
                                     }
-                                } else if (token.getType() == TokenType.Proxy) {
-                                    // This shouldn't happen - you can't label edge with a Proxy token
-                                    //  but I'm putting it here just in case this is used in some special case in the future
-                                    if (token.getProxy() != null && !proxiesToCheck.contains(token.getProxy())) {
-                                        proxiesToCheck.add(token.getProxy());
+                                    Token taskToken = getToken(task);
+                                    if (taskToken == null) {
+                                        LOGGER.severe("Failed to find token for task " + task);
+                                    }
+                                    if (taskToken.getProxy() != null && !proxiesToCheck.contains(taskToken.getProxy())) {
+                                        proxiesToCheck.add(taskToken.getProxy());
                                     }
                                 }
                             }
@@ -1302,14 +1950,14 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             Map<ITask, AbstractAsset> allocation = generatorEvent.getAllocation().getAllocation();
             LOGGER.log(Level.FINE, "\tInputEvent " + updatedParamEvent + " tied to " + transition + " occurred with an attach allocation: " + generatorEvent.getAllocation().toString());
             for (ITask task : allocation.keySet()) {
-                Token token = Engine.getInstance().getToken((Task) task);
-                if (token != null) {
-                    LOGGER.log(Level.FINE, "\t\tFound token " + token + " for task " + task);
+                Token taskToken = getToken((Task) task);
+                if (taskToken != null) {
+                    LOGGER.log(Level.FINE, "\t\tFound token " + taskToken + " for task " + task);
                     AbstractAsset asset = allocation.get(task);
                     ProxyInt proxy = Engine.getInstance().getProxyServer().getProxy(asset);
                     if (proxy != null) {
                         LOGGER.log(Level.FINE, "\t\tFound proxy " + proxy + " for asset " + asset);
-                        token.setProxy(proxy);
+                        taskToken.setProxy(proxy);
                     } else {
                         LOGGER.log(Level.SEVERE, "\t\tCould not find proxy for asset " + asset);
                     }
@@ -1385,11 +2033,28 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         // 3 - Update the input event's status in the transition, remove it from the "active" input event list, and check if the transition should trigger now
         synchronized (activeInputEvents) {
             transition.setInputEventStatus(updatedParamEvent, true);
-            HashMap<Place, ArrayList<Token>> tokensToRemove = checkTransition(transition);
-            if (tokensToRemove != null) {
-                executeTransition(transition, tokensToRemove);
+            boolean execute = checkTransition(transition);
+            if (execute) {
+                executeTransition(transition);
             }
         }
+    }
+
+    public ArrayList<ProxyInt> getRelevantProxies(Transition transition) {
+        ArrayList<ProxyInt> list = new ArrayList<ProxyInt>();
+        for (InputEvent ie : transition.getInputEvents()) {
+            if (ie.getGeneratorEvent() == null) {
+                LOGGER.log(Level.FINE, "\tie: " + ie + "\tgeneratorEvent is null: should be a null RP blocking IE: param IE RP = " + ie.getRelevantProxyList());
+                continue;
+            }
+            if (ie.getGeneratorEvent().getRelevantProxyList() == null) {
+                LOGGER.log(Level.FINE, "\tie: " + ie + "\trelevantProxyList is null");
+                continue;
+            }
+            LOGGER.log(Level.FINE, "\tie: " + ie + "\trelevantProxyList: " + ie.getGeneratorEvent().getRelevantProxyList());
+            list.addAll(ie.getGeneratorEvent().getRelevantProxyList());
+        }
+        return list;
     }
 
     public Place getStartPlace() {
@@ -1440,13 +2105,37 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         }
     }
 
-    public void addProxyToken(Token token) {
+    public void addDefaultStartToken(Token token) {
         defaultStartTokens.add(token);
     }
 
     public void removeProxy(ProxyInt p) {
         // @todo Implement remove proxy
         LOGGER.log(Level.WARNING, "Removing proxy from plan unimplemented");
+    }
+
+    public Token getToken(Task task) {
+        return taskToToken.get(task);
+    }
+
+    public Token createToken(TaskSpecification tokenSpec) {
+        Token token = null;
+        try {
+            Object task = Class.forName(tokenSpec.getTaskClassName()).newInstance();
+            ((Task) task).setName(tokenSpec.getName());
+            token = new Token(tokenSpec.getName(), TokenType.Task, null, (Task) task);
+            taskNameToTask.put(tokenSpec.getName(), (Task) task);
+            taskToToken.put((Task) task, token);
+            tokenSpecToToken.put(tokenSpec, token);
+            Logger.getLogger(this.getClass().getName()).log(Level.FINER, "\t\t\tCreated token " + token);
+        } catch (ClassNotFoundException cnfe) {
+            cnfe.printStackTrace();
+        } catch (InstantiationException ie) {
+            ie.printStackTrace();
+        } catch (IllegalAccessException iae) {
+            iae.printStackTrace();
+        }
+        return token;
     }
 
     public String getPlanName() {
@@ -1475,9 +2164,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         if (place != null) {
             place.setSubMissionComplete(true);
             for (Transition transition : place.getOutTransitions()) {
-                HashMap<Place, ArrayList<Token>> tokensToRemove = checkTransition(transition);
-                if (tokensToRemove != null) {
-                    executeTransition(transition, tokensToRemove);
+                boolean execute = checkTransition(transition);
+                if (execute) {
+                    executeTransition(transition);
                 };
             }
         }

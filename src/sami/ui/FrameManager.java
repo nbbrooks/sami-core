@@ -7,7 +7,7 @@ import java.util.logging.Logger;
 /** * * @author  Jijun Wang */
 public class FrameManager extends javax.swing.JFrame {
 
-    private static final Logger logger = Logger.getLogger(FrameManager.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(FrameManager.class.getName());
     private static String confName = "fManager.ini";
     /** In one applicationn, we only need one frame manager */
     private static boolean existed = false;
@@ -110,7 +110,7 @@ public class FrameManager extends javax.swing.JFrame {
                 }
             }
         } catch (FileNotFoundException fe) {
-            System.out.println("No " + confName + "!");
+            LOGGER.warning("Could not find FrameManager layout configuration file " + confName);
         } catch (Exception e) {
             e.printStackTrace();
         }

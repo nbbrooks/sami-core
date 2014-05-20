@@ -21,8 +21,6 @@ public class ReflectedMarkupSpecification implements java.io.Serializable {
     //@todo need to decide if we should have to handle non-serializable classes or not...making the below unneeded - right now we assume everything is serializable
     // Non-serializable lookup from field name to object representing its defined/undefined variable name or value
     transient HashMap<String, Object> fieldNameToTransDefinition = new HashMap<String, Object>();
-//    // Event's reflected markup specs
-//    protected ArrayList<ReflectedMarkupOptionSpecification> optionSpecs = new ArrayList<ReflectedMarkupOptionSpecification>();
     // Serializable version of fieldNameToObjectInst using HashMaps and Strings to represent object
     protected HashMap<String, Object> fieldNameToSerialDefinition = new HashMap<String, Object>();
     // Markup's class name
@@ -69,9 +67,6 @@ public class ReflectedMarkupSpecification implements java.io.Serializable {
     }
 
     private void instantiateMarkupVariables(Markup markup, HashMap<String, Object> fieldNameToObject) {
-//        System.out.println("### instantiateMarkupVariables");
-//        System.out.println("###\t markup: " + markup.getClass().getSimpleName());
-//        System.out.println("###\t fieldNameToObject: " + fieldNameToObject.toString());
         for (Field field : markup.getClass().getDeclaredFields()) {
             Object definition = fieldNameToObject.get(field.getName());
             if (definition != null) {
@@ -107,12 +102,6 @@ public class ReflectedMarkupSpecification implements java.io.Serializable {
         for (String key : fieldNameToTransDefinition.keySet()) {
             copy.fieldNameToTransDefinition.put(key, fieldNameToTransDefinition.get(key));
         }
-//        if (optionSpecs != null) {
-//            copy.optionSpecs = new ArrayList<ReflectedMarkupOptionSpecification>();
-//            for (ReflectedMarkupOptionSpecification optionSpec : optionSpecs) {
-//                copy.optionSpecs.add(optionSpec.copy());
-//            }
-//        }
         return copy;
     }
 

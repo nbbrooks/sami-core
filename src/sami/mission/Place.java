@@ -18,8 +18,11 @@ import sami.markup.ReflectedMarkupSpecification;
 public class Place extends Vertex {
 
     private static final Logger LOGGER = Logger.getLogger(Place.class.getName());
-    static final long serialVersionUID = 5L;
+    static final long serialVersionUID = 6L;
     private boolean isStart, isEnd;
+    // In and out are switched here as the class naming convention is with respect to Transitions, not Places
+    protected ArrayList<OutEdge> inEdges = new ArrayList<OutEdge>();
+    protected ArrayList<InEdge> outEdges = new ArrayList<InEdge>();
     private ArrayList<Transition> inTransitions = new ArrayList<Transition>();
     private ArrayList<Transition> outTransitions = new ArrayList<Transition>();
     private MissionPlanSpecification subMission = null;
@@ -30,6 +33,30 @@ public class Place extends Vertex {
 
     public Place(String name, FunctionMode functionMode) {
         super(name, functionMode);
+    }
+
+    public void addInEdge(OutEdge edge) {
+        inEdges.add(edge);
+    }
+
+    public boolean removeInEdge(OutEdge edge) {
+        return inEdges.remove(edge);
+    }
+
+    public ArrayList<OutEdge> getInEdges() {
+        return inEdges;
+    }
+
+    public void addOutEdge(InEdge edge) {
+        outEdges.add(edge);
+    }
+
+    public boolean removeOutEdge(InEdge edge) {
+        return outEdges.remove(edge);
+    }
+
+    public ArrayList<InEdge> getOutEdges() {
+        return outEdges;
     }
 
     public void addInTransition(Transition t) {
@@ -48,16 +75,12 @@ public class Place extends Vertex {
         inTransitions.remove(t);
     }
 
-    public void setIntransitions(ArrayList<Transition> inTransitions) {
-        this.inTransitions = inTransitions;
-    }
-
-    public void setOutTransitions(ArrayList<Transition> outTransitions) {
-        this.outTransitions = outTransitions;
-    }
-
     public ArrayList<Transition> getInTransitions() {
         return inTransitions;
+    }
+
+    public void setInTransitions(ArrayList<Transition> inTransitions) {
+        this.inTransitions = inTransitions;
     }
 
     public void addOutTransition(Transition t) {
@@ -78,6 +101,10 @@ public class Place extends Vertex {
 
     public ArrayList<Transition> getOutTransitions() {
         return outTransitions;
+    }
+
+    public void setOutTransitions(ArrayList<Transition> outTransitions) {
+        this.outTransitions = outTransitions;
     }
 
     public boolean isEnd() {
@@ -220,6 +247,18 @@ public class Place extends Vertex {
         return "Place:" + name;
     }
 
+    public void prepareForRemoval() {
+        // Remove each edge
+        ArrayList<OutEdge> inEdgesClone = (ArrayList<OutEdge>) inEdges.clone();
+        for (OutEdge inEdge : inEdgesClone) {
+            inEdge.prepareForRemoval();
+        }
+        ArrayList<InEdge> outEdgesClone = (ArrayList<InEdge>) outEdges.clone();
+        for (InEdge outEdge : outEdgesClone) {
+            outEdge.prepareForRemoval();
+        }
+    }
+
     public Place copyWithoutConnections() {
         Place copy = new Place(name, functionMode);
         copy.visibilityMode = visibilityMode;
@@ -231,7 +270,7 @@ public class Place extends Vertex {
         copy.isActive = isActive;
         if (subMission != null) {
             // @todo: Should we be doing a copy with a prefix addition?
-            copy.subMission = new MissionPlanSpecification(subMission);
+            copy.subMission = subMission.deepClone();
         }
         copy.updateTag();
         return copy;
