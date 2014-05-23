@@ -1,11 +1,13 @@
 package sami.uilanguage;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import sami.event.ReflectionHelper;
 import sami.markup.Markup;
 
 /**
@@ -48,7 +50,12 @@ public class MarkupComponentHelper {
                     for (Markup markup : markups) {
                         ArrayList<String> enumFieldNames = (ArrayList<String>) (markup.getClass().getField("enumFieldNames").get(null));
                         for (String enumFieldName : enumFieldNames) {
-                            Enum enumValue = (Enum) markup.getClass().getField(enumFieldName).get(markup);
+                            Field enumField = ReflectionHelper.getField(markup.getClass(), enumFieldName);
+                            if (enumField == null) {
+                                LOGGER.severe("Could not find field \"" + enumFieldName + "\" in class " + markup.getClass().getSimpleName() + " or any super class");
+                                continue;
+                            }
+                            Enum enumValue = (Enum) enumField.get(markup);
                             if (supportedMarkups.contains(enumValue)) {
                                 score++;
                             } else {
@@ -99,14 +106,19 @@ public class MarkupComponentHelper {
                 } else {
                     for (Class widgetClass : widgetClasses) {
                         MarkupComponentWidget widget = getWidgetInstance(widgetClass);
-                        score = Math.max(score, widget.getSelectionWidgetScore((Type)selectionClass, markups));
+                        score = Math.max(score, widget.getSelectionWidgetScore((Type) selectionClass, markups));
                     }
                 }
                 if (score >= 0) {
                     for (Markup markup : markups) {
                         ArrayList<String> enumFieldNames = (ArrayList<String>) (markup.getClass().getField("enumFieldNames").get(null));
                         for (String enumFieldName : enumFieldNames) {
-                            Enum enumValue = (Enum) markup.getClass().getField(enumFieldName).get(markup);
+                            Field enumField = ReflectionHelper.getField(markup.getClass(), enumFieldName);
+                            if (enumField == null) {
+                                LOGGER.severe("Could not find field \"" + enumFieldName + "\" in class " + markup.getClass().getSimpleName() + " or any super class");
+                                continue;
+                            }
+                            Enum enumValue = (Enum) enumField.get(markup);
                             if (supportedMarkups.contains(enumValue)) {
                                 score++;
                             } else {
@@ -142,7 +154,12 @@ public class MarkupComponentHelper {
             for (Markup markup : markups) {
                 ArrayList<String> enumFieldNames = (ArrayList<String>) (markup.getClass().getField("enumFieldNames").get(null));
                 for (String enumFieldName : enumFieldNames) {
-                    Enum enumValue = (Enum) markup.getClass().getField(enumFieldName).get(markup);
+                    Field enumField = ReflectionHelper.getField(markup.getClass(), enumFieldName);
+                    if (enumField == null) {
+                        LOGGER.severe("Could not find field \"" + enumFieldName + "\" in class " + markup.getClass().getSimpleName() + " or any super class");
+                        continue;
+                    }
+                    Enum enumValue = (Enum) enumField.get(markup);
                     if (supportedMarkups.contains(enumValue)) {
                         score++;
                     } else {
@@ -188,7 +205,12 @@ public class MarkupComponentHelper {
                     for (Markup markup : markups) {
                         ArrayList<String> enumFieldNames = (ArrayList<String>) (markup.getClass().getField("enumFieldNames").get(null));
                         for (String enumFieldName : enumFieldNames) {
-                            Enum enumValue = (Enum) markup.getClass().getField(enumFieldName).get(markup);
+                            Field enumField = ReflectionHelper.getField(markup.getClass(), enumFieldName);
+                            if (enumField == null) {
+                                LOGGER.severe("Could not find field \"" + enumFieldName + "\" in class " + markup.getClass().getSimpleName() + " or any super class");
+                                continue;
+                            }
+                            Enum enumValue = (Enum) enumField.get(markup);
                             if (supportedMarkups.contains(enumValue)) {
                                 score++;
                                 break;
@@ -229,7 +251,12 @@ public class MarkupComponentHelper {
                     for (Markup markup : markups) {
                         ArrayList<String> enumFieldNames = (ArrayList<String>) (markup.getClass().getField("enumFieldNames").get(null));
                         for (String enumFieldName : enumFieldNames) {
-                            Enum enumValue = (Enum) markup.getClass().getField(enumFieldName).get(markup);
+                            Field enumField = ReflectionHelper.getField(markup.getClass(), enumFieldName);
+                            if (enumField == null) {
+                                LOGGER.severe("Could not find field \"" + enumFieldName + "\" in class " + markup.getClass().getSimpleName() + " or any super class");
+                                continue;
+                            }
+                            Enum enumValue = (Enum) enumField.get(markup);
                             if (supportedMarkups.contains(enumValue)) {
                                 score++;
                                 break;
@@ -255,7 +282,12 @@ public class MarkupComponentHelper {
             for (Markup markup : markups) {
                 ArrayList<String> enumFieldNames = (ArrayList<String>) (markup.getClass().getField("enumFieldNames").get(null));
                 for (String enumFieldName : enumFieldNames) {
-                    Enum enumValue = (Enum) markup.getClass().getField(enumFieldName).get(markup);
+                    Field enumField = ReflectionHelper.getField(markup.getClass(), enumFieldName);
+                    if (enumField == null) {
+                        LOGGER.severe("Could not find field \"" + enumFieldName + "\" in class " + markup.getClass().getSimpleName() + " or any super class");
+                        continue;
+                    }
+                    Enum enumValue = (Enum) enumField.get(markup);
                     if (supportedMarkups.contains(enumValue)) {
                         score++;
                         break;

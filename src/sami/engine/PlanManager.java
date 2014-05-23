@@ -20,6 +20,7 @@ import sami.event.MissingParamsReceived;
 import sami.event.MissingParamsRequest;
 import sami.event.OutputEvent;
 import sami.event.ReflectedEventSpecification;
+import sami.event.ReflectionHelper;
 import sami.handler.EventHandlerInt;
 import sami.mission.InEdge;
 import sami.mission.InTokenRequirement;
@@ -127,44 +128,65 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 eventSpecToFieldDescriptions.put(eventSpec, fieldDescriptions);
                 eventSpecToFields.put(eventSpec, fields);
                 // Defined but editable values
-                HashMap<String, Object> instanceParams = eventSpec.getFieldDefinitions();
+                HashMap<String, Object> fieldNameToValue = eventSpec.getFieldValues();
+                HashMap<String, String> fieldNameToReadVariable = eventSpec.getReadVariables();
                 HashMap<String, Boolean> fieldNameToEditable = eventSpec.getEditableFields();
 
                 int missingCount = 0, editableCount = 0;
-                for (String fieldName : instanceParams.keySet()) {
-                    LOGGER.fine("\tField: " + fieldName + " = " + instanceParams.get(fieldName));
-                    if (instanceParams.get(fieldName) == null) {
-                        LOGGER.finer("\t\t Missing");
-                        missingCount++;
-                        try {
-                            Field missingField = Class.forName(eventSpec.getClassName()).getField(fieldName);
-                            fieldDescriptions.put(missingField, "");
-                            fields.add(missingField);
-                        } catch (ClassNotFoundException cnfe) {
-                            cnfe.printStackTrace();
-                        } catch (NoSuchFieldException nsfe) {
-                            nsfe.printStackTrace();
+                try {
+                    Class eventClass = Class.forName(eventSpec.getClassName());
+                    ArrayList<String> fieldNames = (ArrayList<String>) (eventClass.getField("fieldNames").get(null));
+                    for (String fieldName : fieldNames) {
+                        LOGGER.fine("\tField: " + fieldName + " = " + fieldNameToValue.get(fieldName));
+                        if (!fieldNameToValue.containsKey(fieldName)
+                                && !fieldNameToReadVariable.containsKey(fieldName)) {
+                            LOGGER.finer("\t\t Missing");
+                            try {
+                                Class eventSpecClass = Class.forName(eventSpec.getClassName());
+                                Field missingField = ReflectionHelper.getField(eventSpecClass, fieldName);
+                                if (missingField != null) {
+                                    missingCount++;
+                                    fieldDescriptions.put(missingField, "");
+                                    fields.add(missingField);
+                                } else {
+                                    LOGGER.severe("Could not find field \"" + fieldName + "\" in class " + eventSpecClass.getSimpleName() + " or any super class");
+                                }
+                            } catch (ClassNotFoundException cnfe) {
+                                cnfe.printStackTrace();
+                            }
+                        } else if (fieldNameToEditable.containsKey(fieldName)
+                                && fieldNameToEditable.get(fieldName)) {
+                            LOGGER.finer("\t\t Editable");
+                            editableCount++;
+                            try {
+                                Class eventSpecClass = Class.forName(eventSpec.getClassName());
+                                Field editableField = ReflectionHelper.getField(eventSpecClass, fieldName);
+                                if (editableField != null) {
+                                    fieldDescriptions.put(editableField, "");
+                                    fields.add(editableField);
+                                } else {
+                                    LOGGER.severe("Could not find field \"" + fieldName + "\" in class " + eventSpecClass.getSimpleName() + " or any super class");
+                                }
+                            } catch (ClassNotFoundException cnfe) {
+                                cnfe.printStackTrace();
+                            }
+                        } else if (!fieldNameToEditable.containsKey(fieldName)) {
+                            LOGGER.severe("\t\tNo entry in fieldNameToEditable");
+                        } else {
+                            LOGGER.finer("\t\t Locked");
                         }
-                    } else if (fieldNameToEditable.get(fieldName)) {
-                        LOGGER.finer("\t\t Editable");
-                        editableCount++;
-                        try {
-                            Field editableField = Class.forName(eventSpec.getClassName()).getField(fieldName);
-                            fieldDescriptions.put(editableField, "");
-                            fields.add(editableField);
-                        } catch (ClassNotFoundException cnfe) {
-                            cnfe.printStackTrace();
-                        } catch (NoSuchFieldException nsfe) {
-                            nsfe.printStackTrace();
-                        }
-                    } else {
-                        LOGGER.finer("\t\t Locked");
-                    }
 
-                    if (instanceParams.get(fieldName) == null
-                            && !fieldNameToEditable.get(fieldName)) {
-                        LOGGER.severe("Have a non-editable field: " + fieldName + " with no value!");
+                        if (fieldNameToValue.get(fieldName) == null
+                                && !fieldNameToEditable.get(fieldName)) {
+                            LOGGER.severe("Have a non-editable field: " + fieldName + " with no value!");
+                        }
                     }
+                } catch (ClassNotFoundException ex) {
+                    ex.printStackTrace();
+                } catch (NoSuchFieldException ex) {
+                    ex.printStackTrace();
+                } catch (IllegalAccessException ex) {
+                    ex.printStackTrace();
                 }
                 LOGGER.fine("\t Have " + missingCount + " missing fields");
                 LOGGER.fine("\t Have " + editableCount + " editable fields");
@@ -241,7 +263,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException ex) {
-                Logger.getLogger(PlanManager.class.getName()).log(Level.SEVERE, null, ex);
+                ex.printStackTrace();
             }
         }
 
@@ -342,6 +364,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                     for (Token placeToken : placeTokens) {
                                         if (placeToken.getType() == TokenType.Proxy) {
                                             proxyTokenCount++;
+                                            if (proxyTokenCount >= inReq.getQuantity()) {
+                                                break;
+                                            }
                                         }
                                     }
                                     if (proxyTokenCount < inReq.getQuantity()) {
@@ -371,6 +396,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                     for (Token placeToken : placeTokens) {
                                         if (placeToken.getType() == TokenType.Task) {
                                             taskTokenCount++;
+                                            if (taskTokenCount >= inReq.getQuantity()) {
+                                                break;
+                                            }
                                         }
                                     }
                                     if (taskTokenCount < inReq.getQuantity()) {
@@ -420,6 +448,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                     for (Token placeToken : placeTokens) {
                                         if (placeToken.getType() == TokenType.Generic) {
                                             genericTokenCount++;
+                                            if (genericTokenCount >= inReq.getQuantity()) {
+                                                break;
+                                            }
                                         }
                                     }
                                     if (genericTokenCount < inReq.getQuantity()) {
@@ -435,6 +466,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         case None:
                             break;
                         case RelevantToken:
+                            // A relevant token is a token whose proxy (non-null) is contained in an input event's relevantProxyList
                             ArrayList<ProxyInt> relevantProxies;
                             switch (inReq.getMatchQuantity()) {
                                 case None:
@@ -450,18 +482,37 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                     }
                                     break;
                                 case Number:
-                                    // Check that there is at least n copies of each relevant proxy token
-                                    // Get n copies of relevant proxies
-                                    relevantProxies = new ArrayList<ProxyInt>();
-                                    for (int count = inReq.getQuantity(); count > 0; count--) {
-                                        relevantProxies.addAll(getRelevantProxies(transition));
+                                    // Check that there are at least n of the relevant tokens
+                                    int count = 0;
+                                    relevantProxies = getRelevantProxies(transition);
+                                    // Go through token list and remove item from relevant proxy list where appropriate 
+                                    for (Token placeToken : placeTokens) {
+                                        if (placeToken.getType() == TokenType.Proxy
+                                                && placeToken.getProxy() != null
+                                                && relevantProxies.contains(placeToken.getProxy())) {
+                                            count++;
+                                            if (count >= inReq.getQuantity()) {
+                                                break;
+                                            }
+                                        }
                                     }
+                                    if (count < inReq.getQuantity()) {
+                                        failure = true;
+                                    }
+                                    break;
+                                case All:
+                                    // Check that there is at least n copies of each relevant proxy token
+                                    // Get cloned list of relevant proxies
+                                    relevantProxies = (ArrayList<ProxyInt>) (getRelevantProxies(transition).clone());
                                     // Go through token list and remove item from relevant proxy list where appropriate 
                                     for (Token placeToken : placeTokens) {
                                         if (placeToken.getType() == TokenType.Proxy
                                                 && placeToken.getProxy() != null
                                                 && relevantProxies.contains(placeToken.getProxy())) {
                                             relevantProxies.remove(placeToken.getProxy());
+                                            if (relevantProxies.isEmpty()) {
+                                                break;
+                                            }
                                         }
                                     }
                                     // If anything is still left in the relevant proxies list, the check fails
@@ -498,6 +549,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                                 && placeToken.getTask() != null
                                                 && placeToken.getTask() == task) {
                                             count++;
+                                            if (count >= inReq.getQuantity()) {
+                                                break;
+                                            }
                                         }
                                     }
                                     if (count < inReq.getQuantity()) {
@@ -898,6 +952,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                                     break;
                                                 }
                                                 tokenAdd[i] = true;
+                                                count++;
                                             }
                                             if (done) {
                                                 break;
@@ -934,6 +989,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                                     break;
                                                 }
                                                 tokenRemove[i] = true;
+                                                count++;
                                             }
                                             if (done) {
                                                 break;
@@ -974,6 +1030,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                                 }
                                                 tokenRemove[i] = true;
                                                 tokenAdd[i] = true;
+                                                count++;
                                             }
                                             if (done) {
                                                 break;
@@ -1160,7 +1217,6 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                                         && placeToken.getProxy() != null
                                                         && relevantProxies.contains(placeToken.getProxy())) {
                                                     tokenRemove[i] = true;
-                                                    break;
                                                 }
                                             }
                                         }
@@ -1211,7 +1267,6 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                                         && relevantProxies.contains(placeToken.getProxy())) {
                                                     tokenRemove[i] = true;
                                                     tokenAdd[i] = true;
-                                                    break;
                                                 }
                                             }
                                         }
@@ -1315,6 +1370,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                                 }
                                                 if (inPlaceTokens.get(i) == taskToken) {
                                                     tokenRemove[i] = true;
+                                                    count++;
                                                 }
                                             }
                                             if (done) {
@@ -1357,6 +1413,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                                 if (inPlaceTokens.get(i) == taskToken) {
                                                     tokenRemove[i] = true;
                                                     taskTokensToAdd.add(taskToken);
+                                                    count++;
                                                 }
                                             }
                                             if (done) {
@@ -1973,9 +2030,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             LOGGER.log(Level.FINE, "Writing parameters from MissingParamsReceived: " + paramsReceived);
             Hashtable<ReflectedEventSpecification, Hashtable<Field, Object>> eventSpecToFieldValues = paramsReceived.getEventSpecToFieldValues();
             for (ReflectedEventSpecification eventSpec : eventSpecToFieldValues.keySet()) {
-                Hashtable<Field, Object> fieldsToValues = eventSpecToFieldValues.get(eventSpec);
-                for (Field field : fieldsToValues.keySet()) {
-                    eventSpec.addFieldDefinition(field.getName(), fieldsToValues.get(field));
+                Hashtable<Field, Object> fieldToValues = eventSpecToFieldValues.get(eventSpec);
+                for (Field field : fieldToValues.keySet()) {
+                    eventSpec.addFieldValue(field.getName(), fieldToValues.get(field));
                 }
             }
 
@@ -1997,33 +2054,31 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
         // 2b - Assign any variable values returned in the generator event
         // The variables are on the InputEvent, because that has come from the spec, but the values are in the generator event
-        HashMap<String, String> variables = updatedParamEvent.getVariables();
+        HashMap<String, String> variables = updatedParamEvent.getWriteVariables();
         if (variables != null) {
             LOGGER.log(Level.FINE, "\tInputEvent " + updatedParamEvent + " tied to " + transition + " occurred with variables: " + variables);
 
             for (String fieldName : variables.keySet()) {
                 LOGGER.log(Level.FINE, "\toccurred looking at variable " + fieldName);
                 // For each variable in the response event
-                Field f;
+                Field definedField;
                 try {
                     // Get the variable's Field object
-                    f = generatorEvent.getClass().getField(fieldName);
-                    if (f != null) {
-                        f.setAccessible(true);
+                    definedField = ReflectionHelper.getField(generatorEvent.getClass(), fieldName);
+                    if (definedField != null) {
+                        definedField.setAccessible(true);
                         // Retrieve the value of the variable's Field object
-                        variableNameToValue.put(variables.get(fieldName), f.get(generatorEvent));
-                        LOGGER.log(Level.FINE, "\t\tVariable set " + variables.get(fieldName) + " = " + f.get(generatorEvent));
+                        variableNameToValue.put(variables.get(fieldName), definedField.get(generatorEvent));
+                        LOGGER.log(Level.FINE, "\t\tVariable set " + variables.get(fieldName) + " = " + definedField.get(generatorEvent));
                     } else {
                         LOGGER.log(Level.WARNING, "\t\tGetting field failed: " + fieldName);
                     }
                 } catch (IllegalArgumentException ex) {
-                    Logger.getLogger(PlanManager.class.getName()).log(Level.SEVERE, "\t\tFinding field for variable failed", ex);
+                    LOGGER.severe("\t\tFinding field for variable failed");
                 } catch (IllegalAccessException ex) {
-                    Logger.getLogger(PlanManager.class.getName()).log(Level.SEVERE, "\t\tFinding field for variable failed", ex);
-                } catch (NoSuchFieldException ex) {
-                    Logger.getLogger(PlanManager.class.getName()).log(Level.SEVERE, "\t\tFinding field for variable failed", ex);
+                    LOGGER.severe("\t\tFinding field for variable failed");
                 } catch (SecurityException ex) {
-                    Logger.getLogger(PlanManager.class.getName()).log(Level.SEVERE, "\t\tFinding field for variable failed", ex);
+                    LOGGER.severe("\t\tFinding field for variable failed");
                 }
             }
         } else {

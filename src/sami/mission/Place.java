@@ -259,23 +259,6 @@ public class Place extends Vertex {
         }
     }
 
-    public Place copyWithoutConnections() {
-        Place copy = new Place(name, functionMode);
-        copy.visibilityMode = visibilityMode;
-        for (ReflectedEventSpecification eventSpec : eventSpecs) {
-            copy.eventSpecs.add(eventSpec.copy());
-        }
-        copy.isStart = isStart;
-        copy.isEnd = isEnd;
-        copy.isActive = isActive;
-        if (subMission != null) {
-            // @todo: Should we be doing a copy with a prefix addition?
-            copy.subMission = subMission.deepClone();
-        }
-        copy.updateTag();
-        return copy;
-    }
-
     private void readObject(ObjectInputStream ois) {
         try {
             ois.defaultReadObject();

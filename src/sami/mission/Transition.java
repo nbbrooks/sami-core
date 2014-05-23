@@ -198,16 +198,6 @@ public class Transition extends Vertex {
         }
     }
 
-    public Transition copyWithoutConnections() {
-        Transition copy = new Transition(name, functionMode);
-        copy.visibilityMode = visibilityMode;
-        for (ReflectedEventSpecification eventSpec : eventSpecs) {
-            copy.eventSpecs.add(eventSpec.copy());
-        }
-        copy.updateTag();
-        return copy;
-    }
-
     private void readObject(ObjectInputStream ois) {
         try {
             ois.defaultReadObject();

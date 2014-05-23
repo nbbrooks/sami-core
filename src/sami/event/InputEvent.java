@@ -22,11 +22,11 @@ public class InputEvent extends Event {
      */
     private InputEvent generatorEvent = null;
     // Class field name to user defined variable name
-    HashMap<String, String> fieldNameToVariableName = null;
+    HashMap<String, String> fieldNameToWriteVariable = null;
     protected ArrayList<ProxyInt> relevantProxyList = null;
     protected ResourceAllocation allocation = null;
     protected UUID relevantOutputEventId;
-    protected boolean blocking = false;
+    public boolean blocking = false;
 
     public InputEvent() {
     }
@@ -61,19 +61,19 @@ public class InputEvent extends Event {
         return paramToClass;
     }
 
-    public HashMap<String, String> getVariables() {
-        return fieldNameToVariableName;
+    public HashMap<String, String> getWriteVariables() {
+        return fieldNameToWriteVariable;
     }
 
-    public void setVariables(HashMap<String, String> variables) {
-        this.fieldNameToVariableName = variables;
+    public void setWriteVariables(HashMap<String, String> variables) {
+        this.fieldNameToWriteVariable = variables;
     }
 
-    public void addVariable(String fieldName, String variableName) {
-        if (fieldNameToVariableName == null) {
-            fieldNameToVariableName = new HashMap<String, String>();
+    public void addWriteVariable(String fieldName, String variableName) {
+        if (fieldNameToWriteVariable == null) {
+            fieldNameToWriteVariable = new HashMap<String, String>();
         }
-        fieldNameToVariableName.put(fieldName, variableName);
+        fieldNameToWriteVariable.put(fieldName, variableName);
     }
 
     public ResourceAllocation getAllocation() {
@@ -119,9 +119,9 @@ public class InputEvent extends Event {
     public Object deepCopy() {
         InputEvent copy = (InputEvent) super.deepCopy();
         copy.generatorEvent = generatorEvent;
-        if (fieldNameToVariableName != null) {
-            for (String key : fieldNameToVariableName.keySet()) {
-                copy.fieldNameToVariableName.put(key, fieldNameToVariableName.get(key));
+        if (fieldNameToWriteVariable != null) {
+            for (String key : fieldNameToWriteVariable.keySet()) {
+                copy.fieldNameToWriteVariable.put(key, fieldNameToWriteVariable.get(key));
             }
         }
         if (relevantProxyList != null) {

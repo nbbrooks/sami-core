@@ -1,6 +1,8 @@
 package sami.event;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.UUID;
 import sami.markup.Markup;
 
@@ -11,10 +13,11 @@ import sami.markup.Markup;
 public class Event {
 
     public static final String NONE = "@None";
-    
+
     private ArrayList<Markup> markups = new ArrayList<Markup>();
     protected UUID missionId;
     protected UUID id;
+    final protected HashMap<String, Field> readVariableToField = new HashMap<String, Field>();
 
     public Event() {
     }
@@ -52,6 +55,10 @@ public class Event {
         return false;
     }
 
+    public void addReadVariable(String variableName, Field field) {
+        readVariableToField.put(variableName, field);
+    }
+
     public Object deepCopy() {
         Event copy;
         try {
@@ -61,6 +68,9 @@ public class Event {
             }
             copy.id = id;
             copy.missionId = missionId;
+            for (String key : readVariableToField.keySet()) {
+                copy.readVariableToField.put(key, readVariableToField.get(key));
+            }
             return copy;
         } catch (InstantiationException ex) {
             ex.printStackTrace();

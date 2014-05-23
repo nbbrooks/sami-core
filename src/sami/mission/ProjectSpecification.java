@@ -88,9 +88,17 @@ public class ProjectSpecification implements java.io.Serializable {
                 }
                 for (ReflectedEventSpecification eventSpec : missionSpec.getEventSpecList(v)) {
                     System.out.println("\t\teventSpec " + eventSpec);
-                    HashMap<String, Object> fieldObjects = eventSpec.getFieldDefinitions();
-                    for (String fieldName : fieldObjects.keySet()) {
-                        System.out.println("\t\t\t<field name, object> = " + fieldName + " -> " + fieldObjects.get(fieldName));
+                    HashMap<String, Object> fieldValues = eventSpec.getFieldValues();
+                    for (String fieldName : fieldValues.keySet()) {
+                        System.out.println("\t\t\t<field, value> = " + fieldName + " -> " + fieldValues.get(fieldName));
+                    }
+                    HashMap<String, String> readVariables = eventSpec.getReadVariables();
+                    for (String fieldName : readVariables.keySet()) {
+                        System.out.println("\t\t\t<field, read var> = " + fieldName + " -> " + readVariables.get(fieldName));
+                    }
+                    HashMap<String, String> writeVariables = eventSpec.getWriteVariables();
+                    for (String fieldName : writeVariables.keySet()) {
+                        System.out.println("\t\t\t<field, write var> = " + fieldName + " -> " + writeVariables.get(fieldName));
                     }
                 }
             }

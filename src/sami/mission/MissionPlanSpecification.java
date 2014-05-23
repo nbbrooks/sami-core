@@ -2,7 +2,6 @@ package sami.mission;
 
 import edu.uci.ics.jung.algorithms.layout.AbstractLayout;
 import edu.uci.ics.jung.graph.Graph;
-import edu.uci.ics.jung.graph.SparseMultigraph;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.io.ByteArrayInputStream;
@@ -52,6 +51,34 @@ public class MissionPlanSpecification implements java.io.Serializable {
         copy.addVariablePrefix(variablePrefix);
 
         return copy;
+    }
+
+    public ArrayList<String> getAllVariables() {
+        ArrayList<String> variables = new ArrayList<String>();
+
+        for (Vertex v : graph.getVertices()) {
+            if (v instanceof Transition) {
+                if (vertexToEventSpecListMap.containsKey(v)) {
+                    for (ReflectedEventSpecification eventSpec : vertexToEventSpecListMap.get(v)) {
+                        for (String readVariable : eventSpec.getReadVariables().values()) {
+                            if (!variables.contains(readVariable)) {
+                                Logger.getLogger(this.getClass().getName()).log(Level.FINE, "Adding \"" + readVariable + "\" to variable list");
+                                variables.add(readVariable);
+                            }
+                        }
+                        for (String writeVariable : eventSpec.getWriteVariables().values()) {
+                            if (!variables.contains(writeVariable)) {
+                                Logger.getLogger(this.getClass().getName()).log(Level.FINE, "Adding \"" + writeVariable + "\" to variable list");
+                                variables.add(writeVariable);
+                            }
+                        }
+                    }
+                } else {
+                    Logger.getLogger(this.getClass().getName()).log(Level.FINE, "No events to check for variables.");
+                }
+            }
+        }
+        return variables;
     }
 
     public void addVariablePrefix(String prefix) {
