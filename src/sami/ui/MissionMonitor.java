@@ -288,10 +288,11 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
 
     private void loadDrmBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_loadDrmBActionPerformed
         File specLocation = null;
-//        File specLocation = new File("C:\\Users\\nbb\\Documents\\pickup.drm");
 
         if (specLocation == null) {
-            JFileChooser chooser = new JFileChooser();
+            Preferences p = Preferences.userRoot();
+            String lastDrmFolder = p.get(LAST_DRM_FOLDER, "");
+            JFileChooser chooser = new JFileChooser(lastDrmFolder);
             FileNameExtensionFilter filter = new FileNameExtensionFilter("DREAAM specification files", "drm");
             chooser.setFileFilter(filter);
             int ret = chooser.showOpenDialog(null);
@@ -302,19 +303,19 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
         loadDrm(specLocation);
     }
 
-    public void loadDrm(File specLocation) {
-        if (specLocation == null) {
+    public void loadDrm(File drmFile) {
+        if (drmFile == null) {
             return;
         }
         ProjectSpecification projectSpec = null;
         try {
-            ObjectInputStream ois = new ObjectInputStream(new FileInputStream(specLocation));
+            ObjectInputStream ois = new ObjectInputStream(new FileInputStream(drmFile));
             projectSpec = (ProjectSpecification) ois.readObject();
 
-            LOGGER.info("Reading project specification at [" + specLocation + "]");
+            LOGGER.info("Reading project specification at [" + drmFile + "]");
 
             if (projectSpec == null) {
-                LOGGER.log(Level.WARNING, "Failed to load project specification at [" + specLocation + "]");
+                LOGGER.log(Level.WARNING, "Failed to load project specification at [" + drmFile + "]");
                 JOptionPane.showMessageDialog(null, "Specification failed load");
             } else {
                 for (Object m : projectSpec.getMissionPlans()) {
@@ -325,12 +326,12 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
 //                }
                 Preferences p = Preferences.userRoot();
                 try {
-                    p.put(LAST_DRM_FILE, specLocation.getAbsolutePath());
-                    p.put(LAST_DRM_FOLDER, specLocation.getParent());
+                    p.put(LAST_DRM_FILE, drmFile.getAbsolutePath());
+                    p.put(LAST_DRM_FOLDER, drmFile.getParent());
                 } catch (AccessControlException e) {
                     LOGGER.severe("Failed to save preferences");
                 }
-                setTitle("Mission Monitor: " + specLocation.toString());
+                setTitle("Mission Monitor: " + drmFile.toString());
             }
 
         } catch (ClassNotFoundException ex) {
@@ -353,7 +354,9 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
         File environmentLocation = null;
 
         if (environmentLocation == null) {
-            JFileChooser chooser = new JFileChooser();
+            Preferences p = Preferences.userRoot();
+            String lastEpfFolder = p.get(LAST_EPF_FOLDER, "");
+            JFileChooser chooser = new JFileChooser(lastEpfFolder);
             FileNameExtensionFilter filter = new FileNameExtensionFilter("EPF specification files", "epf");
             chooser.setFileFilter(filter);
             int ret = chooser.showOpenDialog(null);
@@ -364,25 +367,25 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
         loadEpf(environmentLocation);
     }//GEN-LAST:event_loadEpfBActionPerformed
 
-    public void loadEpf(File epfLocation) {
-        if (epfLocation == null) {
+    public void loadEpf(File epfFile) {
+        if (epfFile == null) {
             return;
         }
         EnvironmentProperties environmentProperties = null;
         try {
-            ObjectInputStream ois = new ObjectInputStream(new FileInputStream(epfLocation));
+            ObjectInputStream ois = new ObjectInputStream(new FileInputStream(epfFile));
             environmentProperties = (EnvironmentProperties) ois.readObject();
 
-            LOGGER.info("Reading environment properties at [" + epfLocation + "]");
+            LOGGER.info("Reading environment properties at [" + epfFile + "]");
 
             if (environmentProperties == null) {
-                LOGGER.log(Level.WARNING, "Failed to load environment properties at [" + epfLocation + "]");
+                LOGGER.log(Level.WARNING, "Failed to load environment properties at [" + epfFile + "]");
                 JOptionPane.showMessageDialog(null, "Environment properties failed load");
             } else {
                 Preferences p = Preferences.userRoot();
                 try {
-                    p.put(LAST_EPF_FILE, epfLocation.getAbsolutePath());
-                    p.put(LAST_EPF_FOLDER, epfLocation.getParent());
+                    p.put(LAST_EPF_FILE, epfFile.getAbsolutePath());
+                    p.put(LAST_EPF_FOLDER, epfFile.getParent());
                 } catch (AccessControlException e) {
                     LOGGER.severe("Failed to save preferences");
                 }
