@@ -119,6 +119,7 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
         } catch (AccessControlException e) {
             LOGGER.severe("Failed to load last used DRM");
         }
+        // Try to load the last used EPF file
         try {
             String lastEpfPath = p.get(LAST_EPF_FILE, null);
             if (lastEpfPath != null) {
@@ -318,7 +319,7 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
                 LOGGER.log(Level.WARNING, "Failed to load project specification at [" + drmFile + "]");
                 JOptionPane.showMessageDialog(null, "Specification failed load");
             } else {
-                for (Object m : projectSpec.getMissionPlans()) {
+                for (Object m : projectSpec.getRootMissionPlans()) {
                     missionListModel.addElement(m);
                 }
 //                for (UiFrame uiFrame : uiFrames) {
@@ -346,7 +347,7 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
     private void runBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_runBActionPerformed
         MissionPlanSpecification mSpec = (MissionPlanSpecification) planL.getSelectedValue();
         if (mSpec != null) {
-            PlanManager pm = Engine.getInstance().spawnMission(mSpec, null);
+            PlanManager pm = Engine.getInstance().spawnRootMission(mSpec);
         }
     }//GEN-LAST:event_runBActionPerformed
 

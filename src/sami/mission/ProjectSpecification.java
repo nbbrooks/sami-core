@@ -1,9 +1,18 @@
 package sami.mission;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.lang.reflect.Field;
 import sami.event.ReflectedEventSpecification;
 import sami.gui.GuiElementSpec;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Hashtable;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.swing.tree.DefaultMutableTreeNode;
+import sami.event.InputEvent;
 
 /**
  *
@@ -11,6 +20,7 @@ import java.util.HashMap;
  */
 public class ProjectSpecification implements java.io.Serializable {
 
+    private static final Logger LOGGER = Logger.getLogger(ProjectSpecification.class.getName());
     static final long serialVersionUID = 0L;
     // @todo needsSaving only takes into account added and changed specs, not any details
     private boolean needsSaving = false;
@@ -18,8 +28,91 @@ public class ProjectSpecification implements java.io.Serializable {
     // @todo Do a proper GUI specification
     private ArrayList<GuiElementSpec> guiElements = null;
     private ArrayList<RequirementSpecification> reqs;
-    ArrayList<MissionPlanSpecification> missionPlans = new ArrayList<MissionPlanSpecification>();
+    private DefaultMutableTreeNode missionTree = new DefaultMutableTreeNode("Plays");
     private ArrayList<TestCase> testCases = null;
+    transient private ArrayList<MissionPlanSpecification> allMissionPlans = new ArrayList<MissionPlanSpecification>();
+    transient private ArrayList<MissionPlanSpecification> rootMissionPlans = new ArrayList<MissionPlanSpecification>();
+    transient private HashMap<MissionPlanSpecification, DefaultMutableTreeNode> mSpecToNode = new HashMap<MissionPlanSpecification, DefaultMutableTreeNode>();
+    transient private HashMap<DefaultMutableTreeNode, MissionPlanSpecification> nodeToMSpec = new HashMap<DefaultMutableTreeNode, MissionPlanSpecification>();
+
+    public DefaultMutableTreeNode addRootMissionPlan(MissionPlanSpecification mSpec) {
+        // Root mission
+        DefaultMutableTreeNode node = new DefaultMutableTreeNode(mSpec);
+        mSpecToNode.put(mSpec, node);
+        nodeToMSpec.put(node, mSpec);
+        missionTree.add(node);
+        allMissionPlans.add(mSpec);
+        rootMissionPlans.add(mSpec);
+        needsSaving = true;
+        return node;
+    }
+
+    public DefaultMutableTreeNode addSubMissionPlan(MissionPlanSpecification childMSpec, MissionPlanSpecification parentMSpec) {
+        DefaultMutableTreeNode parentNode = mSpecToNode.get(parentMSpec);
+        return addSubMissionPlan(childMSpec, parentNode);
+    }
+
+    public DefaultMutableTreeNode addSubMissionPlan(MissionPlanSpecification childMSpec, DefaultMutableTreeNode parentNode) {
+        // Sub-mission
+        DefaultMutableTreeNode childNode = new DefaultMutableTreeNode(childMSpec);
+        mSpecToNode.put(childMSpec, childNode);
+        nodeToMSpec.put(childNode, childMSpec);
+        parentNode.add(childNode);
+        allMissionPlans.add(childMSpec);
+        needsSaving = true;
+        return childNode;
+    }
+
+    public void removeMissionPlan(MissionPlanSpecification mps) {
+        DefaultMutableTreeNode node = mSpecToNode.get(mps);
+        if (node != null) {
+            removeMissionPlanNode(node);
+            needsSaving = true;
+        } else {
+            LOGGER.warning("Tried to remove mSpec: " + mps + ", but it could not be found");
+        }
+    }
+
+    public void removeMissionPlanNode(DefaultMutableTreeNode missionNode) {
+        // First remove any subplans
+        MissionPlanSpecification mSpec = nodeToMSpec.get(missionNode);
+        for (Vertex v : mSpec.getGraph().getVertices()) {
+            if (v instanceof Place && ((Place) v).getSubMissions() != null) {
+                for (MissionPlanSpecification subMSpec : ((Place) v).getSubMissions()) {
+                    DefaultMutableTreeNode subMNode = mSpecToNode.get(subMSpec);
+                    removeMissionPlanNode(subMNode);
+                }
+            }
+        }
+        // Remove plan
+        nodeToMSpec.remove(missionNode);
+        mSpecToNode.remove(mSpec);
+        ((DefaultMutableTreeNode) missionNode.getParent()).remove(missionNode);
+        allMissionPlans.remove(mSpec);
+        rootMissionPlans.remove(mSpec);
+        needsSaving = true;
+    }
+
+    public MissionPlanSpecification getNewMissionPlanSpecification(String name) {
+        MissionPlanSpecification spec = new MissionPlanSpecification(name);
+        return spec;
+    }
+
+    public ArrayList<MissionPlanSpecification> getAllMissionPlans() {
+        return allMissionPlans;
+    }
+
+    public ArrayList<MissionPlanSpecification> getRootMissionPlans() {
+        return rootMissionPlans;
+    }
+
+    public DefaultMutableTreeNode getMissionTree() {
+        return missionTree;
+    }
+
+    public DefaultMutableTreeNode getNode(MissionPlanSpecification mSpec) {
+        return mSpecToNode.get(mSpec);
+    }
 
     public ArrayList<RequirementSpecification> getReqs() {
         return reqs;
@@ -29,31 +122,13 @@ public class ProjectSpecification implements java.io.Serializable {
         this.reqs = reqs;
     }
 
-    public void addMissionPlan(MissionPlanSpecification m) {
-        if (!missionPlans.contains(m)) {
-            missionPlans.add(m);
-        }
-        needsSaving = true;
-    }
-
-    public ArrayList<MissionPlanSpecification> getMissionPlans() {
-        return missionPlans;
-    }
-
-    public MissionPlanSpecification getNewMissionPlanSpecification(String name) {
-        MissionPlanSpecification spec = new MissionPlanSpecification(name);
-        missionPlans.add(spec);
-        needsSaving = true;
-        return spec;
+    public ArrayList<sami.gui.GuiElementSpec> getGuiElements() {
+        return guiElements;
     }
 
     public void setGuiElements(ArrayList<GuiElementSpec> elements) {
         needsSaving = true;
         guiElements = elements;
-    }
-
-    public ArrayList<sami.gui.GuiElementSpec> getGuiElements() {
-        return guiElements;
     }
 
     public boolean needsSaving() {
@@ -64,11 +139,6 @@ public class ProjectSpecification implements java.io.Serializable {
         needsSaving = false;
     }
 
-    public void removeMissionPlan(MissionPlanSpecification mps) {
-        missionPlans.remove(mps);
-        needsSaving = true;
-    }
-
     public ArrayList<TestCase> getTestCases() {
         return testCases;
     }
@@ -77,31 +147,125 @@ public class ProjectSpecification implements java.io.Serializable {
         this.testCases = testCases;
     }
 
-    public void printDetails() {
-        for (MissionPlanSpecification missionSpec : missionPlans) {
-            System.out.println("missionSpec " + missionSpec.getName());
-            for (Vertex v : missionSpec.getGraph().getVertices()) {
-                System.out.println("\tvertex " + v.getTag());
-                if (missionSpec.getEventSpecList(v) == null) {
-                    System.out.println("\t\tNULL");
-                    continue;
-                }
-                for (ReflectedEventSpecification eventSpec : missionSpec.getEventSpecList(v)) {
-                    System.out.println("\t\teventSpec " + eventSpec);
-                    HashMap<String, Object> fieldValues = eventSpec.getFieldValues();
-                    for (String fieldName : fieldValues.keySet()) {
-                        System.out.println("\t\t\t<field, value> = " + fieldName + " -> " + fieldValues.get(fieldName));
-                    }
-                    HashMap<String, String> readVariables = eventSpec.getReadVariables();
-                    for (String fieldName : readVariables.keySet()) {
-                        System.out.println("\t\t\t<field, read var> = " + fieldName + " -> " + readVariables.get(fieldName));
-                    }
-                    HashMap<String, String> writeVariables = eventSpec.getWriteVariables();
-                    for (String fieldName : writeVariables.keySet()) {
-                        System.out.println("\t\t\t<field, write var> = " + fieldName + " -> " + writeVariables.get(fieldName));
+    public ArrayList<String> getVariables(Field targetField, MissionPlanSpecification missionPlanSpecification) {
+        ArrayList<String> varNames = new ArrayList<String>();
+
+        if (missionPlanSpecification.getGraph() != null && missionPlanSpecification.getGraph().getEdges() != null) {
+            for (Vertex v : missionPlanSpecification.getGraph().getVertices()) {
+                if (v instanceof Transition) {
+                    if (missionPlanSpecification.getEventSpecList((Transition) v) != null) {
+                        for (ReflectedEventSpecification eventSpec : missionPlanSpecification.getEventSpecList((Transition) v)) {
+                            // This is in place of actually working out whether this is an input or output event
+                            if (eventSpec.getWriteVariables() != null) {
+                                Class c;
+                                Hashtable<String, Class> paramToClass;
+
+                                try {
+                                    c = Class.forName(eventSpec.getClassName());
+                                    paramToClass = ((InputEvent) c.newInstance()).getInputEventDataTypes(c);
+                                    if (paramToClass.size() > 0) {
+                                        for (String fieldName : eventSpec.getWriteVariables().keySet()) {
+                                            if (targetField.getDeclaringClass().isAssignableFrom(paramToClass.get(fieldName)) || targetField.getType().isAssignableFrom(paramToClass.get(fieldName))) {
+                                                varNames.add(eventSpec.getWriteVariables().get(fieldName));
+                                                Logger.getLogger(this.getClass().getName()).log(Level.FINE, "Adding " + eventSpec.getWriteVariables().get(fieldName) + "(" + fieldName + ") to variable list");
+                                            }
+                                        }
+
+                                    }
+                                } catch (ClassNotFoundException e) {
+                                    e.printStackTrace();
+                                } catch (InstantiationException e) {
+                                    e.printStackTrace();
+                                } catch (IllegalAccessException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }
+                    } else {
+                        Logger.getLogger(this.getClass().getName()).log(Level.FINE, "No events to check for variables.");
                     }
                 }
             }
+        } else {
+            Logger.getLogger(this.getClass().getName()).log(Level.FINE, "No edges to check for events");
+        }
+
+        // Repeat for sub-missions
+        DefaultMutableTreeNode node = getNode(missionPlanSpecification);
+        if (node.getParent() != null && node.getParent() instanceof DefaultMutableTreeNode && ((DefaultMutableTreeNode) node.getParent()).getUserObject() != null && ((DefaultMutableTreeNode) node.getParent()).getUserObject() instanceof MissionPlanSpecification) {
+            MissionPlanSpecification parentMSpec = (MissionPlanSpecification) ((DefaultMutableTreeNode) node.getParent()).getUserObject();
+            ArrayList<String> subMVarNames = getVariables(targetField, parentMSpec);
+            for (String subVarName : subMVarNames) {
+                if (!varNames.contains(subVarName)) {
+                    varNames.add(subVarName);
+                }
+            }
+        }
+        return varNames;
+    }
+
+    public void printDetails() {
+        Enumeration treeEnum = missionTree.breadthFirstEnumeration();
+        while (treeEnum.hasMoreElements()) {
+            Object node = treeEnum.nextElement();
+            if (node instanceof MissionPlanSpecification) {
+                MissionPlanSpecification missionSpec = (MissionPlanSpecification) node;
+                System.out.println("missionSpec " + missionSpec.getName());
+                for (Vertex v : missionSpec.getGraph().getVertices()) {
+                    System.out.println("\tvertex " + v.getTag());
+                    if (missionSpec.getEventSpecList(v) == null) {
+                        System.out.println("\t\tNULL");
+                        continue;
+                    }
+                    for (ReflectedEventSpecification eventSpec : missionSpec.getEventSpecList(v)) {
+                        System.out.println("\t\teventSpec " + eventSpec);
+                        HashMap<String, Object> fieldValues = eventSpec.getFieldValues();
+                        for (String fieldName : fieldValues.keySet()) {
+                            System.out.println("\t\t\t<field, value> = " + fieldName + " -> " + fieldValues.get(fieldName));
+                        }
+                        HashMap<String, String> readVariables = eventSpec.getReadVariables();
+                        for (String fieldName : readVariables.keySet()) {
+                            System.out.println("\t\t\t<field, read var> = " + fieldName + " -> " + readVariables.get(fieldName));
+                        }
+                        HashMap<String, String> writeVariables = eventSpec.getWriteVariables();
+                        for (String fieldName : writeVariables.keySet()) {
+                            System.out.println("\t\t\t<field, write var> = " + fieldName + " -> " + writeVariables.get(fieldName));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void readObject(ObjectInputStream ois) {
+        try {
+            ois.defaultReadObject();
+            // Populate mSpecToNode, nodeToMSpec, and allMissionPlans
+            mSpecToNode = new HashMap<MissionPlanSpecification, DefaultMutableTreeNode>();
+            nodeToMSpec = new HashMap<DefaultMutableTreeNode, MissionPlanSpecification>();
+            allMissionPlans = new ArrayList<MissionPlanSpecification>();
+            rootMissionPlans = new ArrayList<MissionPlanSpecification>();
+            Enumeration e = missionTree.breadthFirstEnumeration();
+            while (e.hasMoreElements()) {
+                DefaultMutableTreeNode node = (DefaultMutableTreeNode) e.nextElement();
+                if (node.getUserObject() instanceof MissionPlanSpecification) {
+                    mSpecToNode.put((MissionPlanSpecification) node.getUserObject(), node);
+                    nodeToMSpec.put(node, (MissionPlanSpecification) node.getUserObject());
+                    allMissionPlans.add((MissionPlanSpecification) node.getUserObject());
+                }
+            }
+            // Populate rootMissionPlans
+            e = missionTree.children();
+            while (e.hasMoreElements()) {
+                DefaultMutableTreeNode node = (DefaultMutableTreeNode) e.nextElement();
+                if (node.getUserObject() instanceof MissionPlanSpecification) {
+                    rootMissionPlans.add((MissionPlanSpecification) node.getUserObject());
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
         }
     }
 }

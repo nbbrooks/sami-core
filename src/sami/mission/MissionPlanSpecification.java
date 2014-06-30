@@ -88,8 +88,10 @@ public class MissionPlanSpecification implements java.io.Serializable {
             for (ReflectedEventSpecification eventSpec : value) {
                 eventSpec.addVariablePrefix(prefix);
             }
-            if (key instanceof Place && ((Place) key).getSubMission() != null) {
-                ((Place) key).getSubMission().addVariablePrefix(prefix);
+            if (key instanceof Place && ((Place) key).getSubMissions() != null) {
+                for (MissionPlanSpecification subMSpec : ((Place) key).getSubMissions()) {
+                    subMSpec.addVariablePrefix(prefix);
+                }
             }
         }
     }

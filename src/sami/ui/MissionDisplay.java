@@ -168,7 +168,7 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
             public Stroke transform(Vertex vertex) {
                 if (filledPlaces.contains(vertex)) {
                     return new BasicStroke(10);
-                } else if (vertex instanceof Place && ((Place) vertex).getSubMission() != null) {
+                } else if (vertex instanceof Place && ((Place) vertex).getSubMissions() != null && !((Place) vertex).getSubMissions().isEmpty()) {
                     return new BasicStroke(5);
                 } else {
                     return new BasicStroke(1);

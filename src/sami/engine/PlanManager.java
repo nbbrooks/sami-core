@@ -58,17 +58,19 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     final ArrayList<Place> placesBeingEntered = new ArrayList<Place>();
     // List of tokens on the mission spec's edges to be used as the default list of tokens to put in the starting place
     //  Null PROXY and ALL tokens are not added to this list
-    private ArrayList<Token> defaultStartTokens = new ArrayList<Token>();
+    private ArrayList<Token> startingTokens = new ArrayList<Token>();
     // Lookup table used for retrieving task based tokens (ie for updating a token after a resource allocation is received)
     private HashMap<String, Task> taskNameToTask = new HashMap<String, Task>();
     private HashMap<ITask, Token> taskToToken = new HashMap<ITask, Token>();
-    private HashMap<TaskSpecification, Token> tokenSpecToToken = new HashMap<TaskSpecification, Token>();
+    private HashMap<TaskSpecification, Token> taskSpecToToken = new HashMap<TaskSpecification, Token>();
     // Keeps track of variables coming in from InputEvents, to be used in OutputEvents
     private HashMap<String, Object> variableNameToValue = new HashMap<String, Object>();
     // Lookup table used during processing of generated and updated parameter input events
     private HashMap<InputEvent, Transition> inputEventToTransitionMap = new HashMap<InputEvent, Transition>();
     // Lookup table used when submissions are completed
     private HashMap<PlanManager, Place> planManagerToPlace = new HashMap<PlanManager, Place>();
+    private HashMap<Place, ArrayList<PlanManager>> placeToActivePlanManagers = new HashMap<Place, ArrayList<PlanManager>>();
+    // Lookup for cloned blocking IEs
     private HashMap<InputEvent, HashMap<ProxyInt, InputEvent>> clonedIeTable = new HashMap<InputEvent, HashMap<ProxyInt, InputEvent>>();
     final MissionPlanSpecification mSpec;
     // The model being managed by this PlanManager
@@ -79,12 +81,12 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     final Level CHECK_T_LVL = Level.FINE;
     final Level EXE_T_LVL = Level.FINE;
 
-    public PlanManager(final MissionPlanSpecification mSpec, UUID missionId, String planName) {
+    public PlanManager(final MissionPlanSpecification mSpec, UUID missionId, String planName, ArrayList<Token> startingTokens) {
         LOGGER.info("Creating PlanManager for mSpec " + mSpec + " with mission ID " + missionId + " and planName " + planName);
         this.mSpec = mSpec;
         this.missionId = missionId;
         this.planName = planName;
-
+        this.startingTokens = startingTokens;
         startPlace = mSpec.getUninstantiatedStart();
 
         // Create task tokens
@@ -92,7 +94,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         for (TaskSpecification taskSpec : mSpec.getTaskSpecList()) {
             Token taskToken = createToken(taskSpec);
             LOGGER.info("\t" + taskSpec + " -> " + taskToken);
-            defaultStartTokens.add(taskToken);
+            this.startingTokens.add(taskToken);
         }
 
         // If there are any parameters on the events that need to be filled in, request from the operator
@@ -256,8 +258,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
      *
      * @param plan
      */
-    public void start(ArrayList<Token> startingTokens) {
+    public void start() {
         LOGGER.log(Level.FINE, "Begin plan start");
+
         while (!generatedEventThread.isAlive()) {
             LOGGER.log(Level.WARNING, "generatedEventThread is not alive, sleeping for 1s");
             try {
@@ -269,15 +272,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
         boolean checkedForTransition = false;
         // Add in any starting tokens to the start place
-        if (startingTokens != null) {
-            LOGGER.log(Level.FINE, "\tAdding received token list " + startingTokens + " to start place " + startPlace);
-            enterPlace(startPlace, startingTokens, true);
-            checkedForTransition = true;
-        } else {
-            LOGGER.log(Level.FINE, "\tNo token list received for start place " + startPlace + ", using default list " + defaultStartTokens);
-            enterPlace(startPlace, defaultStartTokens, true);
-            checkedForTransition = true;
-        }
+        LOGGER.log(Level.FINE, "\tAdding received token list " + startingTokens + " to start place " + startPlace);
+        enterPlace(startPlace, startingTokens, true);
+        checkedForTransition = true;
 
         if (!checkedForTransition) {
             for (Transition transition : startPlace.getOutTransitions()) {
@@ -324,12 +321,13 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 ////
                 // Check that if there is a sub-mission that it has completed
                 ////
-                if (inPlace.getSubMission() != null && !inPlace.getSubMissionComplete()) {
-                    LOGGER.log(CHECK_T_LVL, "\tSub-mission " + inPlace.getSubMission() + " on " + inPlace + " is not yet complete");
+                boolean allSubMFinished = !placeToActivePlanManagers.containsKey(inPlace) || (placeToActivePlanManagers.containsKey(inPlace) && placeToActivePlanManagers.get(inPlace).isEmpty());
+                if (allSubMFinished) {
+                    LOGGER.log(CHECK_T_LVL, "\tSub-missions " + placeToActivePlanManagers.get(inPlace).toString() + " on " + inPlace + " are not yet complete");
                     failure = true;
                     break check;
-                } else if (inPlace.getSubMission() != null && inPlace.getSubMissionComplete()) {
-                    LOGGER.log(CHECK_T_LVL, "\tSub-mission " + inPlace.getSubMission() + " on " + inPlace + " is complete");
+                } else if (allSubMFinished && placeToActivePlanManagers.containsKey(inPlace)) {
+                    LOGGER.log(CHECK_T_LVL, "\tSub-missions on " + inPlace + " are complete");
                 }
 
                 ////
@@ -1606,6 +1604,17 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         }
     }
 
+    public void applyTaskMapping(HashMap<TaskSpecification, TaskSpecification> taskMap, PlanManager parentPM) {
+        LOGGER.log(Level.FINE, "\tApplying task map: " + taskMap.toString());
+        for (TaskSpecification childTaskSpec : taskMap.keySet()) {
+            TaskSpecification parentTaskSpec = taskMap.get(childTaskSpec);
+            Token parentToken = parentPM.getToken(parentTaskSpec);
+            Token childToken = getToken(childTaskSpec);
+            LOGGER.log(Level.FINE, "\t\tSetting proxy: " + parentToken.getProxy() + " from parent token: " + parentToken + " to child token: " + childToken);
+            childToken.setProxy(parentToken.getProxy());
+        }
+    }
+
     private synchronized void enterPlace(Place place, ArrayList<Token> tokens, boolean checkForTransition) {
         LOGGER.info("Entering " + place + " with Tokens: " + tokens + " with checkForTransition: " + checkForTransition + ", getInTransitions: " + place.getInTransitions() + ", inEdges: " + place.getInEdges() + ", getOutTransitions: " + place.getOutTransitions() + ", outEdges: " + place.getOutEdges());
 
@@ -1642,11 +1651,36 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         processOutputEvents(place.getOutputEvents(), tokens);
 
         // 5 - Check for sub-missions and start them if required
-        if (place.getSubMission() != null) {
-            LOGGER.info("\tStarting submission " + place.getSubMission());
-            PlanManager planManager = Engine.getInstance().spawnMission(place.getSubMission(), tokens);
-            planManagerToPlace.put(planManager, place);
-            Engine.getInstance().addListener(this);
+        if (place.getSubMissions() != null && !place.getSubMissions().isEmpty()) {
+            for (MissionPlanSpecification subMSpec : place.getSubMissions()) {
+                LOGGER.info("\tStarting submission " + subMSpec);
+                ArrayList<Token> subMissionTokens = new ArrayList<Token>();
+                for (Token token : tokens) {
+                    if (token.getType() == TokenType.Task && token.getProxy() != null) {
+                        subMissionTokens.add(Engine.getInstance().getToken(token.getProxy()));
+                    } else {
+                        subMissionTokens.add(token);
+                    }
+                }
+                PlanManager subMPlanManager = Engine.getInstance().spawnSubMission(subMSpec, subMissionTokens);
+                // Add in existing variable definitions
+                subMPlanManager.addParentVariables(variableNameToValue);
+                planManagerToPlace.put(subMPlanManager, place);
+                if (placeToActivePlanManagers.containsKey(place)) {
+                    placeToActivePlanManagers.get(place).add(subMPlanManager);
+                } else {
+                    ArrayList<PlanManager> planManagers = new ArrayList<PlanManager>();
+                    planManagers.add(subMPlanManager);
+                    placeToActivePlanManagers.put(place, planManagers);
+                }
+                // Apply task mapping
+                if (place.getSubMissionToTaskMap().containsKey(subMSpec)) {
+                    HashMap<TaskSpecification, TaskSpecification> taskMap = place.getSubMissionToTaskMap().get(subMSpec);
+                    subMPlanManager.applyTaskMapping(taskMap, this);
+                }
+
+                Engine.getInstance().addListener(this);
+            }
         }
 
         // 6 - Tell listeners we have entered a place
@@ -2069,6 +2103,10 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         definedField.setAccessible(true);
                         // Retrieve the value of the variable's Field object
                         variableNameToValue.put(variables.get(fieldName), definedField.get(generatorEvent));
+                        // Add definition to sub-missions
+                        for (PlanManager subMPM : planManagerToPlace.keySet()) {
+                            subMPM.addParentVariable(variables.get(fieldName), definedField.get(generatorEvent));
+                        }
                         LOGGER.log(Level.FINE, "\t\tVariable set " + variables.get(fieldName) + " = " + definedField.get(generatorEvent));
                     } else {
                         LOGGER.log(Level.WARNING, "\t\tGetting field failed: " + fieldName);
@@ -2092,6 +2130,18 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             if (execute) {
                 executeTransition(transition);
             }
+        }
+    }
+
+    public void addParentVariables(HashMap<String, Object> parentVariableNameToValue) {
+        variableNameToValue.putAll(parentVariableNameToValue);
+    }
+
+    public void addParentVariable(String name, Object value) {
+        variableNameToValue.put(name, value);
+        // Recursively add to sub missions
+        for (PlanManager subMPM : planManagerToPlace.keySet()) {
+            subMPM.addParentVariable(name, value);
         }
     }
 
@@ -2161,7 +2211,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     }
 
     public void addDefaultStartToken(Token token) {
-        defaultStartTokens.add(token);
+        startingTokens.add(token);
     }
 
     public void removeProxy(ProxyInt p) {
@@ -2173,6 +2223,10 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         return taskToToken.get(task);
     }
 
+    public Token getToken(TaskSpecification taskSpec) {
+        return taskSpecToToken.get(taskSpec);
+    }
+
     public Token createToken(TaskSpecification tokenSpec) {
         Token token = null;
         try {
@@ -2181,7 +2235,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             token = new Token(tokenSpec.getName(), TokenType.Task, null, (Task) task);
             taskNameToTask.put(tokenSpec.getName(), (Task) task);
             taskToToken.put((Task) task, token);
-            tokenSpecToToken.put(tokenSpec, token);
+            taskSpecToToken.put(tokenSpec, token);
             Logger.getLogger(this.getClass().getName()).log(Level.FINER, "\t\t\tCreated token " + token);
         } catch (ClassNotFoundException cnfe) {
             cnfe.printStackTrace();
@@ -2217,13 +2271,25 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     public void planFinished(PlanManager planManager) {
         Place place = planManagerToPlace.get(planManager);
         if (place != null) {
-            place.setSubMissionComplete(true);
-            for (Transition transition : place.getOutTransitions()) {
-                boolean execute = checkTransition(transition);
-                if (execute) {
-                    executeTransition(transition);
-                };
+            ArrayList<PlanManager> activePMs = placeToActivePlanManagers.get(place);
+            if (activePMs != null) {
+                LOGGER.severe("Sub-mission mapping for place is null");
+            } else if (activePMs.contains(planManager)) {
+                activePMs.remove(planManager);
+                if (activePMs.isEmpty()) {
+                    // All sub-missions are now complete, check if we should execute transition
+                    for (Transition transition : place.getOutTransitions()) {
+                        boolean execute = checkTransition(transition);
+                        if (execute) {
+                            executeTransition(transition);
+                        };
+                    }
+                }
+            } else {
+                LOGGER.severe("Sub-mission mapping for place did not contain plan manager");
             }
+        } else {
+            LOGGER.severe("Sub-mission plan manager has no mapped place");
         }
     }
 
