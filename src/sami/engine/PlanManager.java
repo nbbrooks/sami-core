@@ -322,8 +322,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 // Check that if there is a sub-mission that it has completed
                 ////
                 boolean allSubMFinished = !placeToActivePlanManagers.containsKey(inPlace) || (placeToActivePlanManagers.containsKey(inPlace) && placeToActivePlanManagers.get(inPlace).isEmpty());
-                if (allSubMFinished) {
-                    LOGGER.log(CHECK_T_LVL, "\tSub-missions " + placeToActivePlanManagers.get(inPlace).toString() + " on " + inPlace + " are not yet complete");
+                if (!allSubMFinished) {
+                    LOGGER.log(CHECK_T_LVL, "\tSub-missions " + placeToActivePlanManagers.get(inPlace) + " on " + inPlace + " are not yet complete");
                     failure = true;
                     break check;
                 } else if (allSubMFinished && placeToActivePlanManagers.containsKey(inPlace)) {
