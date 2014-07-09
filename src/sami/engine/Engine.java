@@ -54,6 +54,8 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
     private sami.uilanguage.UiServerInt uiServer = null;
     // Configuration of output events and the handler classes that will execute them
     private Hashtable<Class, EventHandlerInt> handlers = new Hashtable<Class, EventHandlerInt>();
+    // Keeps track of variables coming in from InputEvents, to be used in OutputEvents
+    private final HashMap<String, Object> variableNameToValue = new HashMap<String, Object>();
     private static final Object lock = new Object();
 
     private static class EngineHolder {
@@ -129,7 +131,9 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
 
     public void addListener(PlanManagerListenerInt planManagerListener) {
         synchronized (lock) {
-            planManagerListeners.add(planManagerListener);
+            if (!planManagerListeners.contains(planManagerListener)) {
+                planManagerListeners.add(planManagerListener);
+            }
         }
     }
 
@@ -357,5 +361,13 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         for (EnvironmentListenerInt listener : environmentListeners) {
             listener.environmentUpdated();
         }
+    }
+
+    public Object getVariableValue(String variable) {
+        return variableNameToValue.get(variable);
+    }
+
+    public void setVariableValue(String variable, Object value) {
+        variableNameToValue.put(variable, value);
     }
 }

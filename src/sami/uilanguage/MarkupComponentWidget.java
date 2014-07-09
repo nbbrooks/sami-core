@@ -28,4 +28,6 @@ public interface MarkupComponentWidget {
     public abstract void handleMarkups(ArrayList<Markup> markups, MarkupManager manager);
 
     public abstract void disableMarkup(Markup markup);
+
+    public abstract ArrayList<Class> getSupportedCreationClasses();
 }

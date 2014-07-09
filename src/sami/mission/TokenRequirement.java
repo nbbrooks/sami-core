@@ -17,6 +17,7 @@ public class TokenRequirement implements java.io.Serializable {
         AnyTask,
         AnyProxy,
         AnyToken,
+        SubMissionToken
     };
 
     public enum MatchQuantity {

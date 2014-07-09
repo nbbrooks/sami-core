@@ -319,12 +319,20 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
                 LOGGER.log(Level.WARNING, "Failed to load project specification at [" + drmFile + "]");
                 JOptionPane.showMessageDialog(null, "Specification failed load");
             } else {
+                // Add root missions
                 for (Object m : projectSpec.getRootMissionPlans()) {
                     missionListModel.addElement(m);
                 }
 //                for (UiFrame uiFrame : uiFrames) {
 //                    uiFrame.setGUISpec(projectSpec.getGuiElements());
 //                }
+                // @todo Clear variables?
+
+                // Load project spec's global variables
+                for (String variable : projectSpec.getGlobalVariableToValue().keySet()) {
+                    Engine.getInstance().setVariableValue(variable, projectSpec.getGlobalVariableValue(variable));
+                }
+
                 Preferences p = Preferences.userRoot();
                 try {
                     p.put(LAST_DRM_FILE, drmFile.getAbsolutePath());

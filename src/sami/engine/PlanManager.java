@@ -63,13 +63,12 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     private HashMap<String, Task> taskNameToTask = new HashMap<String, Task>();
     private HashMap<ITask, Token> taskToToken = new HashMap<ITask, Token>();
     private HashMap<TaskSpecification, Token> taskSpecToToken = new HashMap<TaskSpecification, Token>();
-    // Keeps track of variables coming in from InputEvents, to be used in OutputEvents
-    private HashMap<String, Object> variableNameToValue = new HashMap<String, Object>();
     // Lookup table used during processing of generated and updated parameter input events
     private HashMap<InputEvent, Transition> inputEventToTransitionMap = new HashMap<InputEvent, Transition>();
     // Lookup table used when submissions are completed
     private HashMap<PlanManager, Place> planManagerToPlace = new HashMap<PlanManager, Place>();
     private HashMap<Place, ArrayList<PlanManager>> placeToActivePlanManagers = new HashMap<Place, ArrayList<PlanManager>>();
+    private HashMap<Place, ArrayList<Token>> placeToSMTokens = new HashMap<Place, ArrayList<Token>>();
     // Lookup for cloned blocking IEs
     private HashMap<InputEvent, HashMap<ProxyInt, InputEvent>> clonedIeTable = new HashMap<InputEvent, HashMap<ProxyInt, InputEvent>>();
     final MissionPlanSpecification mSpec;
@@ -612,6 +611,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         Hashtable<Place, ArrayList<Token>> outPlaceToTaskTokensToAdd = new Hashtable<Place, ArrayList<Token>>();
         // For each out place, how many generic tokens should be added?
         Hashtable<Place, Integer> outPlaceToGenericTokenAdd = new Hashtable<Place, Integer>();
+        // For each out place, which tokens that were in end place of finished sub-missions should be added?
+        Hashtable<Place, ArrayList<Token>> outPlaceToSMTokensToAdd = new Hashtable<Place, ArrayList<Token>>();
 
         // Initialize hashtable values
         Hashtable<InputEvent, boolean[]> ieToRelTokenAddMaster = new Hashtable<InputEvent, boolean[]>();
@@ -636,6 +637,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             outPlaceToIeToRelTokenAdd.put(outPlace, (Hashtable<InputEvent, boolean[]>) ieToRelTokenAddMaster.clone());
             outPlaceToTaskTokensToAdd.put(outPlace, new ArrayList<Token>());
             outPlaceToGenericTokenAdd.put(outPlace, 0);
+            outPlaceToSMTokensToAdd.put(outPlace, new ArrayList<Token>());
         }
 
         // Start filling hashtable values
@@ -1429,6 +1431,22 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                 break;
                         }
                         break;
+                    case SubMissionToken:
+                        ArrayList<Token> sMTokensToAdd = outPlaceToSMTokensToAdd.get(outPlace);
+                        switch (outReq.getMatchAction()) {
+                            case Add:
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // Add all task tokens in all incoming places (including duplicates)
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            if (placeToSMTokens.containsKey(inPlace)) {
+                                                ArrayList<Token> sMTokens = placeToSMTokens.remove(inPlace);
+                                                sMTokensToAdd.addAll(sMTokens);
+                                            }
+                                        }
+                                }
+                        }
+                        break;
                     default:
                         LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
                         break;
@@ -1462,6 +1480,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             ArrayList<Token> taskTokensToAdd = outPlaceToTaskTokensToAdd.get(outPlace);
             Integer genericCount = outPlaceToGenericTokenAdd.get(outPlace);
             Hashtable<InputEvent, boolean[]> ieToRelTokenAdd = outPlaceToIeToRelTokenAdd.get(outPlace);
+            ArrayList<Token> sMTokensToAdd = outPlaceToSMTokensToAdd.get(outPlace);
 
             ArrayList<Token> tokensToAdd = new ArrayList<Token>();
             for (Place inPlace : inPlaceToTokenAdd.keySet()) {
@@ -1491,6 +1510,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                     }
                 }
             }
+            tokensToAdd.addAll(sMTokensToAdd);
 
             outPlaceToAdd.put(outPlace, tokensToAdd);
         }
@@ -1663,8 +1683,6 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                     }
                 }
                 PlanManager subMPlanManager = Engine.getInstance().spawnSubMission(subMSpec, subMissionTokens);
-                // Add in existing variable definitions
-                subMPlanManager.addParentVariables(variableNameToValue);
                 planManagerToPlace.put(subMPlanManager, place);
                 if (placeToActivePlanManagers.containsKey(place)) {
                     placeToActivePlanManagers.get(place).add(subMPlanManager);
@@ -1728,8 +1746,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             // Write in values for any fields that were filled with a variable name
             if (oe.getVariables() != null) {
                 for (String variableName : oe.getVariables().keySet()) {
-                    Object variableValue = variableNameToValue.get(variableName);
-                    LOGGER.log(Level.FINE, "\tLooking for " + variableName + " to set " + oe.getVariables().get(variableName) + " find " + variableValue + " " + variableNameToValue);
+                    Object variableValue = Engine.getInstance().getVariableValue(variableName);
+                    LOGGER.log(Level.FINE, "\tUsing " + variableName + " to set " + oe.getVariables().get(variableName) + " to " + variableValue);
                     if (variableValue != null) {
                         Field f = oe.getVariables().get(variableName);
                         try {
@@ -2102,11 +2120,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                     if (definedField != null) {
                         definedField.setAccessible(true);
                         // Retrieve the value of the variable's Field object
-                        variableNameToValue.put(variables.get(fieldName), definedField.get(generatorEvent));
-                        // Add definition to sub-missions
-                        for (PlanManager subMPM : planManagerToPlace.keySet()) {
-                            subMPM.addParentVariable(variables.get(fieldName), definedField.get(generatorEvent));
-                        }
+                        Engine.getInstance().setVariableValue(variables.get(fieldName), definedField.get(generatorEvent));
                         LOGGER.log(Level.FINE, "\t\tVariable set " + variables.get(fieldName) + " = " + definedField.get(generatorEvent));
                     } else {
                         LOGGER.log(Level.WARNING, "\t\tGetting field failed: " + fieldName);
@@ -2130,18 +2144,6 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             if (execute) {
                 executeTransition(transition);
             }
-        }
-    }
-
-    public void addParentVariables(HashMap<String, Object> parentVariableNameToValue) {
-        variableNameToValue.putAll(parentVariableNameToValue);
-    }
-
-    public void addParentVariable(String name, Object value) {
-        variableNameToValue.put(name, value);
-        // Recursively add to sub missions
-        for (PlanManager subMPM : planManagerToPlace.keySet()) {
-            subMPM.addParentVariable(name, value);
         }
     }
 
@@ -2272,10 +2274,22 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         Place place = planManagerToPlace.get(planManager);
         if (place != null) {
             ArrayList<PlanManager> activePMs = placeToActivePlanManagers.get(place);
-            if (activePMs != null) {
-                LOGGER.severe("Sub-mission mapping for place is null");
+            if (activePMs == null) {
+                LOGGER.severe("Sub-mission mapping for place " + place + " is null");
             } else if (activePMs.contains(planManager)) {
+                // Record all tokens in the sub-mission's end state(s)
+                ArrayList<Token> sMTokens;
+                if (placeToSMTokens.containsKey(place)) {
+                    sMTokens = placeToSMTokens.get(place);
+                } else {
+                    sMTokens = new ArrayList<Token>();
+                    placeToSMTokens.put(place, sMTokens);
+                }
+                sMTokens.addAll(planManager.getEndTokens());
+
+                // Stop listening to the sub-mission's plan manager
                 activePMs.remove(planManager);
+
                 if (activePMs.isEmpty()) {
                     // All sub-missions are now complete, check if we should execute transition
                     for (Transition transition : place.getOutTransitions()) {
@@ -2286,15 +2300,29 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                     }
                 }
             } else {
-                LOGGER.severe("Sub-mission mapping for place did not contain plan manager");
+                LOGGER.severe("Sub-mission mapping for place: " + place + " did not contain plan manager: " + planManager.getPlanName());
             }
         } else {
-            LOGGER.severe("Sub-mission plan manager has no mapped place");
+            LOGGER.severe("Sub-mission plan manager: " + planManager.getPlanName() + " has no mapped place");
         }
     }
 
     @Override
     public void planAborted(PlanManager planManager) {
         throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    public ArrayList<Token> getEndTokens() {
+        // Get all tokens in an end place
+        ArrayList<Token> endTokens = new ArrayList<Token>();
+        for (Vertex v : mSpec.getGraph().getVertices()) {
+            if (v instanceof Place) {
+                Place place = (Place) v;
+                if (place.isEnd()) {
+                    endTokens.addAll(place.getTokens());
+                }
+            }
+        }
+        return endTokens;
     }
 }

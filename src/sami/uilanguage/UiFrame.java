@@ -6,8 +6,6 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.lang.reflect.Field;
-import java.lang.reflect.Type;
 import java.util.ArrayList;
 import javax.swing.BorderFactory;
 import javax.swing.JComponent;
@@ -82,7 +80,7 @@ public class UiFrame extends JFrame implements MarkupComponent {
     }
 
     @Override
-    public Object getComponentValue(Field field) {
+    public Object getComponentValue(Class componentClass) {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
@@ -135,5 +133,27 @@ public class UiFrame extends JFrame implements MarkupComponent {
         if (markup instanceof Attention) {
             ((JComponent) getContentPane()).setBorder(null);
         }
+    }
+
+    @Override
+    public ArrayList<Class> getSupportedCreationClasses() {
+        ArrayList<Class> compCreationClasses = new ArrayList<Class>();
+        compCreationClasses.addAll(supportedCreationClasses);
+        for (Class widgetClass : widgetClasses) {
+            try {
+                MarkupComponentWidget temp = (MarkupComponentWidget) widgetClass.newInstance();
+                ArrayList<Class> widgetCreationClasses = temp.getSupportedCreationClasses();
+                for (Class widgetCreationClass : widgetCreationClasses) {
+                    if (!compCreationClasses.contains(widgetCreationClass)) {
+                        compCreationClasses.add(widgetCreationClass);
+                    }
+                }
+            } catch (InstantiationException ex) {
+                ex.printStackTrace();
+            } catch (IllegalAccessException ex) {
+                ex.printStackTrace();
+            }
+        }
+        return compCreationClasses;
     }
 }

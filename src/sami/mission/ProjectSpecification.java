@@ -30,6 +30,7 @@ public class ProjectSpecification implements java.io.Serializable {
     private ArrayList<RequirementSpecification> reqs;
     private DefaultMutableTreeNode missionTree = new DefaultMutableTreeNode("Plays");
     private ArrayList<TestCase> testCases = null;
+    private HashMap<String, Object> globalVariables = new HashMap<String, Object>();
     transient private ArrayList<MissionPlanSpecification> allMissionPlans = new ArrayList<MissionPlanSpecification>();
     transient private ArrayList<MissionPlanSpecification> rootMissionPlans = new ArrayList<MissionPlanSpecification>();
     transient private HashMap<MissionPlanSpecification, DefaultMutableTreeNode> mSpecToNode = new HashMap<MissionPlanSpecification, DefaultMutableTreeNode>();
@@ -147,61 +148,82 @@ public class ProjectSpecification implements java.io.Serializable {
         this.testCases = testCases;
     }
 
-    public ArrayList<String> getVariables(Field targetField, MissionPlanSpecification missionPlanSpecification) {
+    public ArrayList<String> getVariables(Field targetField) {
         ArrayList<String> varNames = new ArrayList<String>();
 
-        if (missionPlanSpecification.getGraph() != null && missionPlanSpecification.getGraph().getEdges() != null) {
-            for (Vertex v : missionPlanSpecification.getGraph().getVertices()) {
-                if (v instanceof Transition) {
-                    if (missionPlanSpecification.getEventSpecList((Transition) v) != null) {
-                        for (ReflectedEventSpecification eventSpec : missionPlanSpecification.getEventSpecList((Transition) v)) {
-                            // This is in place of actually working out whether this is an input or output event
-                            if (eventSpec.getWriteVariables() != null) {
-                                Class c;
-                                Hashtable<String, Class> paramToClass;
+        for (MissionPlanSpecification mSpec : allMissionPlans) {
+            if (mSpec.getGraph() != null && mSpec.getGraph().getEdges() != null) {
+                for (Vertex v : mSpec.getGraph().getVertices()) {
+                    if (v instanceof Transition) {
+                        if (mSpec.getEventSpecList((Transition) v) != null) {
+                            for (ReflectedEventSpecification eventSpec : mSpec.getEventSpecList((Transition) v)) {
+                                // This is in place of actually working out whether this is an input or output event
+                                if (eventSpec.getWriteVariables() != null) {
+                                    Class c;
+                                    Hashtable<String, Class> paramToClass;
 
-                                try {
-                                    c = Class.forName(eventSpec.getClassName());
-                                    paramToClass = ((InputEvent) c.newInstance()).getInputEventDataTypes(c);
-                                    if (paramToClass.size() > 0) {
-                                        for (String fieldName : eventSpec.getWriteVariables().keySet()) {
-                                            if (targetField.getDeclaringClass().isAssignableFrom(paramToClass.get(fieldName)) || targetField.getType().isAssignableFrom(paramToClass.get(fieldName))) {
-                                                varNames.add(eventSpec.getWriteVariables().get(fieldName));
-                                                Logger.getLogger(this.getClass().getName()).log(Level.FINE, "Adding " + eventSpec.getWriteVariables().get(fieldName) + "(" + fieldName + ") to variable list");
+                                    try {
+                                        c = Class.forName(eventSpec.getClassName());
+                                        paramToClass = ((InputEvent) c.newInstance()).getInputEventDataTypes(c);
+                                        if (paramToClass.size() > 0) {
+                                            for (String fieldName : eventSpec.getWriteVariables().keySet()) {
+                                                if (targetField.getDeclaringClass().isAssignableFrom(paramToClass.get(fieldName)) || targetField.getType().isAssignableFrom(paramToClass.get(fieldName))) {
+                                                    String varName = eventSpec.getWriteVariables().get(fieldName);
+                                                    if (!varNames.contains(varName)) {
+                                                        varNames.add(eventSpec.getWriteVariables().get(fieldName));
+                                                    }
+                                                    Logger.getLogger(this.getClass().getName()).log(Level.FINE, "Adding " + eventSpec.getWriteVariables().get(fieldName) + "(" + fieldName + ") to variable list");
+                                                }
                                             }
-                                        }
 
+                                        }
+                                    } catch (ClassNotFoundException e) {
+                                        e.printStackTrace();
+                                    } catch (InstantiationException e) {
+                                        e.printStackTrace();
+                                    } catch (IllegalAccessException e) {
+                                        e.printStackTrace();
                                     }
-                                } catch (ClassNotFoundException e) {
-                                    e.printStackTrace();
-                                } catch (InstantiationException e) {
-                                    e.printStackTrace();
-                                } catch (IllegalAccessException e) {
-                                    e.printStackTrace();
                                 }
                             }
+                        } else {
+                            Logger.getLogger(this.getClass().getName()).log(Level.FINE, "No events to check for variables.");
                         }
-                    } else {
-                        Logger.getLogger(this.getClass().getName()).log(Level.FINE, "No events to check for variables.");
                     }
                 }
+            } else {
+                Logger.getLogger(this.getClass().getName()).log(Level.FINE, "No edges to check for events");
             }
-        } else {
-            Logger.getLogger(this.getClass().getName()).log(Level.FINE, "No edges to check for events");
         }
-
-        // Repeat for sub-missions
-        DefaultMutableTreeNode node = getNode(missionPlanSpecification);
-        if (node.getParent() != null && node.getParent() instanceof DefaultMutableTreeNode && ((DefaultMutableTreeNode) node.getParent()).getUserObject() != null && ((DefaultMutableTreeNode) node.getParent()).getUserObject() instanceof MissionPlanSpecification) {
-            MissionPlanSpecification parentMSpec = (MissionPlanSpecification) ((DefaultMutableTreeNode) node.getParent()).getUserObject();
-            ArrayList<String> subMVarNames = getVariables(targetField, parentMSpec);
-            for (String subVarName : subMVarNames) {
-                if (!varNames.contains(subVarName)) {
-                    varNames.add(subVarName);
+        for (String variable : globalVariables.keySet()) {
+            if (targetField.getDeclaringClass().isAssignableFrom(globalVariables.get(variable).getClass()) || targetField.getType().isAssignableFrom(globalVariables.get(variable).getClass())) {
+                if (!varNames.contains(variable)) {
+                    varNames.add(variable);
                 }
+                Logger.getLogger(this.getClass().getName()).log(Level.FINE, "Adding " + variable + " to variable list");
             }
         }
         return varNames;
+    }
+    
+    public boolean isGlobalVariable(String variable) {
+        return globalVariables.containsKey(variable);
+    }
+    
+    public void deleteGlobalVariable(String variable) {
+        globalVariables.remove(variable);
+    }
+    
+    public Object getGlobalVariableValue(String variable) {
+        return globalVariables.get(variable);
+    }
+    
+    public void setGlobalVariableValue(String variable, Object value) {
+        globalVariables.put(variable, value);
+    }
+    
+    public HashMap<String, Object> getGlobalVariableToValue() {
+        return globalVariables;
     }
 
     public void printDetails() {
@@ -240,6 +262,9 @@ public class ProjectSpecification implements java.io.Serializable {
     private void readObject(ObjectInputStream ois) {
         try {
             ois.defaultReadObject();
+            if(globalVariables == null) {
+                globalVariables = new HashMap<String, Object>();
+            }
             // Populate mSpecToNode, nodeToMSpec, and allMissionPlans
             mSpecToNode = new HashMap<MissionPlanSpecification, DefaultMutableTreeNode>();
             nodeToMSpec = new HashMap<DefaultMutableTreeNode, MissionPlanSpecification>();

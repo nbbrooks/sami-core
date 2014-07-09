@@ -24,11 +24,13 @@ public interface MarkupComponent {
 
     public JComponent getComponent();
 
-    public Object getComponentValue(Field field);
+    public Object getComponentValue(Class componentClass);
 
     public boolean setComponentValue(Object value);
 
     public abstract void handleMarkups(ArrayList<Markup> markups, MarkupManager manager);
 
     public abstract void disableMarkup(Markup markup);
+
+    public abstract ArrayList<Class> getSupportedCreationClasses();
 }

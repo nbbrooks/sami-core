@@ -20,7 +20,9 @@ public interface UiComponentGeneratorInt {
 
     public MarkupComponent getSelectionComponent(Type type, Object value, ArrayList<Markup> markupList);
 
-    public Object getComponentValue(MarkupComponent component, Field field);
+    public Object getComponentValue(MarkupComponent component, Class componentClass);
 
     public boolean setComponentValue(MarkupComponent component, Object value);
+
+    public ArrayList<Class> getCreationClasses();
 }

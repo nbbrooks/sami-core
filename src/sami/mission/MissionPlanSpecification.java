@@ -43,12 +43,12 @@ public class MissionPlanSpecification implements java.io.Serializable {
         this.name = name;
     }
 
-    public MissionPlanSpecification getSubmissionInstance(MissionPlanSpecification parentSpec, String namePrefix, String variablePrefix) {
+    public MissionPlanSpecification getSubmissionInstance(MissionPlanSpecification parentSpec, String namePrefix, String variablePrefix, HashMap<String, Object> globalVariables) {
         MissionPlanSpecification copy = deepClone();
 
         // Apply prefixes
         copy.setName(namePrefix + "." + name);
-        copy.addVariablePrefix(variablePrefix);
+        copy.addVariablePrefix(variablePrefix, globalVariables);
 
         return copy;
     }
@@ -81,16 +81,16 @@ public class MissionPlanSpecification implements java.io.Serializable {
         return variables;
     }
 
-    public void addVariablePrefix(String prefix) {
+    public void addVariablePrefix(String prefix, HashMap<String, Object> globalVariableNames) {
         // Add prefix to all variables in the plan, recursing into sub-missions
         for (Vertex key : vertexToEventSpecListMap.keySet()) {
             ArrayList<ReflectedEventSpecification> value = vertexToEventSpecListMap.get(key);
             for (ReflectedEventSpecification eventSpec : value) {
-                eventSpec.addVariablePrefix(prefix);
+                eventSpec.addVariablePrefix(prefix, globalVariableNames);
             }
             if (key instanceof Place && ((Place) key).getSubMissions() != null) {
                 for (MissionPlanSpecification subMSpec : ((Place) key).getSubMissions()) {
-                    subMSpec.addVariablePrefix(prefix);
+                    subMSpec.addVariablePrefix(prefix, globalVariableNames);
                 }
             }
         }

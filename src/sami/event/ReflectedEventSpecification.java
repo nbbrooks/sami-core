@@ -41,14 +41,18 @@ public class ReflectedEventSpecification implements java.io.Serializable {
         this.className = className;
     }
 
-    public void addVariablePrefix(String prefix) {
+    public void addVariablePrefix(String prefix, HashMap<String, Object> globalVariables) {
         // Read variables
         HashMap<String, String> newFieldNameToReadVariable = new HashMap<String, String>();
         for (String fieldName : fieldNameToReadVariable.keySet()) {
             String readVariable = fieldNameToReadVariable.get(fieldName);
             if (!readVariable.equalsIgnoreCase(NONE)) {
-                String newVariable = "@" + prefix + "." + readVariable.substring(1);
-                newFieldNameToReadVariable.put(fieldName, newVariable);
+                if (globalVariables.containsKey(readVariable)) {
+                    newFieldNameToReadVariable.put(fieldName, readVariable);
+                } else {
+                    String newVariable = "@" + prefix + "." + readVariable.substring(1);
+                    newFieldNameToReadVariable.put(fieldName, newVariable);
+                }
             } else {
                 newFieldNameToReadVariable.put(fieldName, NONE);
             }
@@ -60,8 +64,12 @@ public class ReflectedEventSpecification implements java.io.Serializable {
         for (String fieldName : fieldNameToWriteVariable.keySet()) {
             String writeVariable = fieldNameToWriteVariable.get(fieldName);
             if (!writeVariable.equalsIgnoreCase(NONE)) {
-                String newVariable = "@" + prefix + "." + writeVariable.substring(1);
-                newFieldNameToWriteVariable.put(fieldName, newVariable);
+                if (globalVariables.containsKey(writeVariable)) {
+                    newFieldNameToWriteVariable.put(fieldName, writeVariable);
+                } else {
+                    String newVariable = "@" + prefix + "." + writeVariable.substring(1);
+                    newFieldNameToWriteVariable.put(fieldName, newVariable);
+                }
             } else {
                 newFieldNameToWriteVariable.put(fieldName, NONE);
             }
