@@ -470,7 +470,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                     // Check that there are no copies of any of the relevant proxy tokens
                                     relevantProxies = getRelevantProxies(transition);
                                     for (Token placeToken : placeTokens) {
-                                        if (placeToken.getType() == TokenType.Proxy
+                                        if ((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
                                                 && placeToken.getProxy() != null
                                                 && relevantProxies.contains(placeToken.getProxy())) {
                                             failure = true;
@@ -484,7 +484,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                     relevantProxies = getRelevantProxies(transition);
                                     // Go through token list and remove item from relevant proxy list where appropriate 
                                     for (Token placeToken : placeTokens) {
-                                        if (placeToken.getType() == TokenType.Proxy
+                                        if ((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
                                                 && placeToken.getProxy() != null
                                                 && relevantProxies.contains(placeToken.getProxy())) {
                                             count++;
@@ -503,7 +503,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                     relevantProxies = (ArrayList<ProxyInt>) (getRelevantProxies(transition).clone());
                                     // Go through token list and remove item from relevant proxy list where appropriate 
                                     for (Token placeToken : placeTokens) {
-                                        if (placeToken.getType() == TokenType.Proxy
+                                        if ((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
                                                 && placeToken.getProxy() != null
                                                 && relevantProxies.contains(placeToken.getProxy())) {
                                             relevantProxies.remove(placeToken.getProxy());
@@ -613,6 +613,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         Hashtable<Place, Integer> outPlaceToGenericTokenAdd = new Hashtable<Place, Integer>();
         // For each out place, which tokens that were in end place of finished sub-missions should be added?
         Hashtable<Place, ArrayList<Token>> outPlaceToSMTokensToAdd = new Hashtable<Place, ArrayList<Token>>();
+        // Whether to clear sub-mission tokens from the in places (ie do we have a SubMissionToken requirement?)
+        boolean clearSMTokens = false;
 
         // Initialize hashtable values
         Hashtable<InputEvent, boolean[]> ieToRelTokenAddMaster = new Hashtable<InputEvent, boolean[]>();
@@ -1213,7 +1215,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                             boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
                                             for (int i = 0; i < tokenRemove.length; i++) {
                                                 Token placeToken = placeTokens.get(i);
-                                                if (placeToken.getType() == TokenType.Proxy
+                                                if ((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
                                                         && placeToken.getProxy() != null
                                                         && relevantProxies.contains(placeToken.getProxy())) {
                                                     tokenRemove[i] = true;
@@ -1234,7 +1236,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                                     break;
                                                 }
                                                 Token placeToken = placeTokens.get(i);
-                                                if (placeToken.getType() == TokenType.Proxy
+                                                if ((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
                                                         && placeToken.getProxy() != null
                                                         && relevantProxies.contains(placeToken.getProxy())) {
                                                     tokenRemove[i] = true;
@@ -1262,7 +1264,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                             boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
                                             for (int i = 0; i < tokenRemove.length; i++) {
                                                 Token placeToken = placeTokens.get(i);
-                                                if (placeToken.getType() == TokenType.Proxy
+                                                if ((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
                                                         && placeToken.getProxy() != null
                                                         && relevantProxies.contains(placeToken.getProxy())) {
                                                     tokenRemove[i] = true;
@@ -1285,7 +1287,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                                     break;
                                                 }
                                                 Token placeToken = placeTokens.get(i);
-                                                if (placeToken.getType() == TokenType.Proxy
+                                                if ((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
                                                         && placeToken.getProxy() != null
                                                         && relevantProxies.contains(placeToken.getProxy())) {
                                                     tokenRemove[i] = true;
@@ -1440,8 +1442,16 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                         // Add all task tokens in all incoming places (including duplicates)
                                         for (Place inPlace : inPlaceToTokenRemove.keySet()) {
                                             if (placeToSMTokens.containsKey(inPlace)) {
-                                                ArrayList<Token> sMTokens = placeToSMTokens.remove(inPlace);
-                                                sMTokensToAdd.addAll(sMTokens);
+                                                ArrayList<Token> sMTokens = placeToSMTokens.get(inPlace);
+                                                for (Token sMToken : sMTokens) {
+                                                    if (sMToken.getType() == TokenType.Task && sMToken.getProxy() != null) {
+                                                        sMTokensToAdd.add(Engine.getInstance().getToken(sMToken.getProxy()));
+                                                    } else if (sMToken.getType() != TokenType.Task) {
+                                                        sMTokensToAdd.add(sMToken);
+                                                    }
+                                                }
+                                                // Once all edge requirements have been handled, clear SM tokens from in places
+                                                clearSMTokens = true;
                                             }
                                         }
                                 }
@@ -1518,6 +1528,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         // Actually remove things
         for (Place inPlace : transition.getInPlaces()) {
             leavePlace(inPlace, inPlaceToRemove.get(inPlace));
+            if (clearSMTokens) {
+                placeToSMTokens.remove(inPlace);
+            }
         }
 
         // Actually add things
@@ -1678,7 +1691,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 for (Token token : tokens) {
                     if (token.getType() == TokenType.Task && token.getProxy() != null) {
                         subMissionTokens.add(Engine.getInstance().getToken(token.getProxy()));
-                    } else {
+                    } else if (token.getType() != TokenType.Task) {
                         subMissionTokens.add(token);
                     }
                 }
@@ -1891,14 +1904,14 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         // Get list of proxies that we will check that a cloned IE exists for 
                         // First add each proxy in incoming place with RP on the edge
                         for (InEdge inEdge : transition.getInEdges()) {
-                            boolean hasRpReq = false;
+                            boolean hasRtReq = false;
                             for (TokenRequirement tokenReq : inEdge.getTokenRequirements()) {
                                 if (tokenReq.getMatchCriteria() == TokenRequirement.MatchCriteria.RelevantToken) {
-                                    hasRpReq = true;
+                                    hasRtReq = true;
                                     break;
                                 }
                             }
-                            if (hasRpReq) {
+                            if (hasRtReq) {
                                 if (!(inEdge.getStart() instanceof Place)) {
                                     LOGGER.severe("Incoming edge to a transition was not a place!");
                                     System.exit(0);
