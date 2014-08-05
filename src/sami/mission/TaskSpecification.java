@@ -27,6 +27,10 @@ public class TaskSpecification implements java.io.Serializable {
     public String toString() {
         return name;
     }
+    
+    public String toVerboseString() {
+        return name + "(" + taskClassName + ")";
+    }
 
     @Override
     public boolean equals(Object obj) {

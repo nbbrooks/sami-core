@@ -25,30 +25,34 @@ public class ReflectedEventSpecification implements java.io.Serializable {
     private static final Logger LOGGER = Logger.getLogger(ReflectedEventSpecification.class.getName());
     static final long serialVersionUID = 1L;
     // For each field, an instantiated object value
-    protected HashMap<String, Object> fieldNameToValue = new HashMap<String, Object>();
+    private HashMap<String, Object> fieldNameToValue = new HashMap<String, Object>();
     // For each field, variable name field's value should be read from at run-time
-    protected HashMap<String, String> fieldNameToReadVariable = new HashMap<String, String>();
+    private HashMap<String, String> fieldNameToReadVariable = new HashMap<String, String>();
     // For each field, variable name field's value should be written to at run-time (input events only)
-    protected HashMap<String, String> fieldNameToWriteVariable = new HashMap<String, String>();
+    private HashMap<String, String> fieldNameToWriteVariable = new HashMap<String, String>();
     // For each field, whether or not to allow the user to edit the values at run-time
-    protected HashMap<String, Boolean> fieldNameToEditable = new HashMap<String, Boolean>();
+    private HashMap<String, Boolean> fieldNameToEditable = new HashMap<String, Boolean>();
     // Event's reflected markup specs
-    protected ArrayList<ReflectedMarkupSpecification> markupSpecs = new ArrayList<ReflectedMarkupSpecification>();
+    private ArrayList<ReflectedMarkupSpecification> markupSpecs = new ArrayList<ReflectedMarkupSpecification>();
     // Event's class name
-    protected final String className;
+    private final String className;
 
     public ReflectedEventSpecification(String className) {
         this.className = className;
     }
 
-    public void addVariablePrefix(String prefix) {
+    public void addVariablePrefix(String prefix, HashMap<String, Object> globalVariables) {
         // Read variables
         HashMap<String, String> newFieldNameToReadVariable = new HashMap<String, String>();
         for (String fieldName : fieldNameToReadVariable.keySet()) {
             String readVariable = fieldNameToReadVariable.get(fieldName);
             if (!readVariable.equalsIgnoreCase(NONE)) {
-                String newVariable = "@" + prefix + "." + readVariable.substring(1);
-                newFieldNameToReadVariable.put(fieldName, newVariable);
+                if (globalVariables.containsKey(readVariable)) {
+                    newFieldNameToReadVariable.put(fieldName, readVariable);
+                } else {
+                    String newVariable = "@" + prefix + "." + readVariable.substring(1);
+                    newFieldNameToReadVariable.put(fieldName, newVariable);
+                }
             } else {
                 newFieldNameToReadVariable.put(fieldName, NONE);
             }
@@ -60,10 +64,14 @@ public class ReflectedEventSpecification implements java.io.Serializable {
         for (String fieldName : fieldNameToWriteVariable.keySet()) {
             String writeVariable = fieldNameToWriteVariable.get(fieldName);
             if (!writeVariable.equalsIgnoreCase(NONE)) {
-                String newVariable = "@" + prefix + "." + writeVariable.substring(1);
-                newFieldNameToReadVariable.put(fieldName, newVariable);
+                if (globalVariables.containsKey(writeVariable)) {
+                    newFieldNameToWriteVariable.put(fieldName, writeVariable);
+                } else {
+                    String newVariable = "@" + prefix + "." + writeVariable.substring(1);
+                    newFieldNameToWriteVariable.put(fieldName, newVariable);
+                }
             } else {
-                newFieldNameToReadVariable.put(fieldName, NONE);
+                newFieldNameToWriteVariable.put(fieldName, NONE);
             }
         }
         fieldNameToWriteVariable = newFieldNameToWriteVariable;

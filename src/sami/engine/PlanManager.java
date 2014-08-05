@@ -5,17 +5,25 @@ import com.perc.mitpas.adi.mission.planning.task.ITask;
 import com.perc.mitpas.adi.mission.planning.task.Task;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.JOptionPane;
 import sami.event.AbortMission;
 import sami.event.AbortMissionReceived;
 import sami.event.GeneratedEventListenerInt;
 import sami.event.InputEvent;
+import sami.event.InterruptEventIE;
 import sami.event.MissingParamsReceived;
 import sami.event.MissingParamsRequest;
 import sami.event.OutputEvent;
@@ -24,6 +32,7 @@ import sami.event.ReflectionHelper;
 import sami.handler.EventHandlerInt;
 import sami.mission.InEdge;
 import sami.mission.InTokenRequirement;
+import sami.mission.InterruptType;
 import sami.mission.MissionPlanSpecification;
 import sami.mission.OutEdge;
 import sami.mission.OutTokenRequirement;
@@ -58,17 +67,18 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     final ArrayList<Place> placesBeingEntered = new ArrayList<Place>();
     // List of tokens on the mission spec's edges to be used as the default list of tokens to put in the starting place
     //  Null PROXY and ALL tokens are not added to this list
-    private ArrayList<Token> defaultStartTokens = new ArrayList<Token>();
+    private ArrayList<Token> startingTokens = new ArrayList<Token>();
     // Lookup table used for retrieving task based tokens (ie for updating a token after a resource allocation is received)
     private HashMap<String, Task> taskNameToTask = new HashMap<String, Task>();
     private HashMap<ITask, Token> taskToToken = new HashMap<ITask, Token>();
-    private HashMap<TaskSpecification, Token> tokenSpecToToken = new HashMap<TaskSpecification, Token>();
-    // Keeps track of variables coming in from InputEvents, to be used in OutputEvents
-    private HashMap<String, Object> variableNameToValue = new HashMap<String, Object>();
+    private HashMap<TaskSpecification, Token> taskSpecToToken = new HashMap<TaskSpecification, Token>();
     // Lookup table used during processing of generated and updated parameter input events
     private HashMap<InputEvent, Transition> inputEventToTransitionMap = new HashMap<InputEvent, Transition>();
     // Lookup table used when submissions are completed
     private HashMap<PlanManager, Place> planManagerToPlace = new HashMap<PlanManager, Place>();
+    private HashMap<Place, ArrayList<PlanManager>> placeToActivePlanManagers = new HashMap<Place, ArrayList<PlanManager>>();
+    private HashMap<Place, ArrayList<Token>> placeToSMTokens = new HashMap<Place, ArrayList<Token>>();
+    // Lookup for cloned blocking IEs
     private HashMap<InputEvent, HashMap<ProxyInt, InputEvent>> clonedIeTable = new HashMap<InputEvent, HashMap<ProxyInt, InputEvent>>();
     final MissionPlanSpecification mSpec;
     // The model being managed by this PlanManager
@@ -79,12 +89,19 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     final Level CHECK_T_LVL = Level.FINE;
     final Level EXE_T_LVL = Level.FINE;
 
-    public PlanManager(final MissionPlanSpecification mSpec, UUID missionId, String planName) {
+    //NICOLO
+    private ConcurrentHashMap<String, Place> currentPlaces = new ConcurrentHashMap<String, Place>();
+
+//    public ConcurrentHashMap<String, Place> getCurrentPlaces() {
+//        return currentPlaces;
+//    }
+//    private Set<Place> currentPlaces = Collections.synchronizedSet(new HashSet<Place>());
+    public PlanManager(final MissionPlanSpecification mSpec, UUID missionId, String planName, ArrayList<Token> startingTokens) {
         LOGGER.info("Creating PlanManager for mSpec " + mSpec + " with mission ID " + missionId + " and planName " + planName);
         this.mSpec = mSpec;
         this.missionId = missionId;
         this.planName = planName;
-
+        this.startingTokens = startingTokens;
         startPlace = mSpec.getUninstantiatedStart();
 
         // Create task tokens
@@ -92,7 +109,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         for (TaskSpecification taskSpec : mSpec.getTaskSpecList()) {
             Token taskToken = createToken(taskSpec);
             LOGGER.info("\t" + taskSpec + " -> " + taskToken);
-            defaultStartTokens.add(taskToken);
+            this.startingTokens.add(taskToken);
         }
 
         // If there are any parameters on the events that need to be filled in, request from the operator
@@ -240,6 +257,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             while (true) {
                 try {
                     InputEvent generatedEvent = generatorEventQueue.take();
+//                    System.out.println("MAIN THREAD.. RUN.. EVENT?: "+generatorEventQueue);
                     processGeneratedEvent(generatedEvent);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
@@ -256,8 +274,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
      *
      * @param plan
      */
-    public void start(ArrayList<Token> startingTokens) {
+    public void start() {
         LOGGER.log(Level.FINE, "Begin plan start");
+
         while (!generatedEventThread.isAlive()) {
             LOGGER.log(Level.WARNING, "generatedEventThread is not alive, sleeping for 1s");
             try {
@@ -269,22 +288,21 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
         boolean checkedForTransition = false;
         // Add in any starting tokens to the start place
-        if (startingTokens != null) {
-            LOGGER.log(Level.FINE, "\tAdding received token list " + startingTokens + " to start place " + startPlace);
-            enterPlace(startPlace, startingTokens, true);
-            checkedForTransition = true;
-        } else {
-            LOGGER.log(Level.FINE, "\tNo token list received for start place " + startPlace + ", using default list " + defaultStartTokens);
-            enterPlace(startPlace, defaultStartTokens, true);
-            checkedForTransition = true;
-        }
+        LOGGER.log(Level.FINE, "\tAdding received token list " + startingTokens + " to start place " + startPlace);
+//        currentPlaces.add(startPlace);
+        currentPlaces.put(startPlace.getShortTag(), startPlace);
+        enterPlace(startPlace, startingTokens, true);
+        checkedForTransition = true;
 
         if (!checkedForTransition) {
             for (Transition transition : startPlace.getOutTransitions()) {
                 boolean execute = checkTransition(transition);
                 if (execute) {
                     executeTransition(transition);
-                };
+//                    currentPlaces.remove(startPlace);
+                    currentPlaces.remove(startPlace.getShortTag());
+
+                }
             }
         }
 
@@ -324,12 +342,13 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 ////
                 // Check that if there is a sub-mission that it has completed
                 ////
-                if (inPlace.getSubMission() != null && !inPlace.getSubMissionComplete()) {
-                    LOGGER.log(CHECK_T_LVL, "\tSub-mission " + inPlace.getSubMission() + " on " + inPlace + " is not yet complete");
+                boolean allSubMFinished = !placeToActivePlanManagers.containsKey(inPlace) || (placeToActivePlanManagers.containsKey(inPlace) && placeToActivePlanManagers.get(inPlace).isEmpty());
+                if (!allSubMFinished) {
+                    LOGGER.log(CHECK_T_LVL, "\tSub-missions " + placeToActivePlanManagers.get(inPlace) + " on " + inPlace + " are not yet complete");
                     failure = true;
                     break check;
-                } else if (inPlace.getSubMission() != null && inPlace.getSubMissionComplete()) {
-                    LOGGER.log(CHECK_T_LVL, "\tSub-mission " + inPlace.getSubMission() + " on " + inPlace + " is complete");
+                } else if (allSubMFinished && placeToActivePlanManagers.containsKey(inPlace)) {
+                    LOGGER.log(CHECK_T_LVL, "\tSub-missions on " + inPlace + " are complete");
                 }
 
                 ////
@@ -614,6 +633,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         Hashtable<Place, ArrayList<Token>> outPlaceToTaskTokensToAdd = new Hashtable<Place, ArrayList<Token>>();
         // For each out place, how many generic tokens should be added?
         Hashtable<Place, Integer> outPlaceToGenericTokenAdd = new Hashtable<Place, Integer>();
+        // For each out place, which tokens that were in end place of finished sub-missions should be added?
+        Hashtable<Place, ArrayList<Token>> outPlaceToSMTokensToAdd = new Hashtable<Place, ArrayList<Token>>();
 
         // Initialize hashtable values
         Hashtable<InputEvent, boolean[]> ieToRelTokenAddMaster = new Hashtable<InputEvent, boolean[]>();
@@ -638,6 +659,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             outPlaceToIeToRelTokenAdd.put(outPlace, (Hashtable<InputEvent, boolean[]>) ieToRelTokenAddMaster.clone());
             outPlaceToTaskTokensToAdd.put(outPlace, new ArrayList<Token>());
             outPlaceToGenericTokenAdd.put(outPlace, 0);
+            outPlaceToSMTokensToAdd.put(outPlace, new ArrayList<Token>());
         }
 
         // Start filling hashtable values
@@ -1431,6 +1453,22 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                 break;
                         }
                         break;
+                    case SubMissionToken:
+                        ArrayList<Token> sMTokensToAdd = outPlaceToSMTokensToAdd.get(outPlace);
+                        switch (outReq.getMatchAction()) {
+                            case Add:
+                                switch (outReq.getMatchQuantity()) {
+                                    case All:
+                                        // Add all task tokens in all incoming places (including duplicates)
+                                        for (Place inPlace : inPlaceToTokenRemove.keySet()) {
+                                            if (placeToSMTokens.containsKey(inPlace)) {
+                                                ArrayList<Token> sMTokens = placeToSMTokens.remove(inPlace);
+                                                sMTokensToAdd.addAll(sMTokens);
+                                            }
+                                        }
+                                }
+                        }
+                        break;
                     default:
                         LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + outReq);
                         break;
@@ -1464,6 +1502,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             ArrayList<Token> taskTokensToAdd = outPlaceToTaskTokensToAdd.get(outPlace);
             Integer genericCount = outPlaceToGenericTokenAdd.get(outPlace);
             Hashtable<InputEvent, boolean[]> ieToRelTokenAdd = outPlaceToIeToRelTokenAdd.get(outPlace);
+            ArrayList<Token> sMTokensToAdd = outPlaceToSMTokensToAdd.get(outPlace);
 
             ArrayList<Token> tokensToAdd = new ArrayList<Token>();
             for (Place inPlace : inPlaceToTokenAdd.keySet()) {
@@ -1493,6 +1532,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                     }
                 }
             }
+            tokensToAdd.addAll(sMTokensToAdd);
 
             outPlaceToAdd.put(outPlace, tokensToAdd);
         }
@@ -1505,6 +1545,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         // Actually add things
         for (Place outPlace : transition.getOutPlaces()) {
             enterPlace(outPlace, outPlaceToAdd.get(outPlace), false);
+//            currentPlaces.add(outPlace);
+            currentPlaces.put(outPlace.getShortTag(), outPlace);
 
         }
 
@@ -1550,6 +1592,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 boolean execute2 = checkTransition(t2);
                 if (execute2) {
                     executeTransition(t2);
+//                    currentPlaces.remove(outPlace);
+                    currentPlaces.remove(outPlace.getShortTag());
                 }
             }
         }
@@ -1606,6 +1650,83 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         }
     }
 
+    public void applyTaskMapping(HashMap<TaskSpecification, TaskSpecification> taskMap, PlanManager parentPM) {
+        LOGGER.log(Level.FINE, "\tApplying task map: " + taskMap.toString());
+        for (TaskSpecification childTaskSpec : taskMap.keySet()) {
+            TaskSpecification parentTaskSpec = taskMap.get(childTaskSpec);
+            Token parentToken = parentPM.getToken(parentTaskSpec);
+            Token childToken = getToken(childTaskSpec);
+            LOGGER.log(Level.FINE, "\t\tSetting proxy: " + parentToken.getProxy() + " from parent token: " + parentToken + " to child token: " + childToken);
+            childToken.setProxy(parentToken.getProxy());
+        }
+    }
+
+    public synchronized void enterInterruptPlace(InterruptType interruptType, ArrayList<ProxyInt> boatProxy) {
+        LOGGER.fine("\tEntering an interrupt place, with InterruptType: " + interruptType);
+
+        switch (interruptType) {
+            case GENERAL:
+
+                for (Place p : currentPlaces.values()) {
+                    for (Transition t : p.getOutTransitions()) {
+                        for (Place p2 : t.getInPlaces()) {
+                            if (p2.getName().equals("Interrupt Place")) {
+//                                System.out.println("INTERRUPT PLACE: " + p2.getOutputEvents());
+                                enterPlace(p2, new ArrayList<Token>(Arrays.asList(new Token("G", TokenType.Generic, null, null))), true);
+                                currentPlaces.remove(p2.getShortTag());
+                            }
+                        }
+                    }
+                }
+                break;
+
+            case PROXY:
+
+                for (Place p : currentPlaces.values()) {
+                    for (Transition t : p.getOutTransitions()) {
+                        for (Place p2 : t.getInPlaces()) {
+                            if (p2.getName().equals("Interrupt Place")) {
+
+                                ArrayList<Token> sourceToken = (ArrayList<Token>) p.getTokens().clone();
+                                ArrayList<Token> tokenToEnter = new ArrayList<Token>();
+                                ArrayList<Token> tokenToRemove = new ArrayList<Token>();
+
+                                ArrayList<ProxyInt> tokenToProxy = new ArrayList<ProxyInt>();
+
+                                for (Token pi : sourceToken) {
+                                    tokenToProxy.add(pi.getProxy());
+                                }
+
+                                if (tokenToProxy.containsAll(boatProxy)) {
+                                    for (Token tok : sourceToken) {
+                                        for (ProxyInt proi : boatProxy) {
+
+                                            if (tok.getProxy().equals(proi)) {
+                                                tokenToEnter.add(tok);
+                                                tokenToRemove.add(tok);
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    enterPlace(p2, tokenToEnter, true);
+                                    currentPlaces.remove(p2.getShortTag());
+
+                                    LOGGER.fine("\tRemoving selected proxies from source place: " + tokenToRemove);
+
+                                    for (Token tokToR : tokenToRemove) {
+                                        p.removeToken(tokToR);
+                                    }
+                                    
+                                }
+                            }
+                        }
+                    }
+                }
+                break;
+        }
+    }
+
     private synchronized void enterPlace(Place place, ArrayList<Token> tokens, boolean checkForTransition) {
         LOGGER.info("Entering " + place + " with Tokens: " + tokens + " with checkForTransition: " + checkForTransition + ", getInTransitions: " + place.getInTransitions() + ", inEdges: " + place.getInEdges() + ", getOutTransitions: " + place.getOutTransitions() + ", outEdges: " + place.getOutEdges());
 
@@ -1615,10 +1736,12 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             placesBeingEntered.add(place);
         }
 
+//        System.out.println("After syncronized");
         // 2 - Add the new tokens to the place
         for (Token token : tokens) {
             place.addToken(token);
         }
+//        System.out.println("After add token place");
 
         // 3 - If this is our first time to enter the place, set up the requirements for all possible transitions attached to this place
         synchronized (activeInputEvents) {
@@ -1637,20 +1760,47 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 place.setIsActive(true);
             }
         }
+//        System.out.println("After setting the requirements: " + place.getOutputEvents());
 
         // 4 - Invoke each OutputEvent with the new tokens
         processOutputEvents(place.getOutputEvents(), tokens);
+//        System.out.println("After process output event");
 
         // 5 - Check for sub-missions and start them if required
-        if (place.getSubMission() != null) {
-            LOGGER.info("\tStarting submission " + place.getSubMission());
-            PlanManager planManager = Engine.getInstance().spawnMission(place.getSubMission(), tokens);
-            planManagerToPlace.put(planManager, place);
-            Engine.getInstance().addListener(this);
+        if (place.getSubMissions() != null && !place.getSubMissions().isEmpty()) {
+            for (MissionPlanSpecification subMSpec : place.getSubMissions()) {
+                LOGGER.info("\tStarting submission " + subMSpec);
+                ArrayList<Token> subMissionTokens = new ArrayList<Token>();
+                for (Token token : tokens) {
+                    if (token.getType() == TokenType.Task && token.getProxy() != null) {
+                        subMissionTokens.add(Engine.getInstance().getToken(token.getProxy()));
+                    } else {
+                        subMissionTokens.add(token);
+                    }
+                }
+                PlanManager subMPlanManager = Engine.getInstance().spawnSubMission(subMSpec, subMissionTokens);
+                planManagerToPlace.put(subMPlanManager, place);
+                if (placeToActivePlanManagers.containsKey(place)) {
+                    placeToActivePlanManagers.get(place).add(subMPlanManager);
+                } else {
+                    ArrayList<PlanManager> planManagers = new ArrayList<PlanManager>();
+                    planManagers.add(subMPlanManager);
+                    placeToActivePlanManagers.put(place, planManagers);
+                }
+                // Apply task mapping
+                if (place.getSubMissionToTaskMap().containsKey(subMSpec)) {
+                    HashMap<TaskSpecification, TaskSpecification> taskMap = place.getSubMissionToTaskMap().get(subMSpec);
+                    subMPlanManager.applyTaskMapping(taskMap, this);
+                }
+
+                Engine.getInstance().addListener(this);
+            }
         }
 
         // 6 - Tell listeners we have entered a place
         Engine.getInstance().enterPlace(this, place);
+//        currentPlaces.add(place);
+//        currentPlaces.put(place.getShortTag(), place);
 
         // 7 - It is now safe to execute transitions leading out of this place
         synchronized (placesBeingEntered) {
@@ -1663,6 +1813,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 boolean execute = checkTransition(transition);
                 if (execute) {
                     executeTransition(transition);
+//                    currentPlaces.remove(place);
+                    currentPlaces.remove(place.getShortTag());
                 };
             }
         }
@@ -1689,13 +1841,17 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     }
 
     private void processOutputEvents(ArrayList<OutputEvent> outputEvents, ArrayList<Token> tokens) {
+//        System.out.println("inside poe");
+
         for (OutputEvent oe : outputEvents) {
+//            System.out.println("inside poe for:" + oe);
+
             LOGGER.log(Level.FINE, "Processing event " + oe + " with input variables " + oe.getVariables());
             // Write in values for any fields that were filled with a variable name
             if (oe.getVariables() != null) {
                 for (String variableName : oe.getVariables().keySet()) {
-                    Object variableValue = variableNameToValue.get(variableName);
-                    LOGGER.log(Level.FINE, "\tLooking for " + variableName + " to set " + oe.getVariables().get(variableName) + " find " + variableValue + " " + variableNameToValue);
+                    Object variableValue = Engine.getInstance().getVariableValue(variableName);
+                    LOGGER.log(Level.FINE, "\tUsing " + variableName + " to set " + oe.getVariables().get(variableName) + " to " + variableValue);
                     if (variableValue != null) {
                         Field f = oe.getVariables().get(variableName);
                         try {
@@ -1714,6 +1870,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             }
             // Find and invoke an appropriate handler
             EventHandlerInt eh = Engine.getInstance().getHandler(oe.getClass());
+//            System.out.println("inside poe handler? " + eh);
+
             if (eh != null) {
                 LOGGER.log(Level.FINE, "Invoking handler: " + eh + " for OE: " + oe);
                 eh.invoke(oe, tokens);
@@ -1730,6 +1888,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
     @Override
     public void eventGenerated(InputEvent generatedEvent) {
+//        System.out.println("EVENT GENERATED: " + generatedEvent);
         generatorEventQueue.offer(generatedEvent);
     }
 
@@ -2068,7 +2227,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                     if (definedField != null) {
                         definedField.setAccessible(true);
                         // Retrieve the value of the variable's Field object
-                        variableNameToValue.put(variables.get(fieldName), definedField.get(generatorEvent));
+                        Engine.getInstance().setVariableValue(variables.get(fieldName), definedField.get(generatorEvent));
                         LOGGER.log(Level.FINE, "\t\tVariable set " + variables.get(fieldName) + " = " + definedField.get(generatorEvent));
                     } else {
                         LOGGER.log(Level.WARNING, "\t\tGetting field failed: " + fieldName);
@@ -2161,7 +2320,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     }
 
     public void addDefaultStartToken(Token token) {
-        defaultStartTokens.add(token);
+        startingTokens.add(token);
     }
 
     public void removeProxy(ProxyInt p) {
@@ -2173,6 +2332,10 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         return taskToToken.get(task);
     }
 
+    public Token getToken(TaskSpecification taskSpec) {
+        return taskSpecToToken.get(taskSpec);
+    }
+
     public Token createToken(TaskSpecification tokenSpec) {
         Token token = null;
         try {
@@ -2181,7 +2344,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             token = new Token(tokenSpec.getName(), TokenType.Task, null, (Task) task);
             taskNameToTask.put(tokenSpec.getName(), (Task) task);
             taskToToken.put((Task) task, token);
-            tokenSpecToToken.put(tokenSpec, token);
+            taskSpecToToken.put(tokenSpec, token);
             Logger.getLogger(this.getClass().getName()).log(Level.FINER, "\t\t\tCreated token " + token);
         } catch (ClassNotFoundException cnfe) {
             cnfe.printStackTrace();
@@ -2217,18 +2380,60 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     public void planFinished(PlanManager planManager) {
         Place place = planManagerToPlace.get(planManager);
         if (place != null) {
-            place.setSubMissionComplete(true);
-            for (Transition transition : place.getOutTransitions()) {
-                boolean execute = checkTransition(transition);
-                if (execute) {
-                    executeTransition(transition);
-                };
+            ArrayList<PlanManager> activePMs = placeToActivePlanManagers.get(place);
+            if (activePMs == null) {
+                LOGGER.severe("Sub-mission mapping for place " + place + " is null");
+            } else if (activePMs.contains(planManager)) {
+                // Record all tokens in the sub-mission's end state(s)
+                ArrayList<Token> sMTokens;
+                if (placeToSMTokens.containsKey(place)) {
+                    sMTokens = placeToSMTokens.get(place);
+                } else {
+                    sMTokens = new ArrayList<Token>();
+                    placeToSMTokens.put(place, sMTokens);
+                }
+                sMTokens.addAll(planManager.getEndTokens());
+
+                // Stop listening to the sub-mission's plan manager
+                activePMs.remove(planManager);
+
+                if (activePMs.isEmpty()) {
+                    // All sub-missions are now complete, check if we should execute transition
+                    for (Transition transition : place.getOutTransitions()) {
+                        boolean execute = checkTransition(transition);
+                        if (execute) {
+                            executeTransition(transition);
+                        };
+                    }
+                }
+            } else {
+                LOGGER.severe("Sub-mission mapping for place: " + place + " did not contain plan manager: " + planManager.getPlanName());
             }
+        } else {
+            LOGGER.severe("Sub-mission plan manager: " + planManager.getPlanName() + " has no mapped place");
         }
     }
 
     @Override
     public void planAborted(PlanManager planManager) {
         throw new UnsupportedOperationException("Not supported yet.");
+    }
+//
+//    public MissionPlanSpecification getMissionPlanSpec() {
+//        return mSpec;
+//    }
+
+    public ArrayList<Token> getEndTokens() {
+        // Get all tokens in an end place
+        ArrayList<Token> endTokens = new ArrayList<Token>();
+        for (Vertex v : mSpec.getGraph().getVertices()) {
+            if (v instanceof Place) {
+                Place place = (Place) v;
+                if (place.isEnd()) {
+                    endTokens.addAll(place.getTokens());
+                }
+            }
+        }
+        return endTokens;
     }
 }

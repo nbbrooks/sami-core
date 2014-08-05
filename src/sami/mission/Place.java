@@ -8,6 +8,9 @@ import java.awt.geom.Ellipse2D;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Hashtable;
+import java.util.Map;
 import java.util.logging.Logger;
 import sami.markup.ReflectedMarkupSpecification;
 
@@ -18,16 +21,16 @@ import sami.markup.ReflectedMarkupSpecification;
 public class Place extends Vertex {
 
     private static final Logger LOGGER = Logger.getLogger(Place.class.getName());
-    static final long serialVersionUID = 6L;
+    static final long serialVersionUID = 7L;
     private boolean isStart, isEnd;
     // In and out are switched here as the class naming convention is with respect to Transitions, not Places
     protected ArrayList<OutEdge> inEdges = new ArrayList<OutEdge>();
     protected ArrayList<InEdge> outEdges = new ArrayList<InEdge>();
     private ArrayList<Transition> inTransitions = new ArrayList<Transition>();
     private ArrayList<Transition> outTransitions = new ArrayList<Transition>();
-    private MissionPlanSpecification subMission = null;
+    private ArrayList<MissionPlanSpecification> subMissions = new ArrayList<MissionPlanSpecification>();
+    private HashMap<MissionPlanSpecification, HashMap<TaskSpecification, TaskSpecification>> subMissionToTaskMap = new HashMap<MissionPlanSpecification, HashMap<TaskSpecification, TaskSpecification>>();
     transient private boolean isActive = false;   // Whether this place has tokens and its output transition's input events are registered
-    transient private boolean subMissionComplete = false;
     transient private ArrayList<OutputEvent> outputEvents = new ArrayList<OutputEvent>();
     transient private ArrayList<Token> tokens = new ArrayList<Token>();
 
@@ -141,14 +144,6 @@ public class Place extends Vertex {
         this.isActive = isActive;
     }
 
-    public boolean getSubMissionComplete() {
-        return subMissionComplete;
-    }
-
-    public void setSubMissionComplete(boolean subMissionComplete) {
-        this.subMissionComplete = subMissionComplete;
-    }
-
     /**
      * Called when reading in a spec to run a mission, not when creating the
      * mission in the GUI
@@ -163,12 +158,21 @@ public class Place extends Vertex {
         return outputEvents;
     }
 
-    public MissionPlanSpecification getSubMission() {
-        return subMission;
+    public ArrayList<MissionPlanSpecification> getSubMissions() {
+        return subMissions;
     }
 
-    public void setSubMission(MissionPlanSpecification selectedMission) {
-        subMission = selectedMission;
+    public void setSubMissions(ArrayList<MissionPlanSpecification> subMissions) {
+        this.subMissions = subMissions;
+        updateTag();
+    }
+
+    public HashMap<MissionPlanSpecification, HashMap<TaskSpecification, TaskSpecification>> getSubMissionToTaskMap() {
+        return subMissionToTaskMap;
+    }
+
+    public void setSubMissionToTaskMap(HashMap<MissionPlanSpecification, HashMap<TaskSpecification, TaskSpecification>> subMissionToTaskMap) {
+        this.subMissionToTaskMap = subMissionToTaskMap;
         updateTag();
     }
 
@@ -188,7 +192,7 @@ public class Place extends Vertex {
     }
 
     public Shape getShape() {
-        if (subMission == null) {
+        if (subMissions == null || subMissions.isEmpty()) {
             return new Ellipse2D.Double(-10, -10, 20, 20);
         } else {
             return new Ellipse2D.Double(-15, -15, 30, 30);
@@ -226,9 +230,15 @@ public class Place extends Vertex {
                 }
             }
         }
-        if (GuiConfig.DRAW_SUB_MISSIONS && subMission != null) {
-            tag += "<font color=" + GuiConfig.SUB_MISSION_TEXT_COLOR + ">" + subMission.getName() + "</font><br>";
-            shortTag += "<font color=" + GuiConfig.SUB_MISSION_TEXT_COLOR + ">" + shorten(subMission.getName(), GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+        if (GuiConfig.DRAW_SUB_MISSIONS && subMissions != null && !subMissions.isEmpty()) {
+            tag += "<font color=" + GuiConfig.SUB_MISSION_TEXT_COLOR + ">";
+            shortTag += "<font color=" + GuiConfig.SUB_MISSION_TEXT_COLOR + ">";
+            for (MissionPlanSpecification subMission : subMissions) {
+                tag += subMission.getName() + "<br>";
+                shortTag += shorten(subMission.getName(), GuiConfig.MAX_STRING_LENGTH) + "<br>";
+            }
+            tag += "</font>";
+            shortTag += "</font>";
         }
         if (GuiConfig.DRAW_TOKENS) {
             String tokenName;

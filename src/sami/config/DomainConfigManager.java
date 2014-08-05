@@ -66,11 +66,15 @@ public class DomainConfigManager {
         }
         DomainConfig dc = null;
         File file = new File(path);
-        LOGGER.info("Loading: " + file.toString());
+        LOGGER.info("Loading .DCF: " + file.toString());
         try {
             ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file));
             dc = (DomainConfig) ois.readObject();
             dc.reload();
+            if (!dc.complete) {
+                LOGGER.severe("Loaded .DCF is not complete: " + path);
+                return null;
+            }
             LOGGER.info(dc.toVerboseString());
 
             // Update Preferences

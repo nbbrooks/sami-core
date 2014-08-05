@@ -36,6 +36,7 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
     private static final Logger LOGGER = Logger.getLogger(Engine.class.getName());
     // Plan related items
     private ArrayList<PlanManager> plans = new ArrayList<PlanManager>();
+
     private ArrayList<PlanManagerListenerInt> planManagerListeners = new ArrayList<PlanManagerListenerInt>();
     private HashMap<UUID, PlanManager> missionIdToPlanManager = new HashMap<UUID, PlanManager>();
     // Token related items
@@ -54,7 +55,11 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
     private sami.uilanguage.UiServerInt uiServer = null;
     // Configuration of output events and the handler classes that will execute them
     private Hashtable<Class, EventHandlerInt> handlers = new Hashtable<Class, EventHandlerInt>();
+    // Keeps track of variables coming in from InputEvents, to be used in OutputEvents
+    private final HashMap<String, Object> variableNameToValue = new HashMap<String, Object>();
     private static final Object lock = new Object();
+
+    private PlanManager pm = null;
 
     private static class EngineHolder {
 
@@ -129,7 +134,9 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
 
     public void addListener(PlanManagerListenerInt planManagerListener) {
         synchronized (lock) {
-            planManagerListeners.add(planManagerListener);
+            if (!planManagerListeners.contains(planManagerListener)) {
+                planManagerListeners.add(planManagerListener);
+            }
         }
     }
 
@@ -141,39 +148,54 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         return observerServer;
     }
 
-    public PlanManager spawnMission(MissionPlanSpecification mSpec, final ArrayList<Token> parentMissionTokens) {
-        if (mSpec != null) {
-            Logger.getLogger(this.getClass().getName()).log(Level.INFO, "Spawning mission from spec " + mSpec);
+    public PlanManager getPlanManager() {
+        return pm;
+    }
 
-            UUID missionId = UUID.randomUUID();
-            String planInstanceName = getUniquePlanName(mSpec.getName());
-            MissionPlanSpecification mSpecInstance = mSpec.deepClone();
-            final PlanManager pm = new PlanManager(mSpecInstance, missionId, planInstanceName);
-            // Add in generic token
-            pm.addDefaultStartToken(genericToken);
-            // Add in already existing proxy tokens
-            for (Token proxyToken : proxyTokens) {
-                pm.addDefaultStartToken(proxyToken);
-            }
-            plans.add(pm);
-            missionIdToPlanManager.put(missionId, pm);
+    public ArrayList<PlanManager> getPlans() {
+        return plans;
+    }
 
-            ArrayList<PlanManagerListenerInt> listenersCopy;
-            synchronized (lock) {
-                listenersCopy = (ArrayList<PlanManagerListenerInt>) planManagerListeners.clone();
-            }
-            for (PlanManagerListenerInt listener : listenersCopy) {
-                listener.planCreated(pm, mSpecInstance);
-            }
+    private PlanManager spawnMission(MissionPlanSpecification mSpec, final ArrayList<Token> startingTokens) {
+        // PlanManager will add mission's task tokens to the starting tokens
+        UUID missionId = UUID.randomUUID();
+        String planInstanceName = getUniquePlanName(mSpec.getName());
+        MissionPlanSpecification mSpecInstance = mSpec.deepClone();
+        final PlanManager pm = new PlanManager(mSpecInstance, missionId, planInstanceName, startingTokens);
+        plans.add(pm);
+        missionIdToPlanManager.put(missionId, pm);
 
-            (new Thread() {
-                public void run() {
-                    pm.start(parentMissionTokens);
-                }
-            }).start();
-            return pm;
+        ArrayList<PlanManagerListenerInt> listenersCopy;
+        synchronized (lock) {
+            listenersCopy = (ArrayList<PlanManagerListenerInt>) planManagerListeners.clone();
         }
-        return null;
+        for (PlanManagerListenerInt listener : listenersCopy) {
+            listener.planCreated(pm, mSpecInstance);
+        }
+
+        (new Thread() {
+            public void run() {
+                pm.start();
+            }
+        }).start();
+        return pm;
+    }
+
+    public PlanManager spawnRootMission(MissionPlanSpecification mSpec) {
+        ArrayList<Token> tokens = new ArrayList<Token>();
+        // Add in generic token
+        tokens.add(genericToken);
+        // Add in already existing proxy tokens
+        for (Token proxyToken : proxyTokens) {
+            tokens.add(proxyToken);
+        }
+        Logger.getLogger(this.getClass().getName()).log(Level.INFO, "Spawning root mission from spec " + mSpec);
+        return spawnMission(mSpec, tokens);
+    }
+
+    public PlanManager spawnSubMission(MissionPlanSpecification mSpec, final ArrayList<Token> parentMissionTokens) {
+        Logger.getLogger(this.getClass().getName()).log(Level.INFO, "Spawning child mission from spec " + mSpec);
+        return spawnMission(mSpec, parentMissionTokens);
     }
 
     public ServiceServer getServiceServer() {
@@ -350,5 +372,13 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         for (EnvironmentListenerInt listener : environmentListeners) {
             listener.environmentUpdated();
         }
+    }
+
+    public Object getVariableValue(String variable) {
+        return variableNameToValue.get(variable);
+    }
+
+    public void setVariableValue(String variable, Object value) {
+        variableNameToValue.put(variable, value);
     }
 }
