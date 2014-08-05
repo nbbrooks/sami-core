@@ -1,0 +1,22 @@
+### Handlers
+handlers = java.util.logging.ConsoleHandler
+
+### Log level settings
+# Default log level
+.level=FINEST
+# Package/class specific exceptions
+java.awt.level=INFO
+sun.awt.level=INFO
+javax.swing.level=INFO
+SAMI.engine.PlanManager.level=FINEST
+gov.nasa.worldwind.util.SessionCacheUtils.level=OFF
+gov.nasa.worldwind.util.SessionCacheRetrievalPostProcessor=OFF
+SAMI.engine.PlanManager.level=FINE
+DataModel.Events.ReflectedEventSpecification.level=FINE
+
+### ConsoleHandler settings
+java.util.logging.ConsoleHandler.level=ALL
+java.util.logging.ConsoleHandler.formatter = sami.LoggerFormatter
+
+
+

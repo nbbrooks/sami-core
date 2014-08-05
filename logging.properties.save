@@ -1,0 +1,19 @@
+### Handlers
+handlers = java.util.logging.ConsoleHandler
+
+### Log level settings
+# Default log level
+.level=FINE
+# Package/class specific exceptions
+java.awt.level=FINE
+sun.awt.level=FINE
+javax.swing.level=FINE
+SAMI.engine.PlanManager.level=FINE
+DataModel.Events.ReflectedEventSpecification.level=FINE
+
+### ConsoleHandler settings
+java.util.logging.ConsoleHandler.level=ALL
+java.util.logging.ConsoleHandler.formatter = sami.LoggerFormatter
+
+
+
