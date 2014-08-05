@@ -36,7 +36,6 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
     private static final Logger LOGGER = Logger.getLogger(Engine.class.getName());
     // Plan related items
     private ArrayList<PlanManager> plans = new ArrayList<PlanManager>();
-
     private ArrayList<PlanManagerListenerInt> planManagerListeners = new ArrayList<PlanManagerListenerInt>();
     private HashMap<UUID, PlanManager> missionIdToPlanManager = new HashMap<UUID, PlanManager>();
     // Token related items
@@ -58,8 +57,6 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
     // Keeps track of variables coming in from InputEvents, to be used in OutputEvents
     private final HashMap<String, Object> variableNameToValue = new HashMap<String, Object>();
     private static final Object lock = new Object();
-
-    private PlanManager pm = null;
 
     private static class EngineHolder {
 
@@ -146,14 +143,6 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
 
     public ObserverServerInt getObserverServer() {
         return observerServer;
-    }
-
-    public PlanManager getPlanManager() {
-        return pm;
-    }
-
-    public ArrayList<PlanManager> getPlans() {
-        return plans;
     }
 
     private PlanManager spawnMission(MissionPlanSpecification mSpec, final ArrayList<Token> startingTokens) {

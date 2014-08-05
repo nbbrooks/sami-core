@@ -60,7 +60,7 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
     private final Dimension COLLAPSED_DIM = new Dimension(400, 30);
     private final Dimension CONTROL_BAR_DIM = new Dimension(400, 30);
     private final Dimension VIEWER_DIM = new Dimension(400, 300);
-    private JButton visibilityB, abortB, followB, abortHomeB;
+    private JButton visibilityB, abortB, followB;
     private JLabel eventCounterL, nameL;
     private int missedEventCounter = 0;
 
@@ -262,27 +262,6 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
                 }
             }
         });
-        abortHomeB = new JButton("Abort and Return Home");
-        abortHomeB.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent ae) {
-                int ret = JOptionPane.showConfirmDialog(null, "Really abort?");
-                if (ret == JOptionPane.OK_OPTION) {
-                    abortMission();
-                   
-                    for(int i = 0; i < missionMonitor.missionListModel.size(); i++){
-                        MissionPlanSpecification p = (MissionPlanSpecification) missionMonitor.missionListModel.get(i);
-                        
-                            if(p.getName().equals("Return To Base")){
-                                pm = Engine.getInstance().spawnRootMission(p);
-                                
-                                return;
-                            
-                        }
-                    }
-                }
-            }
-        });
         // Visibility button
         visibilityB = new JButton("Collapsed: OFF");
         visibilityB.addActionListener(
@@ -312,8 +291,6 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
         leftAlignP.add(nameL, c);
         c.gridx++;
         leftAlignP.add(abortB, c);
-        c.gridx++;
-        leftAlignP.add(abortHomeB, c);
         // Lay out right-aligned components
         JPanel rightAlignP = new JPanel(new GridBagLayout());
         c.gridx = 0;
