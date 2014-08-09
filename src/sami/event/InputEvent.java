@@ -27,6 +27,10 @@ public class InputEvent extends Event {
     protected ResourceAllocation allocation = null;
     protected UUID relevantOutputEventId;
     public boolean blocking = false;
+    // For run-time visualization: whether the event is considered when matching generated events
+    protected boolean active = false;
+    // For run-time visualization: whether the event has been completed
+    protected boolean status = false;
 
     public InputEvent() {
     }
@@ -115,6 +119,22 @@ public class InputEvent extends Event {
         this.blocking = blocking;
     }
 
+    public boolean getActive() {
+        return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
+    }
+
+    public boolean getStatus() {
+        return status;
+    }
+
+    public void setStatus(boolean status) {
+        this.status = status;
+    }
+
     @Override
     public Object deepCopy() {
         InputEvent copy = (InputEvent) super.deepCopy();
@@ -134,6 +154,8 @@ public class InputEvent extends Event {
         if (allocation != null) {
             copy.allocation = allocation.clone();
         }
+        copy.active = active;
+        copy.status = status;
         return copy;
     }
 }

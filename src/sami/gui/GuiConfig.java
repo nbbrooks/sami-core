@@ -31,23 +31,28 @@ public class GuiConfig {
     public static final Color VERTEX_COLOR = new Color(0, 0, 0);
     public static final Color SEL_VERTEX_COLOR = new Color(160, 0, 160);
     public static final boolean DRAW_LABELS = true;
-    public static final String LABEL_TEXT_COLOR = "rgb(0,0,0)";
+    public static final String LABEL_TEXT_COLOR = "rgb(88,108,255)";
     public static final boolean DRAW_MARKUPS = true;
-    public static final String MARKUP_TEXT_COLOR = "rgb(0,145,0)";
+    public static final String MARKUP_TEXT_COLOR = "rgb(200,40,200)";
     public static final Color BKGND_VERTEX_COLOR = new Color(0, 0, 0);
     // Place
     public static final Color START_PLACE_COLOR = new Color(82, 170, 82);
     public static final Color END_PLACE_COLOR = new Color(184, 79, 58);
     public static final Color PLACE_COLOR = new Color(127, 189, 246);
     public static final boolean DRAW_SUB_MISSIONS = true;
-    public static final String SUB_MISSION_TEXT_COLOR = "rgb(188,6,6)";
+    public static final String SUB_MISSION_TEXT_COLOR_TEMPLATE = "rgb(99,99,99)";
+    public static final String SUB_MISSION_TEXT_COLOR_INCOMPLETE = "rgb(188,6,6)";
+    public static final String SUB_MISSION_TEXT_COLOR_COMPLETE = "rgb(0,145,0)";
     public static final boolean DRAW_TOKENS = true;
-    public static final String TOKEN_TEXT_COLOR = "rgb(88,108,255)";
+    public static final String TOKEN_TEXT_COLOR = "rgb(160,0,160)";
     // Transition
     public static final Color TRANSITION_COLOR = new Color(255, 255, 255);
+    // Events
     public static final boolean DRAW_EVENTS = true;
-    public static final String INPUT_EVENT_TEXT_COLOR = "rgb(188,6,6)";
-    public static final String OUTPUT_EVENT_TEXT_COLOR = "rgb(188,6,6)";
+    public static final String INPUT_EVENT_TEXT_COLOR_INACTIVE = "rgb(50,50,50)";
+    public static final String INPUT_EVENT_TEXT_COLOR_INCOMPLETE = "rgb(188,6,6)";
+    public static final String INPUT_EVENT_TEXT_COLOR_COMPLETE = "rgb(0,145,0)";
+    public static final String OUTPUT_EVENT_TEXT_COLOR = "rgb(0,0,0)";
     // Edge
     public static final Color EDGE_COLOR = new Color(0, 0, 0);
     public static final boolean DRAW_TOKEN_REQS = true;

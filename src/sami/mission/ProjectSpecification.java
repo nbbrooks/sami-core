@@ -78,8 +78,8 @@ public class ProjectSpecification implements java.io.Serializable {
         // First remove any subplans
         MissionPlanSpecification mSpec = nodeToMSpec.get(missionNode);
         for (Vertex v : mSpec.getGraph().getVertices()) {
-            if (v instanceof Place && ((Place) v).getSubMissions() != null) {
-                for (MissionPlanSpecification subMSpec : ((Place) v).getSubMissions()) {
+            if (v instanceof Place && ((Place) v).getSubMissionTemplates() != null) {
+                for (MissionPlanSpecification subMSpec : ((Place) v).getSubMissionTemplates()) {
                     DefaultMutableTreeNode subMNode = mSpecToNode.get(subMSpec);
                     removeMissionPlanNode(subMNode);
                 }
@@ -205,23 +205,23 @@ public class ProjectSpecification implements java.io.Serializable {
         }
         return varNames;
     }
-    
+
     public boolean isGlobalVariable(String variable) {
         return globalVariables.containsKey(variable);
     }
-    
+
     public void deleteGlobalVariable(String variable) {
         globalVariables.remove(variable);
     }
-    
+
     public Object getGlobalVariableValue(String variable) {
         return globalVariables.get(variable);
     }
-    
+
     public void setGlobalVariableValue(String variable, Object value) {
         globalVariables.put(variable, value);
     }
-    
+
     public HashMap<String, Object> getGlobalVariableToValue() {
         return globalVariables;
     }
@@ -259,10 +259,17 @@ public class ProjectSpecification implements java.io.Serializable {
         }
     }
 
+    public void updateMissionTags() {
+        for (MissionPlanSpecification mSpec : allMissionPlans) {
+            mSpec.updateTags();
+        }
+        needsSaving = true;
+    }
+
     private void readObject(ObjectInputStream ois) {
         try {
             ois.defaultReadObject();
-            if(globalVariables == null) {
+            if (globalVariables == null) {
                 globalVariables = new HashMap<String, Object>();
             }
             // Populate mSpecToNode, nodeToMSpec, and allMissionPlans

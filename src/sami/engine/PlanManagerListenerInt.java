@@ -16,6 +16,8 @@ public interface PlanManagerListenerInt {
     public void planEnteredPlace(PlanManager planManager, Place place);
 
     public void planLeftPlace(PlanManager planManager, Place place);
+    
+    public void planRepaint(PlanManager planManager);
 
     public void planFinished(PlanManager planManager);
 

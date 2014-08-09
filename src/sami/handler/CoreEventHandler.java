@@ -8,17 +8,21 @@ import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.Timer;
+import sami.engine.Engine;
+import sami.engine.PlanManager;
 import sami.event.AbortMission;
 import sami.event.AbortMissionReceived;
 import sami.event.GeneratedEventListenerInt;
 import sami.event.GeneratedInputEventSubscription;
 import sami.event.OutputEvent;
 import sami.event.ProxyAbortMissionReceived;
+import sami.event.ReturnValue;
 import sami.event.SendAbortMission;
 import sami.event.SendProxyAbortAllMissions;
 import sami.event.SendProxyAbortFutureMissions;
 import sami.event.StartTimer;
 import sami.event.TimerExpired;
+import sami.mission.MissionPlanSpecification;
 import sami.mission.Token;
 import sami.proxy.ProxyInt;
 import sami.service.information.InformationServer;
@@ -118,6 +122,11 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
             });
             timer.setRepeats(false);
             timer.start();
+        } else if (oe instanceof ReturnValue) {
+            ReturnValue returnValue = (ReturnValue) oe;
+            PlanManager pm = Engine.getInstance().getPlanManager(returnValue.getMissionId());
+            String returnVariableName = pm.getPlanName() + MissionPlanSpecification.RETURN_SUFFIX;
+            Engine.getInstance().setVariableValue(returnVariableName, returnValue.getReturnValue());
         }
     }
 

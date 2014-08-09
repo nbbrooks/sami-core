@@ -9,6 +9,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.InvalidClassException;
 import java.io.ObjectInputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.security.AccessControlException;
@@ -304,9 +305,9 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
         loadDrm(specLocation);
     }
 
-    public void loadDrm(File drmFile) {
+    public boolean loadDrm(File drmFile) {
         if (drmFile == null) {
-            return;
+            return false;
         }
         ProjectSpecification projectSpec = null;
         try {
@@ -342,14 +343,23 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
                 }
                 setTitle("Mission Monitor: " + drmFile.toString());
             }
-
         } catch (ClassNotFoundException ex) {
             LOGGER.severe("Class not found exception in DRM load");
+            return false;
         } catch (FileNotFoundException ex) {
             LOGGER.severe("DRM File not found");
+            return false;
+        } catch (InvalidClassException ex) {
+            LOGGER.severe("Version mismatch in DRM file");
+            return false;
         } catch (IOException ex) {
             LOGGER.severe("IO Exception on DRM load");
-        }
+            return false;
+        } catch (NullPointerException ex) {
+            LOGGER.severe("Could not load DRM file");
+            return false;
+        } 
+        return true;
     }//GEN-LAST:event_loadDrmBActionPerformed
 
     private void runBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_runBActionPerformed
@@ -453,6 +463,10 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
     @Override
     public void planLeftPlace(PlanManager planManager, Place p) {
     }
+
+    @Override
+    public void planRepaint(PlanManager planManager) {
+    }    
 
     @Override
     public void planFinished(PlanManager planManager) {

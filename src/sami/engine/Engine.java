@@ -187,6 +187,10 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         return spawnMission(mSpec, parentMissionTokens);
     }
 
+    public PlanManager getPlanManager(UUID missionId) {
+        return missionIdToPlanManager.get(missionId);
+    }
+
     public ServiceServer getServiceServer() {
         return serviceServer;
     }
@@ -249,6 +253,16 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         }
         for (PlanManagerListenerInt listener : listenersCopy) {
             listener.planLeftPlace(planManager, p);
+        }
+    }
+
+    public void repaintPlan(PlanManager planManager) {
+        ArrayList<PlanManagerListenerInt> listenersCopy;
+        synchronized (lock) {
+            listenersCopy = (ArrayList<PlanManagerListenerInt>) planManagerListeners.clone();
+        }
+        for (PlanManagerListenerInt listener : listenersCopy) {
+            listener.planRepaint(planManager);
         }
     }
 

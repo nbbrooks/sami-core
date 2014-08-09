@@ -38,6 +38,7 @@ public class MissionPlanSpecification implements java.io.Serializable {
     private Map<Vertex, Point2D> locations = null;
     private String name = "Anonymous";
     transient private boolean isInstantiated = false;
+    public static final String RETURN_SUFFIX = ".return";
 
     public MissionPlanSpecification(String name) {
         this.name = name;
@@ -88,8 +89,8 @@ public class MissionPlanSpecification implements java.io.Serializable {
             for (ReflectedEventSpecification eventSpec : value) {
                 eventSpec.addVariablePrefix(prefix, globalVariableNames);
             }
-            if (key instanceof Place && ((Place) key).getSubMissions() != null) {
-                for (MissionPlanSpecification subMSpec : ((Place) key).getSubMissions()) {
+            if (key instanceof Place && ((Place) key).getSubMissionTemplates() != null) {
+                for (MissionPlanSpecification subMSpec : ((Place)key).getSubMissionTemplates()) {
                     subMSpec.addVariablePrefix(prefix, globalVariableNames);
                 }
             }
@@ -364,6 +365,23 @@ public class MissionPlanSpecification implements java.io.Serializable {
 
         // Now remove the transition and edge data structures
         edge.prepareForRemoval();
+    }
+    
+    public void updateTags() {
+        for(Vertex v : graph.getVertices()) {
+            if(v instanceof Place) {
+                ((Place)v).updateTag();
+            } else if(v instanceof Transition) {
+                ((Transition)v).updateTag();
+            }
+        }
+        for(Edge e : graph.getEdges()) {
+            if(e instanceof InEdge) {
+                ((InEdge)e).updateTag();
+            } else if(e instanceof OutEdge) {
+                ((OutEdge)e).updateTag();
+            }
+        }
     }
 
     /**

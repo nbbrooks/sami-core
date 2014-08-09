@@ -116,6 +116,14 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
     }
 
     @Override
+    public void planRepaint(PlanManager planManager) {
+        if (planManager != pm) {
+            return;
+        }
+        vv.repaint();
+    }
+
+    @Override
     public void planFinished(PlanManager planManager) {
         if (planManager != pm) {
             return;
@@ -168,7 +176,7 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
             public Stroke transform(Vertex vertex) {
                 if (filledPlaces.contains(vertex)) {
                     return new BasicStroke(10);
-                } else if (vertex instanceof Place && ((Place) vertex).getSubMissions() != null && !((Place) vertex).getSubMissions().isEmpty()) {
+                } else if (vertex instanceof Place && ((Place) vertex).getSubMissionTemplates() != null && !((Place) vertex).getSubMissionTemplates().isEmpty()) {
                     return new BasicStroke(5);
                 } else {
                     return new BasicStroke(1);

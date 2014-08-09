@@ -9,8 +9,6 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Hashtable;
-import java.util.Map;
 import java.util.logging.Logger;
 import sami.markup.ReflectedMarkupSpecification;
 
@@ -33,6 +31,7 @@ public class Place extends Vertex {
     transient private boolean isActive = false;   // Whether this place has tokens and its output transition's input events are registered
     transient private ArrayList<OutputEvent> outputEvents = new ArrayList<OutputEvent>();
     transient private ArrayList<Token> tokens = new ArrayList<Token>();
+    transient private HashMap<MissionPlanSpecification, Boolean> subMissionStatus = new HashMap<MissionPlanSpecification, Boolean>();
 
     public Place(String name, FunctionMode functionMode) {
         super(name, functionMode);
@@ -158,11 +157,11 @@ public class Place extends Vertex {
         return outputEvents;
     }
 
-    public ArrayList<MissionPlanSpecification> getSubMissions() {
+    public ArrayList<MissionPlanSpecification> getSubMissionTemplates() {
         return subMissions;
     }
 
-    public void setSubMissions(ArrayList<MissionPlanSpecification> subMissions) {
+    public void setSubMissionTemplates(ArrayList<MissionPlanSpecification> subMissions) {
         this.subMissions = subMissions;
         updateTag();
     }
@@ -213,16 +212,16 @@ public class Place extends Vertex {
                     Class eventClass = Class.forName(eventSpec.getClassName());
                     String simpleName = eventClass.getSimpleName();
                     if (OutputEvent.class.isAssignableFrom(eventClass)) {
-                        tag += "<font color=" + GuiConfig.OUTPUT_EVENT_TEXT_COLOR + ">O:" + simpleName + "</font><br>";
-                        shortTag += "<font color=" + GuiConfig.OUTPUT_EVENT_TEXT_COLOR + ">O:" + shorten(simpleName, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+                        tag += "<font color=" + GuiConfig.OUTPUT_EVENT_TEXT_COLOR + ">" + simpleName + "</font><br>";
+                        shortTag += "<font color=" + GuiConfig.OUTPUT_EVENT_TEXT_COLOR + ">" + shorten(simpleName, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
                     } else {
                         continue;
                     }
                     if (GuiConfig.DRAW_MARKUPS) {
                         for (ReflectedMarkupSpecification markupSpec : eventSpec.getMarkupSpecs()) {
                             Class markupClass = Class.forName(markupSpec.getClassName());
-                            tag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\tM: " + markupClass.getSimpleName() + "</font><br>";
-                            shortTag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\tM:  " + shorten(markupClass.getSimpleName(), GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+                            tag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + markupClass.getSimpleName() + "</font><br>";
+                            shortTag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + shorten(markupClass.getSimpleName(), GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
                         }
                     }
                 } catch (ClassNotFoundException cnfe) {
@@ -231,14 +230,43 @@ public class Place extends Vertex {
             }
         }
         if (GuiConfig.DRAW_SUB_MISSIONS && subMissions != null && !subMissions.isEmpty()) {
-            tag += "<font color=" + GuiConfig.SUB_MISSION_TEXT_COLOR + ">";
-            shortTag += "<font color=" + GuiConfig.SUB_MISSION_TEXT_COLOR + ">";
-            for (MissionPlanSpecification subMission : subMissions) {
-                tag += subMission.getName() + "<br>";
-                shortTag += shorten(subMission.getName(), GuiConfig.MAX_STRING_LENGTH) + "<br>";
+            if (subMissionStatus != null && !subMissionStatus.isEmpty()) {
+                // Run-time execution (mSpec template and spawned instances)
+                // Add template mission spec names
+                tag += "<font color=" + GuiConfig.SUB_MISSION_TEXT_COLOR_TEMPLATE + ">";
+                shortTag += "<font color=" + GuiConfig.SUB_MISSION_TEXT_COLOR_TEMPLATE + ">";
+                for (MissionPlanSpecification subMission : subMissions) {
+                    tag += subMission.getName() + "<br>";
+                    shortTag += shorten(subMission.getName(), GuiConfig.MAX_STRING_LENGTH) + "<br>";
+                }
+                tag += "</font>";
+                shortTag += "</font>";
+                // Add spawned instance mission spec names
+                for (MissionPlanSpecification subMission : subMissionStatus.keySet()) {
+                    String color;
+                    if (subMissionStatus.get(subMission)) {
+                        color = GuiConfig.SUB_MISSION_TEXT_COLOR_COMPLETE;
+                    } else {
+                        color = GuiConfig.SUB_MISSION_TEXT_COLOR_INCOMPLETE;
+                    }
+                    tag += "<font color=" + color + ">";
+                    shortTag += "<font color=" + color + ">";
+                    tag += subMission.getName() + "<br>";
+                    shortTag += shorten(subMission.getName(), GuiConfig.MAX_STRING_LENGTH) + "<br>";
+                    tag += "</font>";
+                    shortTag += "</font>";
+                }
+            } else {
+                // DREAAM development (mSpec template only)
+                tag += "<font color=" + GuiConfig.SUB_MISSION_TEXT_COLOR_TEMPLATE + ">";
+                shortTag += "<font color=" + GuiConfig.SUB_MISSION_TEXT_COLOR_TEMPLATE + ">";
+                for (MissionPlanSpecification subMission : subMissions) {
+                    tag += subMission.getName() + "<br>";
+                    shortTag += shorten(subMission.getName(), GuiConfig.MAX_STRING_LENGTH) + "<br>";
+                }
+                tag += "</font>";
+                shortTag += "</font>";
             }
-            tag += "</font>";
-            shortTag += "</font>";
         }
         if (GuiConfig.DRAW_TOKENS) {
             String tokenName;
@@ -267,6 +295,54 @@ public class Place extends Vertex {
         for (InEdge outEdge : outEdgesClone) {
             outEdge.prepareForRemoval();
         }
+    }
+
+    public void addSubMission(MissionPlanSpecification subMSpec) {
+//        inputEvents.add(subMSpec);
+        if (subMissionStatus == null) {
+            subMissionStatus = new HashMap<MissionPlanSpecification, Boolean>();
+        }
+        subMissionStatus.put(subMSpec, false);
+        updateTag();
+    }
+
+    public boolean removeSubMission(MissionPlanSpecification subMSpec) {
+//        boolean t = inputEvents.remove(e);
+//        t = t && inputEventStatus.remove(e);
+        boolean t = subMissionStatus.remove(subMSpec);
+        updateTag();
+        return t;
+    }
+
+//    public ArrayList<MissionPlanSpecification> getSubMissions() {
+//        return new ArrayList<MissionPlanSpecification>(subMissionStatus.keySet());
+//    }
+    public boolean getSubMissionStatus(MissionPlanSpecification subMSpec) {
+        if (subMissionStatus.containsKey(subMSpec)) {
+            return subMissionStatus.get(subMSpec).booleanValue();
+        }
+        return false;
+    }
+
+    public HashMap<MissionPlanSpecification, Boolean> getSubMissionStatus() {
+        return (HashMap<MissionPlanSpecification, Boolean>) subMissionStatus.clone();
+    }
+
+    public void clearSubMissionStatus() {
+        subMissionStatus.clear();
+        updateTag();
+    }
+
+    public void setSubMissionStatus(MissionPlanSpecification subMSpec, boolean completed) {
+        subMissionStatus.put(subMSpec, completed);
+        updateTag();
+    }
+
+    public void clearSubMissionInstances() {
+        if (subMissionStatus != null) {
+            subMissionStatus.clear();
+        }
+        updateTag();
     }
 
     private void readObject(ObjectInputStream ois) {

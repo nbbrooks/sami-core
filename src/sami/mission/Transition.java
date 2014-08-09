@@ -10,6 +10,7 @@ import java.io.ObjectInputStream;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.logging.Logger;
+import sami.markup.Markup;
 import sami.markup.ReflectedMarkupSpecification;
 
 /**
@@ -111,12 +112,14 @@ public class Transition extends Vertex {
      */
     public void addInputEvent(InputEvent e) {
         inputEvents.add(e);
-        inputEventStatus.put(e, new Boolean(false));
+        inputEventStatus.put(e, false);
+        updateTag();
     }
 
     public boolean removeInputEvent(InputEvent e) {
         boolean t = inputEvents.remove(e);
         t = t && inputEventStatus.remove(e);
+        updateTag();
         return t;
     }
 
@@ -137,10 +140,16 @@ public class Transition extends Vertex {
 
     public void clearInputEventStatus() {
         inputEventStatus.clear();
+        for (InputEvent ie : inputEvents) {
+            ie.setStatus(false);
+        }
+        updateTag();
     }
 
     public void setInputEventStatus(InputEvent e, boolean received) {
-        inputEventStatus.put(e, new Boolean(received));
+        inputEventStatus.put(e, received);
+        e.setStatus(received);
+        updateTag();
     }
 
     public Shape getShape() {
@@ -156,25 +165,48 @@ public class Transition extends Vertex {
             shortTag += "<font color=" + GuiConfig.LABEL_TEXT_COLOR + ">" + shorten(name, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
         }
         if (GuiConfig.DRAW_EVENTS) {
-            for (ReflectedEventSpecification eventSpec : eventSpecs) {
-                try {
-                    Class eventClass = Class.forName(eventSpec.getClassName());
-                    String simpleName = eventClass.getSimpleName();
-                    if (InputEvent.class.isAssignableFrom(eventClass)) {
-                        tag += "<font color=" + GuiConfig.INPUT_EVENT_TEXT_COLOR + ">I: " + simpleName + "</font><br>";
-                        shortTag += "<font color=" + GuiConfig.INPUT_EVENT_TEXT_COLOR + ">I: " + shorten(simpleName, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+            if (!inputEvents.isEmpty()) {
+                // Run-time execution (instantiated input events)
+                for (InputEvent ie : inputEvents) {
+                    String color;
+                    if (ie.getStatus() && ie.getActive()) {
+                        color = GuiConfig.INPUT_EVENT_TEXT_COLOR_COMPLETE;
+                    } else if (ie.getActive()) {
+                        color = GuiConfig.INPUT_EVENT_TEXT_COLOR_INCOMPLETE;
                     } else {
-                        continue;
+                        color = GuiConfig.INPUT_EVENT_TEXT_COLOR_INACTIVE;
                     }
+                    tag += "<font color=" + color + ">" + ie.getClass().getSimpleName() + "</font><br>";
+                    shortTag += "<font color=" + color + ">" + shorten(ie.getClass().getSimpleName(), GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
                     if (GuiConfig.DRAW_MARKUPS) {
-                        for (ReflectedMarkupSpecification markupSpec : eventSpec.getMarkupSpecs()) {
-                            Class markupClass = Class.forName(markupSpec.getClassName());
-                            tag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\tM: " + markupClass.getSimpleName() + "</font><br>";
-                            shortTag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\tM:  " + shorten(markupClass.getSimpleName(), GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+                        for (Markup markup : ie.getMarkups()) {
+                            tag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + markup.getClass().getSimpleName() + "</font><br>";
+                            shortTag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + shorten(markup.getClass().getSimpleName(), GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
                         }
                     }
-                } catch (ClassNotFoundException cnfe) {
-                    cnfe.printStackTrace();
+                }
+            } else {
+                // DREAAM development (uninstantiated event specs)
+                for (ReflectedEventSpecification eventSpec : eventSpecs) {
+                    try {
+                        Class eventClass = Class.forName(eventSpec.getClassName());
+                        String simpleName = eventClass.getSimpleName();
+                        if (InputEvent.class.isAssignableFrom(eventClass)) {
+                            tag += "<font color=" + GuiConfig.INPUT_EVENT_TEXT_COLOR_INACTIVE + ">" + simpleName + "</font><br>";
+                            shortTag += "<font color=" + GuiConfig.INPUT_EVENT_TEXT_COLOR_INACTIVE + ">" + shorten(simpleName, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+                        } else {
+                            continue;
+                        }
+                        if (GuiConfig.DRAW_MARKUPS) {
+                            for (ReflectedMarkupSpecification markupSpec : eventSpec.getMarkupSpecs()) {
+                                Class markupClass = Class.forName(markupSpec.getClassName());
+                                tag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + markupClass.getSimpleName() + "</font><br>";
+                                shortTag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + shorten(markupClass.getSimpleName(), GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+                            }
+                        }
+                    } catch (ClassNotFoundException cnfe) {
+                        cnfe.printStackTrace();
+                    }
                 }
             }
         }

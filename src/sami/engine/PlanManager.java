@@ -14,6 +14,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import sami.event.AbortMission;
 import sami.event.AbortMissionReceived;
+import sami.event.CheckReturn;
 import sami.event.GeneratedEventListenerInt;
 import sami.event.InputEvent;
 import sami.event.MissingParamsReceived;
@@ -71,6 +72,10 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     private HashMap<Place, ArrayList<Token>> placeToSMTokens = new HashMap<Place, ArrayList<Token>>();
     // Lookup for cloned blocking IEs
     private HashMap<InputEvent, HashMap<ProxyInt, InputEvent>> clonedIeTable = new HashMap<InputEvent, HashMap<ProxyInt, InputEvent>>();
+    // Lookup from sub-mission mSpec instance to Transitions holding a matching CheckReturn for that SM instance
+    private HashMap<MissionPlanSpecification, HashMap<Transition, CheckReturn>> clonedCrTable = new HashMap<MissionPlanSpecification, HashMap<Transition, CheckReturn>>();
+    // Lookup used to reset CheckReturn templates and remove CheckReturn clones on neighboring transitions when a transition fires
+    private HashMap<Transition, HashMap<MissionPlanSpecification, CheckReturn>> allCrTable = new HashMap<Transition, HashMap<MissionPlanSpecification, CheckReturn>>();
     final MissionPlanSpecification mSpec;
     // The model being managed by this PlanManager
     private Place startPlace;
@@ -1562,15 +1567,55 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 clonedIesToRemove.add(ie);
             }
         }
-        // Remove the clones
+        // Remove the cloned IEs
         for (InputEvent clonedIe : clonedIesToRemove) {
             activeInputEvents.remove(clonedIe);
             transition.removeInputEvent(clonedIe);
             inputEventToTransitionMap.remove(clonedIe);
         }
 
-        // Clear our input event status, in case we re-enter a previous place
+        // If this transition had any CheckReturns on it, we need to
+        //  Reset (mark as incomplete) any CheckReturn templates
+        //  Remove any CheckReturn clones that were made for SM instances
+        // Any CheckReturns that are reset/removed here should also be reset/removed from any transition that shares
+        //  the same incoming place that spawn the SM instance resulting in these CheckReturns being modified
+        ArrayList<MissionPlanSpecification> mSpecsToCheck = new ArrayList<MissionPlanSpecification>();
+
+        // First go through the executing transition and record all CheckReturn's mission specifications
+        for (InputEvent ie : transition.getInputEvents()) {
+            if (ie instanceof CheckReturn) {
+                if (!mSpecsToCheck.contains(((CheckReturn) ie).getMSpec())) {
+                    mSpecsToCheck.add(((CheckReturn) ie).getMSpec());
+                }
+            }
+        }
+        // Now go through all neighboring transitions and reset/remove their CheckReturns linked to the recorded mission specs
+        for (Place inPlace : transition.getInPlaces()) {
+            for (Transition checkTransition : inPlace.getOutTransitions()) {
+                if (allCrTable.containsKey(checkTransition)) {
+                    HashMap<MissionPlanSpecification, CheckReturn> lookup = allCrTable.get(checkTransition);
+                    for (MissionPlanSpecification mSpecToCheck : mSpecsToCheck) {
+                        if (lookup.containsKey(mSpecToCheck)) {
+                            CheckReturn checkReturn = lookup.get(mSpecToCheck);
+                            if (checkReturn.getVariableName() == null) {
+                                // Reset template
+                                checkTransition.setInputEventStatus(checkReturn, false);
+                                LOGGER.log(EXE_T_LVL, "\tResetting completion status of CheckReturn template " + checkReturn + " to false");
+                            } else {
+                                // Remove instance clone
+                                checkTransition.removeInputEvent(checkReturn);
+                                LOGGER.log(EXE_T_LVL, "\tRemoving CheckReturn instance " + checkTransition);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Reset status of input events so if we loop back to this incoming place the input events must occur again for the transition to fire again
         transition.clearInputEventStatus();
+        // Repaint viewer
+        Engine.getInstance().repaintPlan(this);
 
         ////
         // Now we can check the transitions we added tokens to
@@ -1588,6 +1633,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
     private synchronized void leavePlace(Place place, ArrayList<Token> tokens) {
         LOGGER.info("Leaving " + place + " with " + place.getTokens() + " and taking " + tokens);
+
+        // Remove completed sub missions (cosmetic change for Place's tag)
+        place.clearSubMissionInstances();
 
         // Remove Edge specified Tokens from Place
         for (Token token : tokens) {
@@ -1616,10 +1664,11 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         if (!activeInputEvents.contains(inputEvent)) {
                             LOGGER.warning("Tried to remove IE: " + inputEvent + " from activeInputEvents, but it is not a member");
                         }
+                        // Unregister event
+                        inputEvent.setActive(false);
+                        transition.updateTag();
                         activeInputEvents.remove(inputEvent);
-
                         InputEventMapper.getInstance().unregisterEvent(inputEvent);
-
                         if (inputEventToTransitionMap.containsKey(inputEvent)) {
                             Transition t = inputEventToTransitionMap.remove(inputEvent);
                             LOGGER.log(Level.FINE, "\t Removed <" + inputEvent + ", " + t + "> from inputEventToTransitionMap");
@@ -1662,31 +1711,58 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             place.addToken(token);
         }
 
-        // 3 - If this is our first time to enter the place, set up the requirements for all possible transitions attached to this place
-        synchronized (activeInputEvents) {
-            if (!place.getIsActive()) {
-                // Things are not registered, do it now
-                for (Transition transition : place.getOutTransitions()) {
-                    for (InputEvent inputEvent : transition.getInputEvents()) {
-                        if (!inputEventToTransitionMap.containsKey(inputEvent)) {
-                            activeInputEvents.add(inputEvent);
-                            InputEventMapper.getInstance().registerEvent(inputEvent, this);
-                            LOGGER.log(Level.FINE, "\tAdding <" + inputEvent + "," + transition + "> to inputEventToTransitionMap");
-                            inputEventToTransitionMap.put(inputEvent, transition);
-                        }
+        // 3 - If this is our first time to enter the place or we are re-entering the place after it became empty of tokens, 
+        //  set up the requirements for all possible transitions attached to this place
+        boolean repaint = false;
+        for (Transition transition : place.getOutTransitions()) {
+            for (InputEvent inputEvent : transition.getInputEvents()) {
+                if (inputEvent instanceof CheckReturn
+                        && ((CheckReturn) inputEvent).getVariableName() == null) {
+                    // Always set CheckReturn template status as true - we do the actual check of the return value via a different mechanism
+                    inputEvent.setStatus(true);
+                    transition.setInputEventStatus(inputEvent, true);
+                    // Repaint viewer
+                    repaint = true;
+
+                    // Record lookup from SM mSpec template to CheckReturn template
+                    HashMap<MissionPlanSpecification, CheckReturn> table;
+                    if (allCrTable.containsKey(transition)) {
+                        table = allCrTable.get(transition);
+                    } else {
+                        table = new HashMap<MissionPlanSpecification, CheckReturn>();
+                        allCrTable.put(transition, table);
+                    }
+                    if (!table.containsKey(((CheckReturn) inputEvent).getMSpec())) {
+                        // First time entering this place
+                        table.put(((CheckReturn) inputEvent).getMSpec(), (CheckReturn) inputEvent);
                     }
                 }
-                place.setIsActive(true);
+                if (!place.getIsActive()
+                        && !inputEventToTransitionMap.containsKey(inputEvent)) {
+                    // Register/re-register input events on transition
+                    LOGGER.log(Level.FINE, "\tAdding <" + inputEvent + "," + transition + "> to inputEventToTransitionMap");
+                    inputEvent.setActive(true);
+                    transition.updateTag();
+                    synchronized (activeInputEvents) {
+                        activeInputEvents.add(inputEvent);
+                    }
+                    InputEventMapper.getInstance().registerEvent(inputEvent, this);
+                    inputEventToTransitionMap.put(inputEvent, transition);
+                }
             }
+        }
+        place.setIsActive(true);
+        if (repaint) {
+            Engine.getInstance().repaintPlan(this);
         }
 
         // 4 - Invoke each OutputEvent with the new tokens
         processOutputEvents(place.getOutputEvents(), tokens);
 
         // 5 - Check for sub-missions and start them if required
-        if (place.getSubMissions() != null && !place.getSubMissions().isEmpty()) {
-            for (MissionPlanSpecification subMSpec : place.getSubMissions()) {
-                LOGGER.info("\tStarting submission " + subMSpec);
+        if (place.getSubMissionTemplates() != null && !place.getSubMissionTemplates().isEmpty()) {
+            for (MissionPlanSpecification subMSpecTemplate : place.getSubMissionTemplates()) {
+                LOGGER.info("\tStarting submission " + subMSpecTemplate);
                 ArrayList<Token> subMissionTokens = new ArrayList<Token>();
                 for (Token token : tokens) {
                     if (token.getType() == TokenType.Task && token.getProxy() != null) {
@@ -1695,7 +1771,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         subMissionTokens.add(token);
                     }
                 }
-                PlanManager subMPlanManager = Engine.getInstance().spawnSubMission(subMSpec, subMissionTokens);
+                PlanManager subMPlanManager = Engine.getInstance().spawnSubMission(subMSpecTemplate, subMissionTokens);
                 planManagerToPlace.put(subMPlanManager, place);
                 if (placeToActivePlanManagers.containsKey(place)) {
                     placeToActivePlanManagers.get(place).add(subMPlanManager);
@@ -1704,10 +1780,40 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                     planManagers.add(subMPlanManager);
                     placeToActivePlanManagers.put(place, planManagers);
                 }
+                // Update place's sub mission status
+                place.addSubMission(subMPlanManager.getMSpec());
                 // Apply task mapping
-                if (place.getSubMissionToTaskMap().containsKey(subMSpec)) {
-                    HashMap<TaskSpecification, TaskSpecification> taskMap = place.getSubMissionToTaskMap().get(subMSpec);
+                if (place.getSubMissionToTaskMap().containsKey(subMSpecTemplate)) {
+                    HashMap<TaskSpecification, TaskSpecification> taskMap = place.getSubMissionToTaskMap().get(subMSpecTemplate);
                     subMPlanManager.applyTaskMapping(taskMap, this);
+                }
+
+                HashMap<Transition, CheckReturn> hashmap = new HashMap<Transition, CheckReturn>();
+                clonedCrTable.put(subMPlanManager.getMSpec(), hashmap);
+
+                // Check if any outgoing transitions have a CheckReturn for this mission spec
+                for (Transition transition : place.getOutTransitions()) {
+                    ArrayList<InputEvent> ieCopy = (ArrayList<InputEvent>) transition.getInputEvents().clone();
+                    for (InputEvent ie : ieCopy) {
+                        if (ie instanceof CheckReturn
+                                && ((CheckReturn) ie).getVariableName() == null
+                                && ((CheckReturn) ie).getMSpec() == subMSpecTemplate) {
+                            // Make a clone of the CheckReturn template for this instance of the sub-mission                           
+                            CheckReturn template = (CheckReturn) ie;
+                            CheckReturn clone = new CheckReturn(template, subMPlanManager.getMSpec(), subMPlanManager.getPlanName() + MissionPlanSpecification.RETURN_SUFFIX);
+                            transition.addInputEvent(clone);
+                            hashmap.put(transition, clone);
+
+                            HashMap<MissionPlanSpecification, CheckReturn> table;
+                            if (allCrTable.containsKey(transition)) {
+                                table = allCrTable.get(transition);
+                            } else {
+                                table = new HashMap<MissionPlanSpecification, CheckReturn>();
+                                allCrTable.put(transition, table);
+                            }
+                            table.put(subMPlanManager.getMSpec(), clone);
+                        }
+                    }
                 }
 
                 Engine.getInstance().addListener(this);
@@ -1804,7 +1910,12 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         // Unregister any IEs still active
         for (InputEvent ie : activeInputEvents) {
             LOGGER.log(Level.FINE, "\tUnregistering active input event:" + ie);
+            ie.setActive(false);
+            inputEventToTransitionMap.get(ie).updateTag();
             InputEventMapper.getInstance().unregisterEvent(ie);
+            if (inputEventToTransitionMap.containsKey(ie)) {
+                inputEventToTransitionMap.get(ie).updateTag();
+            }
         }
         activeInputEvents.clear();
     }
@@ -1814,7 +1925,12 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         Engine.getInstance().abort(this);
         // Unregister any IEs still active
         for (InputEvent ie : activeInputEvents) {
+            ie.setActive(false);
+            inputEventToTransitionMap.get(ie).updateTag();
             InputEventMapper.getInstance().unregisterEvent(ie);
+            if (inputEventToTransitionMap.containsKey(ie)) {
+                inputEventToTransitionMap.get(ie).updateTag();
+            }
         }
         activeInputEvents.clear();
 
@@ -1835,7 +1951,6 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         }
         // Events to add: A list of cloned IEs used to keep track of which proxy's have generated their instance of a Blocking IE
         HashMap<InputEvent, Transition> clonedEventsToAdd = new HashMap<InputEvent, Transition>();
-        ArrayList<InputEvent> eventsToRemove = new ArrayList<InputEvent>();
         // One of our active transitions has an input event that resulted in a subscription to an InformationServiceProvider of this class
         boolean match;
         ArrayList<InputEvent> matchingEvents = new ArrayList<InputEvent>();
@@ -1967,6 +2082,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         // Mark the status of the null RP param event as "complete" so it won't prevent the transition from firing
                         //  It is still an active input event though, so events will continue to try and match against it,
                         //  creating more copies of it with new RP as needed
+                        paramEvent.setStatus(true);
                         transition.setInputEventStatus(paramEvent, true);
 
                         // Now go through events we just created and ones matching proxies in the gen IE's RP
@@ -2031,22 +2147,15 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             }
         }
 
-        LOGGER.log(Level.FINE, "\tResult of comparisons: add " + clonedEventsToAdd.size() + ", remove " + eventsToRemove.size() + ", update " + matchingEvents.size());
+        LOGGER.log(Level.FINE, "\tResult of comparisons: add " + clonedEventsToAdd.size() + ", update " + matchingEvents.size());
 
         for (InputEvent ie : clonedEventsToAdd.keySet()) {
             LOGGER.log(Level.FINE, "\t\tAdding " + ie);
-            activeInputEvents.add(ie);
             Transition t = clonedEventsToAdd.get(ie);
+            ie.setActive(true);
             t.addInputEvent(ie);
+            activeInputEvents.add(ie);
             inputEventToTransitionMap.put(ie, t);
-        }
-        for (InputEvent ie : eventsToRemove) {
-            // THIS LIST IS NEVER MODIFIED
-            LOGGER.log(Level.FINE, "\t\tRemoving " + ie);
-            activeInputEvents.remove(ie);
-            Transition t = inputEventToTransitionMap.get(ie);
-            t.removeInputEvent(ie);
-            inputEventToTransitionMap.remove(ie);
         }
         for (InputEvent ie : matchingEvents) {
             LOGGER.log(Level.FINE, "\t\tUpdating " + ie);
@@ -2054,6 +2163,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             // Handle updated event
             processUpdatedParamEvent(ie);
         }
+        // Repaint viewer
+        Engine.getInstance().repaintPlan(this);
         LOGGER.log(Level.FINE, "\tFinished handling generated event: " + generatedEvent);
     }
 
@@ -2150,9 +2261,13 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             LOGGER.log(Level.FINE, "\tInputEvent " + updatedParamEvent + " tied to " + transition + " occurred with no variables");
         }
 
-        // 3 - Update the input event's status in the transition, remove it from the "active" input event list, and check if the transition should trigger now
+        // 3 - If there were no failures, update the input event's status in the transition, remove it from the "active" input event list, and check if the transition should trigger now
         synchronized (activeInputEvents) {
+            updatedParamEvent.setStatus(true);
             transition.setInputEventStatus(updatedParamEvent, true);
+            // Repaint viewer
+            Engine.getInstance().repaintPlan(this);
+
             boolean execute = checkTransition(transition);
             if (execute) {
                 executeTransition(transition);
@@ -2283,6 +2398,10 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     }
 
     @Override
+    public void planRepaint(PlanManager planManager) {
+    }
+
+    @Override
     public void planFinished(PlanManager planManager) {
         Place place = planManagerToPlace.get(planManager);
         if (place != null) {
@@ -2299,6 +2418,27 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                     placeToSMTokens.put(place, sMTokens);
                 }
                 sMTokens.addAll(planManager.getEndTokens());
+
+                // Update place's sub mission status
+                place.setSubMissionStatus(planManager.getMSpec(), true);
+
+                // Check if there are any CheckReturn instances linked to this SM mSpec instance
+                if (clonedCrTable.containsKey(planManager.getMSpec())) {
+                    HashMap<Transition, CheckReturn> lookup = clonedCrTable.get(planManager.getMSpec());
+                    for (Transition checkTransition : lookup.keySet()) {
+                        CheckReturn checkReturn = lookup.get(checkTransition);
+                        if (checkReturn.getVariableName() != null) {
+                            if (!checkReturn.getVariableValue().equals(Engine.getInstance().getVariableValue(checkReturn.getVariableName()))) {
+                                // Return value did not match specified value - return without marking the CheckReturn as complete
+                                //  This transition will never execute
+                            } else {
+                                checkTransition.setInputEventStatus(checkReturn, true);
+                            }
+                        } else {
+                            LOGGER.severe("CheckReturn value was null: " + checkReturn);
+                        }
+                    }
+                }
 
                 // Stop listening to the sub-mission's plan manager
                 activePMs.remove(planManager);
@@ -2337,5 +2477,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             }
         }
         return endTokens;
+    }
+
+    public MissionPlanSpecification getMSpec() {
+        return mSpec;
     }
 }
