@@ -2,6 +2,10 @@ package sami.allocation;
 
 import com.perc.mitpas.adi.common.datamodels.AbstractAsset;
 import com.perc.mitpas.adi.mission.planning.task.ITask;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -10,50 +14,98 @@ import java.util.Map;
  */
 public class ResourceAllocation {
 
-    Map<ITask, AbstractAsset> allocation;
-    Map<ITask, Long> taskTimings;
+    Map<ITask, AbstractAsset> taskToAsset;
+    Map<AbstractAsset, ArrayList<ITask>> assetToTasks;
+    ArrayList<ITask> unallocatedTasks;
+    Map<ITask, Long> taskToTime;
 
-    public ResourceAllocation() {
+    private ResourceAllocation() {
     }
 
-    public ResourceAllocation(Map<ITask, AbstractAsset> allocation, Map<ITask, Long> taskTimings) {
-        this.allocation = allocation;
-        this.taskTimings = taskTimings;
+    public ResourceAllocation(Map<ITask, AbstractAsset> taskToAsset, final Map<ITask, Long> taskToTime) {
+        this.taskToAsset = taskToAsset;
+        this.taskToTime = taskToTime;
+        // Fill out remaining fields
+        assetToTasks = new HashMap<AbstractAsset, ArrayList<ITask>>();
+        unallocatedTasks = new ArrayList<ITask>();
+        for (ITask task : taskToAsset.keySet()) {
+            AbstractAsset asset = taskToAsset.get(task);
+            if (asset == null) {
+                unallocatedTasks.add(task);
+            } else {
+                ArrayList<ITask> taskList;
+                if (assetToTasks.containsKey(asset)) {
+                    taskList = assetToTasks.get(asset);
+                } else {
+                    taskList = new ArrayList<ITask>();
+                    assetToTasks.put(asset, taskList);
+                }
+                taskList.add(task);
+            }
+        }
+        // Now sort each entry in assetToTasks
+        for (AbstractAsset asset : assetToTasks.keySet()) {
+            ArrayList<ITask> taskList = assetToTasks.get(asset);
+            Collections.sort(taskList, new Comparator<ITask>() {
+                @Override
+                public int compare(ITask task1, ITask task2) {
+                    if (!taskToTime.containsKey(task1) || !taskToTime.containsKey(task2)) {
+                        return 0;
+                    }
+                    return (int) (taskToTime.get(task1) - taskToTime.get(task2));
+                }
+            });
+        }
     }
 
-    public Map<ITask, AbstractAsset> getAllocation() {
-        return allocation;
+    public ResourceAllocation(Map<ITask, AbstractAsset> taskToAsset, Map<AbstractAsset, ArrayList<ITask>> assetToTasks, ArrayList<ITask> unallocatedTasks, Map<ITask, Long> taskToTime) {
+        this.taskToAsset = taskToAsset;
+        this.assetToTasks = assetToTasks;
+        this.unallocatedTasks = unallocatedTasks;
+        this.taskToTime = taskToTime;
     }
 
-    public void setAllocation(Map<ITask, AbstractAsset> allocation) {
-        this.allocation = allocation;
+    public Map<ITask, AbstractAsset> getTaskToAsset() {
+        return taskToAsset;
     }
 
-    public Map<ITask, Long> getTaskTimings() {
-        return taskTimings;
+    public Map<AbstractAsset, ArrayList<ITask>> getAssetToTasks() {
+        return assetToTasks;
     }
 
-    public void setTaskTimings(Map<ITask, Long> taskTimings) {
-        this.taskTimings = taskTimings;
+    public ArrayList<ITask> getUnallocatedTasks() {
+        return unallocatedTasks;
+    }
+
+    public Map<ITask, Long> getTaskToTime() {
+        return taskToTime;
     }
 
     @Override
     public ResourceAllocation clone() {
         ResourceAllocation clone = new ResourceAllocation();
-        for (ITask task : allocation.keySet()) {
-            clone.allocation.put(task, allocation.get(task));
+        clone.taskToAsset = new HashMap<ITask, AbstractAsset>();
+        clone.assetToTasks = new HashMap<AbstractAsset, ArrayList<ITask>>();
+        clone.unallocatedTasks = (ArrayList<ITask>) unallocatedTasks.clone();
+        for (ITask iTask : taskToAsset.keySet()) {
+            clone.taskToAsset.put(iTask, taskToAsset.get(iTask));
         }
-        for (ITask task : taskTimings.keySet()) {
-            clone.taskTimings.put(task, taskTimings.get(task));
+        for (AbstractAsset asset : assetToTasks.keySet()) {
+            clone.assetToTasks.put(asset, (ArrayList<ITask>) assetToTasks.get(asset).clone());
+        }
+        if (taskToTime != null) {
+            clone.taskToTime = new HashMap<ITask, Long>();
+            for (ITask iTask : taskToTime.keySet()) {
+                clone.taskToTime.put(iTask, taskToTime.get(iTask));
+            }
         }
         return clone;
     }
 
     public String toString() {
         String ret = "";
-        for (ITask task : allocation.keySet()) {
-            AbstractAsset value = allocation.get(task);
-            ret += "\n\t" + task.getName() + " (" + task.getDescription() + ") -> " + value.getName() + " (" + value.getType() + ");";
+        for (AbstractAsset asset : assetToTasks.keySet()) {
+            ret += "\n\t" + asset.getName() + " -> " + assetToTasks.get(asset);
         }
         return ret;
     }

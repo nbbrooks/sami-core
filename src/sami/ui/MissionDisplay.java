@@ -319,8 +319,6 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
     }
 
     public void abortMission() {
-//            Engine.getInstance().getUiServer().UIMessage(new AbortMissionMessage(pm.missionId));
-//        Engine.getInstance().abortMission(pm.missionId);
         pm.eventGenerated(new AbortMissionReceived(pm.missionId));
     }
 

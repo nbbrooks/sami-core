@@ -20,7 +20,7 @@ public class NumberOfOptions extends Markup {
     public Number number;
     public Format format;
     public NumberOption numberOption;
-    public static final int DEFAULT_NUM_OPTIONS = 3;
+    public static final int DEFAULT_NUM_OPTIONS = 1;
 
     public enum Number {
 

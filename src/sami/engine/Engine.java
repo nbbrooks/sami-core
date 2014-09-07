@@ -1,5 +1,8 @@
 package sami.engine;
 
+import com.perc.mitpas.adi.common.datamodels.AbstractAsset;
+import com.perc.mitpas.adi.mission.planning.task.ITask;
+import com.perc.mitpas.adi.mission.planning.task.Task;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -7,9 +10,14 @@ import java.util.Hashtable;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import sami.allocation.ResourceAllocation;
 import sami.config.DomainConfigManager;
 import sami.environment.EnvironmentListenerInt;
 import sami.environment.EnvironmentProperties;
+import sami.event.InputEvent;
+import sami.event.TaskReassigned;
+import sami.event.TaskReleased;
+import sami.event.TaskUnassigned;
 import sami.handler.EventHandlerInt;
 import sami.mission.MissionPlanSpecification;
 import sami.mission.Place;
@@ -35,25 +43,28 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
 
     private static final Logger LOGGER = Logger.getLogger(Engine.class.getName());
     // Plan related items
-    private ArrayList<PlanManager> plans = new ArrayList<PlanManager>();
-    private ArrayList<PlanManagerListenerInt> planManagerListeners = new ArrayList<PlanManagerListenerInt>();
-    private HashMap<UUID, PlanManager> missionIdToPlanManager = new HashMap<UUID, PlanManager>();
+    private final ArrayList<PlanManager> plans = new ArrayList<PlanManager>();
+    private final ArrayList<PlanManagerListenerInt> planManagerListeners = new ArrayList<PlanManagerListenerInt>();
+    private final ArrayList<TaskAllocationListenerInt> taskAllocationListeners = new ArrayList<TaskAllocationListenerInt>();
+    private final HashMap<UUID, PlanManager> missionIdToPlanManager = new HashMap<UUID, PlanManager>();
+    private final HashMap<Task, PlanManager> taskToPlanManager = new HashMap<Task, PlanManager>();
+    private ResourceAllocation resourceAllocation = new ResourceAllocation(new HashMap<ITask, AbstractAsset>(), null);
     // Token related items
     private final Token genericToken = new Token("G", TokenType.Generic, null, null);
-    private ArrayList<Token> proxyTokens = new ArrayList<Token>();
-    private HashMap<ProxyInt, Token> proxyToToken = new HashMap<ProxyInt, Token>();
+    private final ArrayList<Token> proxyTokens = new ArrayList<Token>();
+    private final HashMap<ProxyInt, Token> proxyToToken = new HashMap<ProxyInt, Token>();
     //
-    private ArrayList<ProxyInt> proxies = new ArrayList<ProxyInt>();
+    private final ArrayList<ProxyInt> proxies = new ArrayList<ProxyInt>();
     private ProxyServerInt proxyServer;
-    private ArrayList<ObserverInt> observers = new ArrayList<ObserverInt>();
+    private final ArrayList<ObserverInt> observers = new ArrayList<ObserverInt>();
     private ObserverServerInt observerServer;
-    private ArrayList<EnvironmentListenerInt> environmentListeners = new ArrayList<EnvironmentListenerInt>();
+    private final ArrayList<EnvironmentListenerInt> environmentListeners = new ArrayList<EnvironmentListenerInt>();
     private EnvironmentProperties environmentProperties = null;
     private ServiceServer serviceServer;
     private sami.uilanguage.UiClientInt uiClient = null;
     private sami.uilanguage.UiServerInt uiServer = null;
     // Configuration of output events and the handler classes that will execute them
-    private Hashtable<Class, EventHandlerInt> handlers = new Hashtable<Class, EventHandlerInt>();
+    private final Hashtable<Class, EventHandlerInt> handlers = new Hashtable<Class, EventHandlerInt>();
     // Keeps track of variables coming in from InputEvents, to be used in OutputEvents
     private final HashMap<String, Object> variableNameToValue = new HashMap<String, Object>();
     private static final Object lock = new Object();
@@ -137,6 +148,21 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         }
     }
 
+    public void addListener(TaskAllocationListenerInt taskAllocationListener) {
+        synchronized (lock) {
+            if (!taskAllocationListeners.contains(taskAllocationListener)) {
+                taskAllocationListeners.add(taskAllocationListener);
+            }
+        }
+    }
+
+    public ResourceAllocation getTaskAllocation() {
+        if (resourceAllocation == null) {
+            return null;
+        }
+        return resourceAllocation.clone();
+    }
+
     public ProxyServerInt getProxyServer() {
         return proxyServer;
     }
@@ -178,17 +204,126 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         for (Token proxyToken : proxyTokens) {
             tokens.add(proxyToken);
         }
-        Logger.getLogger(this.getClass().getName()).log(Level.INFO, "Spawning root mission from spec " + mSpec);
+        LOGGER.info("Spawning root mission from spec " + mSpec);
         return spawnMission(mSpec, tokens);
     }
 
     public PlanManager spawnSubMission(MissionPlanSpecification mSpec, final ArrayList<Token> parentMissionTokens) {
-        Logger.getLogger(this.getClass().getName()).log(Level.INFO, "Spawning child mission from spec " + mSpec);
+        LOGGER.info("Spawning child mission from spec " + mSpec);
         return spawnMission(mSpec, parentMissionTokens);
     }
 
     public PlanManager getPlanManager(UUID missionId) {
         return missionIdToPlanManager.get(missionId);
+    }
+
+    public void linkTask(Task task, PlanManager planManager) {
+        taskToPlanManager.put(task, planManager);
+    }
+
+    public void unlinkTask(Task task) {
+        taskToPlanManager.remove(task);
+    }
+
+    public ResourceAllocation getAllocation() {
+        return resourceAllocation;
+    }
+
+    public void applyAllocation(ResourceAllocation resourceAllocation) {
+        LOGGER.fine("Applying allocation: " + resourceAllocation);
+        // Create lists for TaskUnassigned, TaskReleased, and TaskReassigned events that should be generated
+        ArrayList<InputEvent> taskEvents = new ArrayList<InputEvent>();
+        // Make TaskUnassigned events for tasks that are unallocated
+        for (ITask task : resourceAllocation.getUnallocatedTasks()) {
+            if (taskToPlanManager.containsKey((Task) task)) {
+                PlanManager pm = taskToPlanManager.get((Task) task);
+                taskEvents.add(new TaskUnassigned(pm.missionId, (Task) task));
+            } else {
+                LOGGER.severe("Could not find PM for task: " + task);
+            }
+        }
+        // Make TaskReassigned events for tasks that have changed assets
+        for (ITask task : resourceAllocation.getTaskToAsset().keySet()) {
+            // Don't need to check for tasks that are now unassigned, have dedicated list for that
+            Token taskToken = getToken((Task) task);
+            if (taskToken.getProxy() != null && taskToken.getProxy() != proxyServer.getProxy((resourceAllocation.getTaskToAsset().get(task)))) {
+                if (taskToPlanManager.containsKey((Task) task)) {
+                    PlanManager pm = taskToPlanManager.get((Task) task);
+                    taskEvents.add(new TaskReassigned(pm.missionId, (Task) task));
+                } else {
+                    LOGGER.severe("Could not find PM for task: " + task);
+                }
+            }
+        }
+        // Update task tokens' proxy values and send new allocations to proxies
+        //  Get TaskDelayed and TaskReleased events from proxies
+        for (AbstractAsset asset : resourceAllocation.getAssetToTasks().keySet()) {
+            ProxyInt proxy = proxyServer.getProxy(asset);
+            if (proxy == null) {
+                LOGGER.severe("Could not find ProxyInt for AbstractAsset: " + asset);
+                continue;
+            }
+            LOGGER.log(Level.FINE, "Found proxy " + proxy + " for asset " + asset);
+            ArrayList<ITask> iTasks = resourceAllocation.getAssetToTasks().get(asset);
+            ArrayList<Task> tasks = new ArrayList<Task>();
+            for (ITask iTask : iTasks) {
+                Token taskToken = getToken((Task) iTask);
+                LOGGER.log(Level.FINE, "\tFound token " + taskToken + " for task " + iTask);
+                taskToken.setProxy(proxy);
+                tasks.add(taskToken.getTask());
+            }
+            ArrayList<InputEvent> proxyTaskEvents = proxy.setTasks(tasks);
+            taskEvents.addAll(proxyTaskEvents);
+        }
+        // Save allocation
+        this.resourceAllocation = resourceAllocation;
+        // Finally, generate the TaskUnassigned, TaskReassigned, TaskDelayed, and TaskReleased events
+        ArrayList<PlanManager> pmList = new ArrayList<PlanManager>();
+        for (InputEvent ie : taskEvents) {
+            pmList.clear();
+            for (Task task : ie.getRelevantTaskList()) {
+                if (taskToPlanManager.containsKey((Task) task)) {
+                    PlanManager pm = taskToPlanManager.get(task);
+                    if (!pmList.contains(pm)) {
+                        if (ie instanceof TaskReleased) {
+                            // Because we are no longer associate this task with this proxy, we need a different mechanism 
+                            //  to allow plan developers to have the proxy formerly responsible to the task to respond to
+                            //  the task release - do this by "silently" adding the proxy's proxy token to the place, 
+                            //  which will allow the TaskReleased to trigger based on relevant proxy token
+                            if (ie.getRelevantProxyList().size() != 1) {
+                                LOGGER.warning("Expected TaskReleased to have 1 relevant proxy, has [" + ie.getRelevantProxyList() + "]");
+                            }
+                            for (ProxyInt proxy : ie.getRelevantProxyList()) {
+                                pm.addProxyForTask(proxy, ((TaskReleased) ie).getTask());
+                            }
+                        }
+                        LOGGER.fine("Telling pm [" + pm + "] about allocation change for task [" + task + "] with IE [" + ie + "]");
+                        pmList.add(pm);
+                        pm.eventGenerated(ie);
+                    }
+                } else {
+                    LOGGER.severe("Could not find PM for task: " + task);
+                }
+            }
+        }
+        // Notify listeners
+        for (TaskAllocationListenerInt listener : taskAllocationListeners) {
+            listener.allocationApplied(resourceAllocation.clone());
+        }
+    }
+
+    public void taskCompleted(ITask task) {
+        // Notify listeners
+        for (TaskAllocationListenerInt listener : taskAllocationListeners) {
+            listener.taskCompleted(task);
+        }
+    }
+
+    public PlanManager getPlanManager(Task task) {
+        if (!taskToPlanManager.containsKey(task)) {
+            LOGGER.severe("No mapping from task [" + task + "] to a plan manager, mapping is [" + taskToPlanManager.toString() + "]");
+        }
+        return taskToPlanManager.get(task);
     }
 
     public ServiceServer getServiceServer() {
@@ -328,6 +463,13 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
 
     public Token getToken(ProxyInt proxy) {
         return proxyToToken.get(proxy);
+    }
+
+    public Token getToken(Task task) {
+        if (taskToPlanManager.containsKey(task)) {
+            return taskToPlanManager.get(task).getToken(task);
+        }
+        return null;
     }
 
     public Token createToken(ProxyInt proxy) {

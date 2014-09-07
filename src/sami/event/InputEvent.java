@@ -1,9 +1,8 @@
 package sami.event;
 
-import java.lang.reflect.Field;
+import com.perc.mitpas.adi.mission.planning.task.Task;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Hashtable;
 import java.util.UUID;
 import sami.allocation.ResourceAllocation;
 import sami.proxy.ProxyInt;
@@ -24,6 +23,7 @@ public class InputEvent extends Event {
     // Class field name to user defined variable name
     HashMap<String, String> fieldNameToWriteVariable = null;
     protected ArrayList<ProxyInt> relevantProxyList = null;
+    protected ArrayList<Task> relevantTaskList = null;
     protected ResourceAllocation allocation = null;
     protected UUID relevantOutputEventId;
     public boolean blocking = false;
@@ -47,22 +47,6 @@ public class InputEvent extends Event {
      */
     public void setGeneratorEvent(InputEvent generatorEvent) {
         this.generatorEvent = generatorEvent;
-    }
-
-    public static Hashtable<String, Class> getInputEventDataTypes(Class actualClass) {
-
-        Hashtable<String, Class> paramToClass = new Hashtable<String, Class>();
-
-        // "Clever" hack from StackOverflow to get the class from this static method
-        // Class thisClass = new Object() {}.getClass().getEnclosingClass();
-        Field[] fs = actualClass.getFields();
-
-        // System.out.println("Fields size : " + fs.length);
-        for (Field field : fs) {
-            paramToClass.put(field.getName(), field.getType());
-        }
-
-        return paramToClass;
     }
 
     public HashMap<String, String> getWriteVariables() {
@@ -102,6 +86,14 @@ public class InputEvent extends Event {
 
     public void setRelevantProxyList(ArrayList<ProxyInt> relevantProxyList) {
         this.relevantProxyList = relevantProxyList;
+    }
+
+    public ArrayList<Task> getRelevantTaskList() {
+        return relevantTaskList;
+    }
+
+    public void setRelevantTaskList(ArrayList<Task> relevantTaskList) {
+        this.relevantTaskList = relevantTaskList;
     }
 
     public InputEvent copyForProxyTrigger() {
@@ -149,6 +141,12 @@ public class InputEvent extends Event {
             copy.relevantProxyList = new ArrayList<ProxyInt>();
             for (ProxyInt proxy : relevantProxyList) {
                 copy.relevantProxyList.add(proxy);
+            }
+        }
+        if (relevantTaskList != null) {
+            copy.relevantTaskList = new ArrayList<Task>();
+            for (Task task : relevantTaskList) {
+                copy.relevantTaskList.add(task);
             }
         }
         if (allocation != null) {

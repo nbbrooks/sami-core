@@ -341,7 +341,7 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
                 } catch (AccessControlException e) {
                     LOGGER.severe("Failed to save preferences");
                 }
-                setTitle("Mission Monitor: " + drmFile.toString());
+                setTitle("Mission Monitor [" + drmFile.toString() + "]");
             }
         } catch (ClassNotFoundException ex) {
             LOGGER.severe("Class not found exception in DRM load");
@@ -358,7 +358,7 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
         } catch (NullPointerException ex) {
             LOGGER.severe("Could not load DRM file");
             return false;
-        } 
+        }
         return true;
     }//GEN-LAST:event_loadDrmBActionPerformed
 
@@ -466,7 +466,7 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
 
     @Override
     public void planRepaint(PlanManager planManager) {
-    }    
+    }
 
     @Override
     public void planFinished(PlanManager planManager) {

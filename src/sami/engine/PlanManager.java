@@ -1,13 +1,11 @@
 package sami.engine;
 
-import com.perc.mitpas.adi.common.datamodels.AbstractAsset;
 import com.perc.mitpas.adi.mission.planning.task.ITask;
 import com.perc.mitpas.adi.mission.planning.task.Task;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Hashtable;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.logging.Level;
@@ -55,31 +53,32 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     int repliesExpected = 0;
     // Blocking queue of generated input events waiting to be matched to a parameter input event
     private ArrayBlockingQueue<InputEvent> generatorEventQueue = new ArrayBlockingQueue<InputEvent>(20);
-    ArrayList<InputEvent> activeInputEvents = new ArrayList<InputEvent>();
+    final ArrayList<InputEvent> activeInputEvents = new ArrayList<InputEvent>();
     final ArrayList<Place> placesBeingEntered = new ArrayList<Place>();
     // List of tokens on the mission spec's edges to be used as the default list of tokens to put in the starting place
     //  Null PROXY and ALL tokens are not added to this list
     private ArrayList<Token> startingTokens = new ArrayList<Token>();
     // Lookup table used for retrieving task based tokens (ie for updating a token after a resource allocation is received)
-    private HashMap<String, Task> taskNameToTask = new HashMap<String, Task>();
-    private HashMap<ITask, Token> taskToToken = new HashMap<ITask, Token>();
-    private HashMap<TaskSpecification, Token> taskSpecToToken = new HashMap<TaskSpecification, Token>();
+    private final HashMap<String, Task> taskNameToTask = new HashMap<String, Task>();
+    private final HashMap<ITask, Token> taskToToken = new HashMap<ITask, Token>();
+    private final HashMap<TaskSpecification, Token> taskSpecToToken = new HashMap<TaskSpecification, Token>();
     // Lookup table used during processing of generated and updated parameter input events
-    private HashMap<InputEvent, Transition> inputEventToTransitionMap = new HashMap<InputEvent, Transition>();
+    private final HashMap<InputEvent, Transition> inputEventToTransitionMap = new HashMap<InputEvent, Transition>();
     // Lookup table used when submissions are completed
-    private HashMap<PlanManager, Place> planManagerToPlace = new HashMap<PlanManager, Place>();
-    private HashMap<Place, ArrayList<PlanManager>> placeToActivePlanManagers = new HashMap<Place, ArrayList<PlanManager>>();
-    private HashMap<Place, ArrayList<Token>> placeToSMTokens = new HashMap<Place, ArrayList<Token>>();
+    private final HashMap<PlanManager, Place> planManagerToPlace = new HashMap<PlanManager, Place>();
+    private final HashMap<Place, ArrayList<PlanManager>> placeToActivePlanManagers = new HashMap<Place, ArrayList<PlanManager>>();
+    private final HashMap<Place, ArrayList<Token>> placeToSMTokens = new HashMap<Place, ArrayList<Token>>();
     // Lookup for cloned blocking IEs
-    private HashMap<InputEvent, HashMap<ProxyInt, InputEvent>> clonedIeTable = new HashMap<InputEvent, HashMap<ProxyInt, InputEvent>>();
+    private final HashMap<InputEvent, HashMap<ProxyInt, InputEvent>> clonedIeProxyTable = new HashMap<InputEvent, HashMap<ProxyInt, InputEvent>>();
+    private final HashMap<InputEvent, HashMap<Task, InputEvent>> clonedIeTaskTable = new HashMap<InputEvent, HashMap<Task, InputEvent>>();
     // Lookup from sub-mission mSpec instance to Transitions holding a matching CheckReturn for that SM instance
-    private HashMap<MissionPlanSpecification, HashMap<Transition, CheckReturn>> clonedCrTable = new HashMap<MissionPlanSpecification, HashMap<Transition, CheckReturn>>();
+    private final HashMap<MissionPlanSpecification, HashMap<Transition, CheckReturn>> clonedCrTable = new HashMap<MissionPlanSpecification, HashMap<Transition, CheckReturn>>();
     // Lookup used to reset CheckReturn templates and remove CheckReturn clones on neighboring transitions when a transition fires
     private HashMap<Transition, HashMap<MissionPlanSpecification, CheckReturn>> allCrTable = new HashMap<Transition, HashMap<MissionPlanSpecification, CheckReturn>>();
     final MissionPlanSpecification mSpec;
     // The model being managed by this PlanManager
     private Place startPlace;
-    private String planName;
+    private final String planName;
     public final UUID missionId;
     // Logging levels
     final Level CHECK_T_LVL = Level.FINE;
@@ -469,29 +468,37 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                             break;
                         case RelevantToken:
                             // A relevant token is a token whose proxy (non-null) is contained in an input event's relevantProxyList
+                            //  or a task token that is contained in an input event's relevantTaskList
                             ArrayList<ProxyInt> relevantProxies;
+                            ArrayList<Task> relevantTasks;
                             switch (inReq.getMatchQuantity()) {
                                 case None:
-                                    // Check that there are no copies of any of the relevant proxy tokens
+                                    // Check that there are no copies of any of the relevant proxy or task tokens
                                     relevantProxies = getRelevantProxies(transition);
+                                    relevantTasks = getRelevantTasks(transition);
                                     for (Token placeToken : placeTokens) {
-                                        if ((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
+                                        if (((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
                                                 && placeToken.getProxy() != null
-                                                && relevantProxies.contains(placeToken.getProxy())) {
+                                                && relevantProxies.contains(placeToken.getProxy()))
+                                                || (placeToken.getType() == TokenType.Task
+                                                && relevantTasks.contains(placeToken.getTask()))) {
                                             failure = true;
                                             break;
                                         }
                                     }
                                     break;
                                 case Number:
-                                    // Check that there are at least n of the relevant tokens
+                                    // Check that there are at least n of the relevant proxy or task tokens
                                     int count = 0;
                                     relevantProxies = getRelevantProxies(transition);
-                                    // Go through token list and remove item from relevant proxy list where appropriate 
+                                    relevantTasks = getRelevantTasks(transition);
+                                    // Go through token list and remove item from relevant proxy/task list where appropriate 
                                     for (Token placeToken : placeTokens) {
-                                        if ((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
+                                        if (((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
                                                 && placeToken.getProxy() != null
-                                                && relevantProxies.contains(placeToken.getProxy())) {
+                                                && relevantProxies.contains(placeToken.getProxy()))
+                                                || (placeToken.getType() == TokenType.Task
+                                                && relevantTasks.contains(placeToken.getTask()))) {
                                             count++;
                                             if (count >= inReq.getQuantity()) {
                                                 break;
@@ -506,19 +513,27 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                     // Check that there is at least n copies of each relevant proxy token
                                     // Get cloned list of relevant proxies
                                     relevantProxies = (ArrayList<ProxyInt>) (getRelevantProxies(transition).clone());
+                                    relevantTasks = (ArrayList<Task>) (getRelevantTasks(transition).clone());
                                     // Go through token list and remove item from relevant proxy list where appropriate 
                                     for (Token placeToken : placeTokens) {
                                         if ((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
                                                 && placeToken.getProxy() != null
                                                 && relevantProxies.contains(placeToken.getProxy())) {
                                             relevantProxies.remove(placeToken.getProxy());
-                                            if (relevantProxies.isEmpty()) {
+                                            if (relevantProxies.isEmpty() && relevantTasks.isEmpty()) {
+                                                break;
+                                            }
+                                        }
+                                        if (placeToken.getType() == TokenType.Task
+                                                && relevantTasks.contains(placeToken.getTask())) {
+                                            relevantTasks.remove(placeToken.getTask());
+                                            if (relevantProxies.isEmpty() && relevantTasks.isEmpty()) {
                                                 break;
                                             }
                                         }
                                     }
                                     // If anything is still left in the relevant proxies list, the check fails
-                                    if (!relevantProxies.isEmpty()) {
+                                    if (!relevantProxies.isEmpty() || !relevantTasks.isEmpty()) {
                                         failure = true;
                                     }
                                     break;
@@ -625,11 +640,12 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         Hashtable<InputEvent, boolean[]> ieToRelTokenAddMaster = new Hashtable<InputEvent, boolean[]>();
         for (InputEvent ie : transition.getInputEvents()) {
             if (ie.getGeneratorEvent() == null) {
-                LOGGER.log(EXE_T_LVL, "\tie: " + ie + "\tgeneratorEvent is null: should be a null RP blocking IE: param IE RP = " + ie.getRelevantProxyList());
+                LOGGER.log(EXE_T_LVL, "\tie: " + ie + "\tgeneratorEvent is null: should be a null RP blocking IE: param IE RP [" + ie.getRelevantProxyList() + "]");
             }
             if (ie.getGeneratorEvent() != null && ie.getGeneratorEvent().getRelevantProxyList() != null) {
-                LOGGER.log(EXE_T_LVL, "\tie: " + ie + "\tgeneratorEvent is not null and has RP: " + ie.getGeneratorEvent().getRelevantProxyList());
-                ieToRelTokenAddMaster.put(ie.getGeneratorEvent(), new boolean[ie.getGeneratorEvent().getRelevantProxyList().size()]);
+                LOGGER.log(EXE_T_LVL, "\tie: " + ie + "\tgeneratorEvent is not null and has RP [" + ie.getGeneratorEvent().getRelevantProxyList() + "] and RT [" + ie.getGeneratorEvent().getRelevantTaskList() + "]");
+                int size = ie.getGeneratorEvent().getRelevantProxyList().size() + (ie.getGeneratorEvent().getRelevantTaskList() != null ? ie.getGeneratorEvent().getRelevantTaskList().size() : 0);
+                ieToRelTokenAddMaster.put(ie.getGeneratorEvent(), new boolean[size]);
             }
         }
         for (Place inPlace : transition.getInPlaces()) {
@@ -1175,6 +1191,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                     case RelevantToken:
                         // A relevant token is a token whose proxy (non-null) is contained in an input event's relevantProxyList
                         ArrayList<ProxyInt> relevantProxies;
+                        ArrayList<Task> relevantTasks;
                         Hashtable<InputEvent, boolean[]> ieToRelTokenAdd = outPlaceToIeToRelTokenAdd.get(outPlace);
                         switch (outReq.getMatchAction()) {
                             case Add:
@@ -1212,6 +1229,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                 break;
                             case Consume:
                                 relevantProxies = getRelevantProxies(transition);
+                                relevantTasks = getRelevantTasks(transition);
                                 switch (outReq.getMatchQuantity()) {
                                     case All:
                                         // Remove all relevant tokens from all incoming places
@@ -1220,9 +1238,11 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                             boolean[] tokenRemove = inPlaceToTokenRemove.get(inPlace);
                                             for (int i = 0; i < tokenRemove.length; i++) {
                                                 Token placeToken = placeTokens.get(i);
-                                                if ((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
+                                                if (((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
                                                         && placeToken.getProxy() != null
-                                                        && relevantProxies.contains(placeToken.getProxy())) {
+                                                        && relevantProxies.contains(placeToken.getProxy()))
+                                                        || (placeToken.getType() == TokenType.Task
+                                                        && relevantTasks.contains(placeToken.getTask()))) {
                                                     tokenRemove[i] = true;
                                                 }
                                             }
@@ -1241,9 +1261,11 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                                     break;
                                                 }
                                                 Token placeToken = placeTokens.get(i);
-                                                if ((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
+                                                if (((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
                                                         && placeToken.getProxy() != null
-                                                        && relevantProxies.contains(placeToken.getProxy())) {
+                                                        && relevantProxies.contains(placeToken.getProxy()))
+                                                        || (placeToken.getType() == TokenType.Task
+                                                        && relevantTasks.contains(placeToken.getTask()))) {
                                                     tokenRemove[i] = true;
                                                     count++;
                                                 }
@@ -1260,6 +1282,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                 break;
                             case Take:
                                 relevantProxies = getRelevantProxies(transition);
+                                relevantTasks = getRelevantTasks(transition);
                                 switch (outReq.getMatchQuantity()) {
                                     case All:
                                         // For each relevant proxy add its proxy token to the outgoing place and remove it from all incoming places
@@ -1269,9 +1292,11 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                             boolean[] tokenAdd = inPlaceToTokenAdd.get(inPlace);
                                             for (int i = 0; i < tokenRemove.length; i++) {
                                                 Token placeToken = placeTokens.get(i);
-                                                if ((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
+                                                if (((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
                                                         && placeToken.getProxy() != null
-                                                        && relevantProxies.contains(placeToken.getProxy())) {
+                                                        && relevantProxies.contains(placeToken.getProxy()))
+                                                        || (placeToken.getType() == TokenType.Task
+                                                        && relevantTasks.contains(placeToken.getTask()))) {
                                                     tokenRemove[i] = true;
                                                     tokenAdd[i] = true;
                                                 }
@@ -1292,9 +1317,11 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                                     break;
                                                 }
                                                 Token placeToken = placeTokens.get(i);
-                                                if ((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
+                                                if (((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
                                                         && placeToken.getProxy() != null
-                                                        && relevantProxies.contains(placeToken.getProxy())) {
+                                                        && relevantProxies.contains(placeToken.getProxy()))
+                                                        || (placeToken.getType() == TokenType.Task
+                                                        && relevantTasks.contains(placeToken.getTask()))) {
                                                     tokenRemove[i] = true;
                                                     tokenAdd[i] = true;
                                                     count++;
@@ -1549,21 +1576,24 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         // Get a list of blocking IE classes which we cloned
         ArrayList<Class> eventClassesToRemove = new ArrayList<Class>();
         for (InputEvent ie : transition.getInputEvents()) {
-            if (ie.getBlocking() && ie.getRelevantProxyList() == null) {
+            if (ie.getBlocking() && ie.getRelevantProxyList() == null && ie.getRelevantTaskList() == null) {
                 eventClassesToRemove.add(ie.getClass());
 
                 // Clear lookup
-                if (clonedIeTable.containsKey(ie)) {
-                    HashMap<ProxyInt, InputEvent> proxyLookup = clonedIeTable.get(ie);
+                if (clonedIeProxyTable.containsKey(ie)) {
+                    HashMap<ProxyInt, InputEvent> proxyLookup = clonedIeProxyTable.get(ie);
                     proxyLookup.clear();
                 }
-
+                if (clonedIeTaskTable.containsKey(ie)) {
+                    HashMap<Task, InputEvent> taskLookup = clonedIeTaskTable.get(ie);
+                    taskLookup.clear();
+                }
             }
         }
         // Get the clones of those classes
         ArrayList<InputEvent> clonedIesToRemove = new ArrayList<InputEvent>();
         for (InputEvent ie : transition.getInputEvents()) {
-            if (eventClassesToRemove.contains(ie.getClass()) && ie.getRelevantProxyList() != null) {
+            if (eventClassesToRemove.contains(ie.getClass()) && (ie.getRelevantProxyList() != null || ie.getRelevantTaskList() != null)) {
                 clonedIesToRemove.add(ie);
             }
         }
@@ -1692,8 +1722,46 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             TaskSpecification parentTaskSpec = taskMap.get(childTaskSpec);
             Token parentToken = parentPM.getToken(parentTaskSpec);
             Token childToken = getToken(childTaskSpec);
-            LOGGER.log(Level.FINE, "\t\tSetting proxy: " + parentToken.getProxy() + " from parent token: " + parentToken + " to child token: " + childToken);
-            childToken.setProxy(parentToken.getProxy());
+            ProxyInt proxy = parentToken.getProxy();
+            LOGGER.log(Level.FINE, "\t\tSetting proxy: " + proxy + " from parent token: " + parentToken + " to child token: " + childToken);
+            childToken.setProxy(proxy);
+            // Set task on proxy
+            proxy.addChildTask(parentToken.getTask(), childToken.getTask());
+        }
+    }
+
+    public synchronized void addProxyForTask(ProxyInt proxy, Task task) {
+        // Because we are no longer associate this task with this proxy, we need a different mechanism 
+        //  to allow plan developers to have the proxy formerly responsible to the task to respond to
+        //  the task release - do this by "silently" adding the proxy's proxy token to the place, 
+        //  which will allow the TaskReleased to trigger based on relevant proxy token
+        Token proxyToken = Engine.getInstance().getToken(proxy);
+        Token taskToken = getToken(task);
+        // Find places with task token
+        ArrayList<Place> places = new ArrayList<Place>();
+        for (Vertex v : mSpec.getGraph().getVertices()) {
+            if (v instanceof Place) {
+                Place place = (Place) v;
+                if (place.getTokens().contains(taskToken)) {
+                    places.add(place);
+                }
+            }
+        }
+        LOGGER.info("Silently adding proxy token [" + proxy + "] for task [" + task + "] in " + places.size() + " places");
+
+        // 1 - Make note that this place should finish being entered before any of its
+        //  transitions are actually executed
+        for (Place place : places) {
+            synchronized (placesBeingEntered) {
+                placesBeingEntered.add(place);
+            }
+            // 2 - Add the new tokens to the place
+            place.addToken(proxyToken);
+            // 3 - It is now safe to execute transitions leading out of this place
+            synchronized (placesBeingEntered) {
+                placesBeingEntered.remove(place);
+            }
+            Engine.getInstance().repaintPlan(this);
         }
     }
 
@@ -1938,7 +2006,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     }
 
     public void processGeneratedEvent(InputEvent generatedEvent) {
-        LOGGER.log(Level.FINE, "Processing generated event " + generatedEvent + " with event UUID " + generatedEvent.getId() + " mission UUID " + generatedEvent.getMissionId() + " and relevant proxy " + generatedEvent.getRelevantProxyList());
+        LOGGER.log(Level.FINE, "Processing generated event " + generatedEvent + " with event UUID [" + generatedEvent.getId() + "], mission UUID [" + generatedEvent.getMissionId() + "], RP [" + generatedEvent.getRelevantProxyList() + "], RT [" + generatedEvent.getRelevantTaskList() + "]");
         if (generatedEvent.getMissionId() == null) {
             LOGGER.log(Level.FINE, "\tGenerated event has no mission UUID");
         } else {
@@ -1990,7 +2058,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 LOGGER.log(Level.FINE, "\t\tMatching success on UUID - no UUID to match against");
             }
             // 2c - If defined, this was some sort of proxy triggered event
-            //  Have a token (Proxy or Task) for the proxy?
+            //  Have a Proxy or Task token for each relevant proxy?
             //  Record the param event that matches this generator event
             if (generatedEvent.getRelevantProxyList() != null) {
                 if (paramEvent.getRelevantProxyList() == null) {
@@ -2005,15 +2073,15 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         //  If we have, we will/have match it, and if not, we should create it and set it to fulfilled. Repeat the IE copy 
                         //  process for each proxy token in all the transition's incoming places
                         //@todo Should it only be for incoming places with RP on the edge going to the transition?
-                        LOGGER.log(Level.FINE, "\t\tHandling occurence of BlockingInputEvent with null RP in param: " + paramEvent + " and defined RP in gen: " + generatedEvent);
+                        LOGGER.log(Level.FINE, "\t\tHandling occurence of BlockingInputEvent with null RP in param: " + paramEvent + " and defined RP in gen: " + generatedEvent + " RP [" + generatedEvent.getRelevantProxyList() + "]");
 
                         Transition transition = inputEventToTransitionMap.get(paramEvent);
                         HashMap<ProxyInt, InputEvent> proxyLookup;
-                        if (clonedIeTable.containsKey(paramEvent)) {
-                            proxyLookup = clonedIeTable.get(paramEvent);
+                        if (clonedIeProxyTable.containsKey(paramEvent)) {
+                            proxyLookup = clonedIeProxyTable.get(paramEvent);
                         } else {
                             proxyLookup = new HashMap<ProxyInt, InputEvent>();
-                            clonedIeTable.put(paramEvent, proxyLookup);
+                            clonedIeProxyTable.put(paramEvent, proxyLookup);
                         }
                         ArrayList<ProxyInt> proxiesToCheck = new ArrayList<ProxyInt>();
                         // Get list of proxies that we will check that a cloned IE exists for 
@@ -2027,11 +2095,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                 }
                             }
                             if (hasRtReq) {
-                                if (!(inEdge.getStart() instanceof Place)) {
-                                    LOGGER.severe("Incoming edge to a transition was not a place!");
-                                    System.exit(0);
-                                }
-                                for (Token token : ((Place) inEdge.getStart()).getTokens()) {
+                                for (Token token : inEdge.getStart().getTokens()) {
                                     if (token.getProxy() != null && !proxiesToCheck.contains(token.getProxy())) {
                                         proxiesToCheck.add(token.getProxy());
                                     }
@@ -2059,7 +2123,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         }
                         // Check that we have proxies to check, otherwise something is probably wrong
                         if (proxiesToCheck.isEmpty()) {
-                            LOGGER.severe("Generated event RP != null and parameter event RP == null, but have no incoming edges with RP requirement!");
+                            LOGGER.severe("Generated event RP != null [" + generatedEvent.getRelevantProxyList() + "] and parameter event RP == null, but have no incoming edges with RP requirement!");
                         }
 
                         // Check that we have a cloned IE for each of the proxies in proxiesToCheck
@@ -2088,6 +2152,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         // Now go through events we just created and ones matching proxies in the gen IE's RP
                         match = false;
 
+                        //@todo this implies that an incoming edge must have a RT or specific task requirement in order to have anything to compare against the event's relevant task list
                         for (ProxyInt proxy : generatedEvent.getRelevantProxyList()) {
                             if (proxyLookup.containsKey(proxy)) {
                                 InputEvent matchingClonedEvent = proxyLookup.get(proxy);
@@ -2109,7 +2174,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                             }
                         }
                         if (!match) {
-                            LOGGER.log(Level.FINE, "\t\tMatching failed on relevant proxy - param event had no relevant proxy and no preceding place with a token containing the gen event's relevant proxy");
+                            LOGGER.log(Level.FINE, "\t\tMatching failed on relevant proxy - param event had no relevant proxy and no preceding place with a token containing the gen event's relevant proxy [" + generatedEvent.getRelevantProxyList() + "]");
                             continue;
                         }
                     } else {
@@ -2119,7 +2184,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         //  would choose from the proxies contained in the tokens passed into the Transition.
                         //  The resulting IE would have contain the selected proxies in its relevant proxy list, which would
                         //  be a subset of the proxies contained in the tokens in the incoming places
-                        LOGGER.log(Level.FINE, "\t\tHandling non-BlockingInputEvent " + paramEvent);
+                        LOGGER.log(Level.FINE, "\t\tHandling non-blocking InputEvent with null RP in param [" + paramEvent + "] and defined RP in gen [" + generatedEvent + "]");
                         matchingEvents.add(paramEvent);
                     }
                 } else {
@@ -2140,8 +2205,157 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         continue;
                     }
                 }
-            } else {
-                LOGGER.log(Level.FINE, "\t\tMatching success on relevant proxy - gen event had no relevant proxy to match");
+            }
+
+            // 2d - If defined, this was some sort of task triggered event
+            //  Have a Task token for each relevant task?
+            //  Record the param event that matches this generator event
+            if (generatedEvent.getRelevantTaskList() != null) {
+                if (paramEvent.getRelevantTaskList() == null) {
+                    // This is a proxy type event where no relevant proxies were specified in the OE, but relevant proxies exist in the resulting IE
+                    if (paramEvent.getBlocking()) {
+                        // For blocking input events, we require that all proxies on incoming edges be accounted for 
+                        //  (ie, be contained in the RP list of the IE or a copy of it)
+                        // For instance, a ProxyExploreArea would compute paths for a set of proxies to take, but each proxy will
+                        //  individually send ProxyPathCompleted IEs to the system
+                        // When an gen Blocking IE is received AND it matches the class of a param IE, AND the gen IE has RP, 
+                        //  AND the param IE has null RP, check to see if we have created a copy of the param IE with the RP set to this proxy
+                        //  If we have, we will/have match it, and if not, we should create it and set it to fulfilled. Repeat the IE copy 
+                        //  process for each proxy token in all the transition's incoming places
+                        //@todo Should it only be for incoming places with RP on the edge going to the transition?
+                        LOGGER.log(Level.FINE, "\t\tHandling occurence of blocking InputEvent with null R Task in param: " + paramEvent + " and defined R Task in gen: " + generatedEvent);
+                        Transition transition = inputEventToTransitionMap.get(paramEvent);
+                        HashMap<Task, InputEvent> taskLookup;
+                        if (clonedIeTaskTable.containsKey(paramEvent)) {
+                            taskLookup = clonedIeTaskTable.get(paramEvent);
+
+                        } else {
+                            taskLookup = new HashMap<Task, InputEvent>();
+                            clonedIeTaskTable.put(paramEvent, taskLookup);
+                        }
+                        ArrayList<Task> tasksToCheck = new ArrayList<Task>();
+                        // Get list of proxies that we will check that a cloned IE exists for 
+                        // First add each proxy in incoming place with RP on the edge
+                        for (InEdge inEdge : transition.getInEdges()) {
+                            boolean hasRtReq = false;
+                            for (TokenRequirement tokenReq : inEdge.getTokenRequirements()) {
+                                if (tokenReq.getMatchCriteria() == TokenRequirement.MatchCriteria.RelevantToken) {
+                                    hasRtReq = true;
+                                    break;
+                                }
+                            }
+                            if (hasRtReq) {
+                                if (!(inEdge.getStart() instanceof Place)) {
+                                    LOGGER.severe("Incoming edge to a transition was not a place!");
+                                    System.exit(0);
+                                }
+                                for (Token token : ((Place) inEdge.getStart()).getTokens()) {
+                                    if (token.getType() == TokenType.Task && !tasksToCheck.contains(token.getTask())) {
+                                        tasksToCheck.add(token.getTask());
+                                    }
+                                }
+                            }
+                        }
+                        // Next, look for incoming places with a Task token on the edge
+                        //  If the Task token has an assigned proxy, add it to the list of proxies to check
+                        for (InEdge inEdge : transition.getInEdges()) {
+                            for (InTokenRequirement inReq : inEdge.getTokenRequirements()) {
+                                if (inReq.getMatchCriteria() == TokenRequirement.MatchCriteria.SpecificTask) {
+                                    Task task = taskNameToTask.get(inReq.getTaskName());
+                                    if (!tasksToCheck.contains(task)) {
+                                        tasksToCheck.add(task);
+                                    }
+                                }
+                            }
+                        }
+                        // Check that we have proxies to check, otherwise something is probably wrong
+                        if (tasksToCheck.isEmpty()) {
+                            LOGGER.severe("Generated event R Task != null and parameter event R Task == null, but have no incoming edges with R Task requirement!");
+                        }
+
+                        // Check that we have a cloned IE for each of the proxies in proxiesToCheck
+                        //  If we don't, we need to create one
+                        ArrayList<InputEvent> createdClones = new ArrayList<InputEvent>();
+                        for (Task task : tasksToCheck) {
+                            if (!taskLookup.containsKey(task)) {
+                                // Clone the input event and then set the relevant proxy
+                                InputEvent clonedEvent = paramEvent.copyForProxyTrigger();
+                                ArrayList<Task> relevantTaskList = new ArrayList<Task>();
+                                relevantTaskList.add(task);
+                                clonedEvent.setRelevantTaskList(relevantTaskList);
+                                // Add the cloned ie to the lookup table
+                                taskLookup.put(task, clonedEvent);
+                                // Add the cloned ie to the list of input events waiting to be fulfilled
+                                clonedEventsToAdd.put(clonedEvent, transition);
+                                createdClones.add(clonedEvent);
+                            }
+                        }
+                        // Mark the status of the null RP param event as "complete" so it won't prevent the transition from firing
+                        //  It is still an active input event though, so events will continue to try and match against it,
+                        //  creating more copies of it with new RP as needed
+                        paramEvent.setStatus(true);
+                        transition.setInputEventStatus(paramEvent, true);
+
+                        // Now go through events we just created and ones matching proxies in the gen IE's RP
+                        match = false;
+
+                        for (Task task : generatedEvent.getRelevantTaskList()) {
+                            if (taskLookup.containsKey(task)) {
+                                InputEvent matchingClonedEvent = taskLookup.get(task);
+                                if (!transition.getInputEventStatus(matchingClonedEvent)
+                                        && createdClones.contains(matchingClonedEvent)) {
+                                    // Hasn't been matched yet and the cloned event for the proxy was just created
+                                    //  If it was previously created (ie is in activeInputEvents instead of eventsToAdd),
+                                    //  it will be checked and matched - we don't want to add it to matchingEvents a second time here
+                                    matchingEvents.add(matchingClonedEvent);
+                                    match = true;
+                                    LOGGER.log(Level.FINE, "\t\t\tMatching success on relevant task: " + task);
+                                } else if (transition.getInputEventStatus(matchingClonedEvent)) {
+                                    match = true;
+                                    LOGGER.log(Level.WARNING, "\t\t\tMatching success on relevant task: " + task + ", but the corresponding cloned IE was already marked as having occurred!");
+                                } else if (!createdClones.contains(matchingClonedEvent)) {
+                                    match = true;
+                                    LOGGER.log(Level.FINE, "\t\t\tMatching success on relevant task: " + task + ", but the corresponding cloned IE was already created!");
+                                }
+                            }
+                        }
+                        if (!match) {
+                            LOGGER.log(Level.FINE, "\t\tMatching failed on relevant task - param event had no relevant task and no preceding place with a token containing the gen event's relevant task");
+                            continue;
+                        }
+                    } else {
+                        // For non-blocking input events, we don't require that all proxies on incoming edges are accounted for,
+                        //  but for each proxy in the relevant proxy list we must have a token containing that proxy in an incoming Place
+                        // For instance, an OE event requesting a selection of proxies would have no relevant proxies. The operator
+                        //  would choose from the proxies contained in the tokens passed into the Transition.
+                        //  The resulting IE would have contain the selected proxies in its relevant proxy list, which would
+                        //  be a subset of the proxies contained in the tokens in the incoming places
+                        LOGGER.log(Level.FINE, "\t\tHandling non-blocking InputEvent with null R Task in param [" + paramEvent + "] and defined R Task in gen [" + generatedEvent + "]");
+
+                        matchingEvents.add(paramEvent);
+                    }
+                } else {
+                    // Check that the param event's proxy list matches the generated event's proxy list
+                    match = true;
+                    for (Task task : paramEvent.getRelevantTaskList()) {
+                        if (!generatedEvent.getRelevantTaskList().contains(task)) {
+                            match = false;
+                            break;
+                        }
+                    }
+                    if (match) {
+                        LOGGER.log(Level.FINE, "\t\tMatching success on R Task - param event's R Task matched gen event's R Task");
+                        // The process above has occurred previously, so we have versions of the ie with the proxy specified
+                        matchingEvents.add(paramEvent);
+                    } else {
+                        LOGGER.log(Level.FINE, "\t\tMatching failed on R Task - param event's R Task did not match gen event's R Task");
+                        continue;
+                    }
+                }
+            }
+
+            if (generatedEvent.getRelevantProxyList() == null && generatedEvent.getRelevantTaskList() == null) {
+                LOGGER.log(Level.FINE, "\t\tMatching success on relevant proxy and task - gen event had no relevant proxies nor tasks to match");
                 // Generator event had no relevant proxy so no matching is necessary
                 matchingEvents.add(paramEvent);
             }
@@ -2180,24 +2394,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
         // 1 - Check if there is an attached allocation to assign
         if (generatorEvent.getAllocation() != null) {
-            Map<ITask, AbstractAsset> allocation = generatorEvent.getAllocation().getAllocation();
             LOGGER.log(Level.FINE, "\tInputEvent " + updatedParamEvent + " tied to " + transition + " occurred with an attach allocation: " + generatorEvent.getAllocation().toString());
-            for (ITask task : allocation.keySet()) {
-                Token taskToken = getToken((Task) task);
-                if (taskToken != null) {
-                    LOGGER.log(Level.FINE, "\t\tFound token " + taskToken + " for task " + task);
-                    AbstractAsset asset = allocation.get(task);
-                    ProxyInt proxy = Engine.getInstance().getProxyServer().getProxy(asset);
-                    if (proxy != null) {
-                        LOGGER.log(Level.FINE, "\t\tFound proxy " + proxy + " for asset " + asset);
-                        taskToken.setProxy(proxy);
-                    } else {
-                        LOGGER.log(Level.SEVERE, "\t\tCould not find proxy for asset " + asset);
-                    }
-                } else {
-                    LOGGER.log(Level.SEVERE, "\t\tCould not find token for task " + task);
-                }
-            }
+            Engine.getInstance().applyAllocation(generatorEvent.getAllocation());
         }
 
         // 2a - Assign any missing instance params that were missing and have now been received
@@ -2292,6 +2490,23 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         return list;
     }
 
+    public ArrayList<Task> getRelevantTasks(Transition transition) {
+        ArrayList<Task> list = new ArrayList<Task>();
+        for (InputEvent ie : transition.getInputEvents()) {
+            if (ie.getGeneratorEvent() == null) {
+                LOGGER.log(Level.FINE, "\tie: " + ie + "\tgeneratorEvent is null");
+                continue;
+            }
+            if (ie.getGeneratorEvent().getRelevantTaskList() == null) {
+                LOGGER.log(Level.FINE, "\tie: " + ie + "\trelevantTaskList is null");
+                continue;
+            }
+            LOGGER.log(Level.FINE, "\tie: " + ie + "\trelevantTaskList: " + ie.getGeneratorEvent().getRelevantTaskList());
+            list.addAll(ie.getGeneratorEvent().getRelevantTaskList());
+        }
+        return list;
+    }
+
     public Place getStartPlace() {
         return startPlace;
     }
@@ -2311,11 +2526,17 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             options.add(e);
             Object actualObject = null;
             while (options.size() > 0) {
+                boolean error = false;
                 Object currObject = options.remove(0);
                 try {
                     currObject.getClass().getDeclaredField(f.getName());
                     actualObject = currObject;
-                } catch (Exception ex) {
+                } catch (NoSuchFieldException ex) {
+                    error = true;
+                } catch (SecurityException ex) {
+                    error = true;
+                }
+                if (error) {
                     for (Field field : currObject.getClass().getDeclaredFields()) {
                         try {
                             // If the field object needs to be created, do it, otherwise just add to options
@@ -2325,7 +2546,11 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                 field.set(currObject, o);
                             }
                             options.add(o);
-                        } catch (Exception exception) {
+                        } catch (IllegalArgumentException exception) {
+                            LOGGER.log(Level.WARNING, "Failed to created object for " + field);
+                        } catch (IllegalAccessException exception) {
+                            LOGGER.log(Level.WARNING, "Failed to created object for " + field);
+                        } catch (InstantiationException exception) {
                             LOGGER.log(Level.WARNING, "Failed to created object for " + field);
                         }
                     }
@@ -2335,7 +2560,11 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 f.set(actualObject, v);
                 LOGGER.log(Level.FINER, "Variable set successfully: " + f + " on " + actualObject + " to " + v);
             }
-        } catch (Exception ex) {
+        } catch (SecurityException ex) {
+            LOGGER.log(Level.SEVERE, "Failed: " + ex, ex);
+        } catch (IllegalArgumentException ex) {
+            LOGGER.log(Level.SEVERE, "Failed: " + ex, ex);
+        } catch (IllegalAccessException ex) {
             LOGGER.log(Level.SEVERE, "Failed: " + ex, ex);
         }
     }
@@ -2366,6 +2595,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             taskNameToTask.put(tokenSpec.getName(), (Task) task);
             taskToToken.put((Task) task, token);
             taskSpecToToken.put(tokenSpec, token);
+            Engine.getInstance().linkTask((Task) task, this);
             Logger.getLogger(this.getClass().getName()).log(Level.FINER, "\t\t\tCreated token " + token);
         } catch (ClassNotFoundException cnfe) {
             cnfe.printStackTrace();

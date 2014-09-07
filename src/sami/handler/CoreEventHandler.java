@@ -1,5 +1,6 @@
 package sami.handler;
 
+import com.perc.mitpas.adi.mission.planning.task.Task;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
@@ -16,11 +17,14 @@ import sami.event.GeneratedEventListenerInt;
 import sami.event.GeneratedInputEventSubscription;
 import sami.event.OutputEvent;
 import sami.event.ProxyAbortMissionReceived;
+import sami.event.RefreshTasks;
 import sami.event.ReturnValue;
 import sami.event.SendAbortMission;
 import sami.event.SendProxyAbortAllMissions;
 import sami.event.SendProxyAbortFutureMissions;
 import sami.event.StartTimer;
+import sami.event.TaskComplete;
+import sami.event.TaskStarted;
 import sami.event.TimerExpired;
 import sami.mission.MissionPlanSpecification;
 import sami.mission.Token;
@@ -127,6 +131,47 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
             PlanManager pm = Engine.getInstance().getPlanManager(returnValue.getMissionId());
             String returnVariableName = pm.getPlanName() + MissionPlanSpecification.RETURN_SUFFIX;
             Engine.getInstance().setVariableValue(returnVariableName, returnValue.getReturnValue());
+        } else if (oe instanceof RefreshTasks) {
+            for (Token token : tokens) {
+                if (token.getType() == Token.TokenType.Task) {
+                    if (token.getTask() != null && token.getProxy() != null) {
+                        if (token.getProxy().getCurrentTask() == token.getTask()) {
+                            // Generate task started for every proxy
+                            ArrayList<ProxyInt> proxyList = Engine.getInstance().getProxyServer().getProxyListClone();
+                            for (ProxyInt proxy : proxyList) {
+                                Task currentTask = proxy.getCurrentTask();
+                                if (currentTask != null) {
+                                    PlanManager pm = Engine.getInstance().getPlanManager(currentTask);
+                                    if (pm != null) {
+                                        pm.eventGenerated(new TaskStarted(pm.missionId, currentTask));
+                                    } else {
+                                        LOGGER.severe("No mapping from task to plan manager: " + currentTask);
+                                    }
+                                }
+                            }
+                        }
+                    } else if (token.getTask() == null) {
+                        LOGGER.warning("RefreshTasks activated with task token with a null task: " + token);
+                    } else {
+                        LOGGER.warning("RefreshTasks activated with task token with a null proxy: " + token);
+                    }
+                }
+            }
+        } else if (oe instanceof TaskComplete) {
+            for (Token token : tokens) {
+                if (token.getType() == Token.TokenType.Task) {
+                    if (token.getTask() != null && token.getProxy() != null) {
+                        // Update proxy's task list
+                        token.getProxy().taskCompleted(token.getTask());
+                        token.setProxy(null);
+                        Engine.getInstance().unlinkTask(token.getTask());
+                    } else if (token.getTask() == null) {
+                        LOGGER.warning("TaskComplete activated with task token with a null task: " + token);
+                    } else {
+                        LOGGER.warning("TaskComplete activated with task token with a null proxy: " + token);
+                    }
+                }
+            }
         }
     }
 

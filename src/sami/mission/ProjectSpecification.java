@@ -8,11 +8,8 @@ import sami.gui.GuiElementSpec;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.Hashtable;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.tree.DefaultMutableTreeNode;
-import sami.event.InputEvent;
 
 /**
  *
@@ -149,61 +146,54 @@ public class ProjectSpecification implements java.io.Serializable {
     }
 
     public ArrayList<String> getVariables(Field targetField) {
-        ArrayList<String> varNames = new ArrayList<String>();
+        ArrayList<String> useableVariableNames = new ArrayList<String>();
 
         for (MissionPlanSpecification mSpec : allMissionPlans) {
             if (mSpec.getGraph() != null && mSpec.getGraph().getEdges() != null) {
                 for (Vertex v : mSpec.getGraph().getVertices()) {
                     if (v instanceof Transition) {
+                        // For each Transition
                         if (mSpec.getEventSpecList((Transition) v) != null) {
                             for (ReflectedEventSpecification eventSpec : mSpec.getEventSpecList((Transition) v)) {
-                                // This is in place of actually working out whether this is an input or output event
-                                if (eventSpec.getWriteVariables() != null) {
-                                    Class c;
-                                    Hashtable<String, Class> paramToClass;
-
-                                    try {
-                                        c = Class.forName(eventSpec.getClassName());
-                                        paramToClass = ((InputEvent) c.newInstance()).getInputEventDataTypes(c);
-                                        if (paramToClass.size() > 0) {
-                                            for (String fieldName : eventSpec.getWriteVariables().keySet()) {
-                                                if (targetField.getDeclaringClass().isAssignableFrom(paramToClass.get(fieldName)) || targetField.getType().isAssignableFrom(paramToClass.get(fieldName))) {
-                                                    String varName = eventSpec.getWriteVariables().get(fieldName);
-                                                    if (!varNames.contains(varName)) {
-                                                        varNames.add(eventSpec.getWriteVariables().get(fieldName));
-                                                    }
-                                                    Logger.getLogger(this.getClass().getName()).log(Level.FINE, "Adding " + eventSpec.getWriteVariables().get(fieldName) + "(" + fieldName + ") to variable list");
-                                                }
+                                // For each Input Event spec on the Transition
+                                try {
+                                    Class eventClass = Class.forName(eventSpec.getClassName());
+                                    HashMap<String, String> writeVariables = eventSpec.getWriteVariables();
+                                    for (String writeFieldName : writeVariables.keySet()) {
+                                        // For each field with a write variable assigned to it
+                                        Field writeField = eventClass.getField(writeFieldName);
+                                        if (targetField.getDeclaringClass().isAssignableFrom(writeField.getType()) || targetField.getType().isAssignableFrom(writeField.getType())) {
+                                            String writeVariable = writeVariables.get(writeFieldName);
+                                            if (!useableVariableNames.contains(writeVariable)) {
+                                                useableVariableNames.add(writeVariables.get(writeFieldName));
                                             }
-
+                                            LOGGER.fine("Adding " + writeVariables.get(writeFieldName) + "(" + writeFieldName + ") to variable list");
                                         }
-                                    } catch (ClassNotFoundException e) {
-                                        e.printStackTrace();
-                                    } catch (InstantiationException e) {
-                                        e.printStackTrace();
-                                    } catch (IllegalAccessException e) {
-                                        e.printStackTrace();
                                     }
+                                } catch (ClassNotFoundException ex) {
+                                    ex.printStackTrace();
+                                } catch (NoSuchFieldException ex) {
+                                    ex.printStackTrace();
                                 }
                             }
                         } else {
-                            Logger.getLogger(this.getClass().getName()).log(Level.FINE, "No events to check for variables.");
+                            LOGGER.fine("No events to check for variables.");
                         }
                     }
                 }
             } else {
-                Logger.getLogger(this.getClass().getName()).log(Level.FINE, "No edges to check for events");
+                LOGGER.fine("No edges to check for events");
             }
         }
         for (String variable : globalVariables.keySet()) {
             if (targetField.getDeclaringClass().isAssignableFrom(globalVariables.get(variable).getClass()) || targetField.getType().isAssignableFrom(globalVariables.get(variable).getClass())) {
-                if (!varNames.contains(variable)) {
-                    varNames.add(variable);
+                if (!useableVariableNames.contains(variable)) {
+                    useableVariableNames.add(variable);
                 }
-                Logger.getLogger(this.getClass().getName()).log(Level.FINE, "Adding " + variable + " to variable list");
+                LOGGER.fine("Adding " + variable + " to variable list");
             }
         }
-        return varNames;
+        return useableVariableNames;
     }
 
     public boolean isGlobalVariable(String variable) {
