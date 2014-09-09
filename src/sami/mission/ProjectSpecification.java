@@ -256,7 +256,7 @@ public class ProjectSpecification implements java.io.Serializable {
         needsSaving = true;
     }
 
-    private void readObject(ObjectInputStream ois) {
+    private void readObject(ObjectInputStream ois) throws IOException, ClassNotFoundException {
         try {
             ois.defaultReadObject();
             if (globalVariables == null) {
@@ -285,9 +285,11 @@ public class ProjectSpecification implements java.io.Serializable {
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            LOGGER.severe("IO Exception in ProjectSpecification readObject");
+            throw e;
         } catch (ClassNotFoundException e) {
-            e.printStackTrace();
+            LOGGER.severe("Class Not Found Exception in ProjectSpecification readObject");
+            throw e;
         }
     }
 }

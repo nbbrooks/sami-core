@@ -413,13 +413,15 @@ public class MissionPlanSpecification implements java.io.Serializable {
         }
     }
 
-    private void readObject(ObjectInputStream ois) {
+    private void readObject(ObjectInputStream ois) throws IOException, ClassNotFoundException {
         try {
             ois.defaultReadObject();
         } catch (IOException e) {
-            e.printStackTrace();
+            LOGGER.severe("IO Exception in MissionPlanSpecification readObject");
+            throw e;
         } catch (ClassNotFoundException e) {
-            e.printStackTrace();
+            LOGGER.severe("Class Not Found Exception in MissionPlanSpecification readObject");
+            throw e;
         }
     }
 }

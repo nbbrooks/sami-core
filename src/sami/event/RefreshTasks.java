@@ -5,7 +5,8 @@ import java.util.HashMap;
 import java.util.UUID;
 
 /**
- *
+ * Used to make proxies send out a TaskStarted input event for their current task
+ * 
  * @author nbb
  */
 public class RefreshTasks extends OutputEvent {
