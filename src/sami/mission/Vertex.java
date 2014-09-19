@@ -12,7 +12,7 @@ public abstract class Vertex implements java.io.Serializable {
 
     public enum FunctionMode {
 
-        Nominal, Recovery, HiddenRecovery
+        Nominal, Recovery, HiddenRecovery, All
     };
     static final long serialVersionUID = 5L;
     protected String name = "";

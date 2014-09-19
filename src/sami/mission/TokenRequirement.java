@@ -22,7 +22,7 @@ public class TokenRequirement implements java.io.Serializable {
 
     public enum MatchQuantity {
 
-        None, Number, All
+        None, Number, All, LessThan, GreaterThanEqualTo
     }
 
     public enum MatchAction {
@@ -76,17 +76,38 @@ public class TokenRequirement implements java.io.Serializable {
     public String toString() {
         String ret = "";
         if (matchQuantity != null) {
-            if (matchQuantity == MatchQuantity.Number) {
-                ret += quantity + " ";
-            } else {
-                ret += matchQuantity + " ";
+            switch (matchQuantity) {
+                case Number:
+                    ret += quantity + " ";
+                    break;
+                case LessThan:
+                    ret += " < " + quantity + " ";
+                    break;
+                case GreaterThanEqualTo:
+                    ret += " >= " + quantity + " ";
+                    break;
+                default:
+                    ret += matchQuantity + " ";
+                    break;
             }
         }
         if (matchCriteria != null) {
-            if (matchCriteria == MatchCriteria.SpecificTask) {
-                ret += specificTaskName + " ";
-            } else {
-                ret += matchCriteria + " ";
+            switch (matchCriteria) {
+                case Generic:
+                    ret += "G ";
+                    break;
+                case RelevantToken:
+                    ret += "RT ";
+                    break;
+                case SpecificTask:
+                    ret += specificTaskName + " ";
+                    break;
+                case SubMissionToken:
+                    ret += "SMT ";
+                    break;
+                default:
+                    ret += matchCriteria + " ";
+                    break;
             }
         }
         return ret;

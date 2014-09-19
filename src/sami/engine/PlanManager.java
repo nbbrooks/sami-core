@@ -74,7 +74,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     // Lookup from sub-mission mSpec instance to Transitions holding a matching CheckReturn for that SM instance
     private final HashMap<MissionPlanSpecification, HashMap<Transition, CheckReturn>> clonedCrTable = new HashMap<MissionPlanSpecification, HashMap<Transition, CheckReturn>>();
     // Lookup used to reset CheckReturn templates and remove CheckReturn clones on neighboring transitions when a transition fires
-    private HashMap<Transition, HashMap<MissionPlanSpecification, CheckReturn>> allCrTable = new HashMap<Transition, HashMap<MissionPlanSpecification, CheckReturn>>();
+    private final HashMap<Transition, HashMap<MissionPlanSpecification, CheckReturn>> allCrTable = new HashMap<Transition, HashMap<MissionPlanSpecification, CheckReturn>>();
     final MissionPlanSpecification mSpec;
     // The model being managed by this PlanManager
     private Place startPlace;
@@ -349,6 +349,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                     }
                     switch (inReq.getMatchCriteria()) {
                         case AnyProxy:
+                            int proxyTokenCount = 0;
                             switch (inReq.getMatchQuantity()) {
                                 case None:
                                     // Check that there are no proxy tokens
@@ -359,9 +360,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                         }
                                     }
                                     break;
-                                case Number:
+                                case GreaterThanEqualTo:
                                     // Check that there are at least n proxy tokens
-                                    int proxyTokenCount = 0;
                                     for (Token placeToken : placeTokens) {
                                         if (placeToken.getType() == TokenType.Proxy) {
                                             proxyTokenCount++;
@@ -374,6 +374,20 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                         failure = true;
                                     }
                                     break;
+                                case LessThan:
+                                    // Check that there are less than n proxy tokens
+                                    for (Token placeToken : placeTokens) {
+                                        if (placeToken.getType() == TokenType.Proxy) {
+                                            proxyTokenCount++;
+                                            if (proxyTokenCount >= inReq.getQuantity()) {
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (proxyTokenCount >= inReq.getQuantity()) {
+                                        failure = true;
+                                    }
+                                    break;
                                 default:
                                     LOGGER.severe("\t\t\tEdge has unexpected token requirement: " + inReq);
                                     failure = true;
@@ -381,6 +395,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                             }
                             break;
                         case AnyTask:
+                            int taskTokenCount = 0;
                             switch (inReq.getMatchQuantity()) {
                                 case None:
                                     // Check that there are no task tokens
@@ -391,9 +406,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                         }
                                     }
                                     break;
-                                case Number:
+                                case GreaterThanEqualTo:
                                     // Check that there are at least n task tokens
-                                    int taskTokenCount = 0;
                                     for (Token placeToken : placeTokens) {
                                         if (placeToken.getType() == TokenType.Task) {
                                             taskTokenCount++;
@@ -403,6 +417,20 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                         }
                                     }
                                     if (taskTokenCount < inReq.getQuantity()) {
+                                        failure = true;
+                                    }
+                                    break;
+                                case LessThan:
+                                    // Check that there are less than n task tokens
+                                    for (Token placeToken : placeTokens) {
+                                        if (placeToken.getType() == TokenType.Task) {
+                                            taskTokenCount++;
+                                            if (taskTokenCount >= inReq.getQuantity()) {
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (taskTokenCount >= inReq.getQuantity()) {
                                         failure = true;
                                     }
                                     break;
@@ -420,9 +448,15 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                         failure = true;
                                     }
                                     break;
-                                case Number:
+                                case GreaterThanEqualTo:
                                     // Check that there are at least n tokens
                                     if (placeTokens.size() < inReq.getQuantity()) {
+                                        failure = true;
+                                    }
+                                    break;
+                                case LessThan:
+                                    // Check that there are less than n tokens
+                                    if (placeTokens.size() >= inReq.getQuantity()) {
                                         failure = true;
                                     }
                                     break;
@@ -433,6 +467,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                             }
                             break;
                         case Generic:
+                            int genericTokenCount = 0;
                             switch (inReq.getMatchQuantity()) {
                                 case None:
                                     // Check that there are no generic tokens
@@ -443,9 +478,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                         }
                                     }
                                     break;
-                                case Number:
+                                case GreaterThanEqualTo:
                                     // Check that there are at least n generic tokens
-                                    int genericTokenCount = 0;
                                     for (Token placeToken : placeTokens) {
                                         if (placeToken.getType() == TokenType.Generic) {
                                             genericTokenCount++;
@@ -455,6 +489,20 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                         }
                                     }
                                     if (genericTokenCount < inReq.getQuantity()) {
+                                        failure = true;
+                                    }
+                                    break;
+                                case LessThan:
+                                    // Check that there are less than n generic tokens
+                                    for (Token placeToken : placeTokens) {
+                                        if (placeToken.getType() == TokenType.Generic) {
+                                            genericTokenCount++;
+                                            if (genericTokenCount >= inReq.getQuantity()) {
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (genericTokenCount >= inReq.getQuantity()) {
                                         failure = true;
                                     }
                                     break;
@@ -471,6 +519,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                             //  or a task token that is contained in an input event's relevantTaskList
                             ArrayList<ProxyInt> relevantProxies;
                             ArrayList<Task> relevantTasks;
+                            int rTCount = 0;
                             switch (inReq.getMatchQuantity()) {
                                 case None:
                                     // Check that there are no copies of any of the relevant proxy or task tokens
@@ -487,9 +536,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                         }
                                     }
                                     break;
-                                case Number:
+                                case GreaterThanEqualTo:
                                     // Check that there are at least n of the relevant proxy or task tokens
-                                    int count = 0;
                                     relevantProxies = getRelevantProxies(transition);
                                     relevantTasks = getRelevantTasks(transition);
                                     // Go through token list and remove item from relevant proxy/task list where appropriate 
@@ -499,13 +547,34 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                                 && relevantProxies.contains(placeToken.getProxy()))
                                                 || (placeToken.getType() == TokenType.Task
                                                 && relevantTasks.contains(placeToken.getTask()))) {
-                                            count++;
-                                            if (count >= inReq.getQuantity()) {
+                                            rTCount++;
+                                            if (rTCount >= inReq.getQuantity()) {
                                                 break;
                                             }
                                         }
                                     }
-                                    if (count < inReq.getQuantity()) {
+                                    if (rTCount < inReq.getQuantity()) {
+                                        failure = true;
+                                    }
+                                    break;
+                                case LessThan:
+                                    // Check that there are less than n of the relevant proxy or task tokens
+                                    relevantProxies = getRelevantProxies(transition);
+                                    relevantTasks = getRelevantTasks(transition);
+                                    // Go through token list and remove item from relevant proxy/task list where appropriate 
+                                    for (Token placeToken : placeTokens) {
+                                        if (((placeToken.getType() == TokenType.Proxy || placeToken.getType() == TokenType.Task)
+                                                && placeToken.getProxy() != null
+                                                && relevantProxies.contains(placeToken.getProxy()))
+                                                || (placeToken.getType() == TokenType.Task
+                                                && relevantTasks.contains(placeToken.getTask()))) {
+                                            rTCount++;
+                                            if (rTCount >= inReq.getQuantity()) {
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (rTCount >= inReq.getQuantity()) {
                                         failure = true;
                                     }
                                     break;
@@ -546,6 +615,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         case SpecificTask:
                             String taskName = inReq.getTaskName();
                             Task task = taskNameToTask.get(taskName);
+                            int sTCount = 0;
                             switch (inReq.getMatchQuantity()) {
                                 case None:
                                     // Check that there is no copy of the specific task token
@@ -558,20 +628,35 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                         }
                                     }
                                     break;
-                                case Number:
-                                    // Check that there are n copies of the specific task token
-                                    int count = 0;
+                                case GreaterThanEqualTo:
+                                    // Check that there are at least n copies of the specific task token
                                     for (Token placeToken : placeTokens) {
                                         if (placeToken.getType() == TokenType.Task
                                                 && placeToken.getTask() != null
                                                 && placeToken.getTask() == task) {
-                                            count++;
-                                            if (count >= inReq.getQuantity()) {
+                                            sTCount++;
+                                            if (sTCount >= inReq.getQuantity()) {
                                                 break;
                                             }
                                         }
                                     }
-                                    if (count < inReq.getQuantity()) {
+                                    if (sTCount < inReq.getQuantity()) {
+                                        failure = true;
+                                    }
+                                    break;
+                                case LessThan:
+                                    // Check that there are less than n copies of the specific task token
+                                    for (Token placeToken : placeTokens) {
+                                        if (placeToken.getType() == TokenType.Task
+                                                && placeToken.getTask() != null
+                                                && placeToken.getTask() == task) {
+                                            sTCount++;
+                                            if (sTCount >= inReq.getQuantity()) {
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (sTCount >= inReq.getQuantity()) {
                                         failure = true;
                                     }
                                     break;
@@ -1833,11 +1918,11 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 LOGGER.info("\tStarting submission " + subMSpecTemplate);
                 ArrayList<Token> subMissionTokens = new ArrayList<Token>();
                 for (Token token : tokens) {
-                    if (token.getType() == TokenType.Task && token.getProxy() != null) {
-                        subMissionTokens.add(Engine.getInstance().getToken(token.getProxy()));
-                    } else if (token.getType() != TokenType.Task) {
-                        subMissionTokens.add(token);
-                    }
+//                    if (token.getType() == TokenType.Task && token.getProxy() != null) {
+//                        subMissionTokens.add(Engine.getInstance().getToken(token.getProxy()));
+//                    } else if (token.getType() != TokenType.Task) {
+                    subMissionTokens.add(token);
+//                    }
                 }
                 PlanManager subMPlanManager = Engine.getInstance().spawnSubMission(subMSpecTemplate, subMissionTokens);
                 planManagerToPlace.put(subMPlanManager, place);
@@ -2686,7 +2771,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 LOGGER.severe("Sub-mission mapping for place: " + place + " did not contain plan manager: " + planManager.getPlanName());
             }
         } else {
-            LOGGER.severe("Sub-mission plan manager: " + planManager.getPlanName() + " has no mapped place");
+            // Root level mission
         }
     }
 

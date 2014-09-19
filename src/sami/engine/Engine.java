@@ -21,6 +21,7 @@ import sami.event.TaskUnassigned;
 import sami.handler.EventHandlerInt;
 import sami.mission.MissionPlanSpecification;
 import sami.mission.Place;
+import sami.mission.ProjectSpecification;
 import sami.mission.Token;
 import sami.mission.Token.TokenType;
 import sami.proxy.ProxyInt;
@@ -43,6 +44,7 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
 
     private static final Logger LOGGER = Logger.getLogger(Engine.class.getName());
     // Plan related items
+    private ProjectSpecification loadedProject = null;
     private final ArrayList<PlanManager> plans = new ArrayList<PlanManager>();
     private final ArrayList<PlanManagerListenerInt> planManagerListeners = new ArrayList<PlanManagerListenerInt>();
     private final ArrayList<TaskAllocationListenerInt> taskAllocationListeners = new ArrayList<TaskAllocationListenerInt>();
@@ -171,6 +173,14 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         return observerServer;
     }
 
+    public ProjectSpecification getProjectSpecification() {
+        return loadedProject;
+    }
+
+    public void setProjectSpecification(ProjectSpecification loadedProject) {
+        this.loadedProject = loadedProject;
+    }
+
     private PlanManager spawnMission(MissionPlanSpecification mSpec, final ArrayList<Token> startingTokens) {
         // PlanManager will add mission's task tokens to the starting tokens
         UUID missionId = UUID.randomUUID();
@@ -204,12 +214,12 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         for (Token proxyToken : proxyTokens) {
             tokens.add(proxyToken);
         }
-        LOGGER.info("Spawning root mission from spec " + mSpec);
+        LOGGER.info("Spawning root mission from spec [" + mSpec + "]");
         return spawnMission(mSpec, tokens);
     }
 
     public PlanManager spawnSubMission(MissionPlanSpecification mSpec, final ArrayList<Token> parentMissionTokens) {
-        LOGGER.info("Spawning child mission from spec " + mSpec);
+        LOGGER.info("Spawning child mission from spec [" + mSpec + "] with parent tokens [" + parentMissionTokens + "]");
         return spawnMission(mSpec, parentMissionTokens);
     }
 
