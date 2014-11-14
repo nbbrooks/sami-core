@@ -20,18 +20,18 @@ public class Place extends Vertex {
 
     private static final Logger LOGGER = Logger.getLogger(Place.class.getName());
     static final long serialVersionUID = 7L;
-    private boolean isStart, isEnd;
+    protected boolean isStart, isEnd;
     // In and out are switched here as the class naming convention is with respect to Transitions, not Places
     protected ArrayList<OutEdge> inEdges = new ArrayList<OutEdge>();
     protected ArrayList<InEdge> outEdges = new ArrayList<InEdge>();
-    private ArrayList<Transition> inTransitions = new ArrayList<Transition>();
-    private ArrayList<Transition> outTransitions = new ArrayList<Transition>();
-    private ArrayList<MissionPlanSpecification> subMissions = new ArrayList<MissionPlanSpecification>();
-    private HashMap<MissionPlanSpecification, HashMap<TaskSpecification, TaskSpecification>> subMissionToTaskMap = new HashMap<MissionPlanSpecification, HashMap<TaskSpecification, TaskSpecification>>();
-    transient private boolean isActive = false;   // Whether this place has tokens and its output transition's input events are registered
-    transient private ArrayList<OutputEvent> outputEvents = new ArrayList<OutputEvent>();
-    transient private ArrayList<Token> tokens = new ArrayList<Token>();
-    transient private HashMap<MissionPlanSpecification, Boolean> subMissionStatus = new HashMap<MissionPlanSpecification, Boolean>();
+    protected ArrayList<Transition> inTransitions = new ArrayList<Transition>();
+    protected ArrayList<Transition> outTransitions = new ArrayList<Transition>();
+    protected ArrayList<MissionPlanSpecification> subMissions = new ArrayList<MissionPlanSpecification>();
+    protected HashMap<MissionPlanSpecification, HashMap<TaskSpecification, TaskSpecification>> subMissionToTaskMap = new HashMap<MissionPlanSpecification, HashMap<TaskSpecification, TaskSpecification>>();
+    transient protected boolean isActive = false;   // Whether this place has tokens and its output transition's input events are registered
+    transient protected ArrayList<OutputEvent> outputEvents = new ArrayList<OutputEvent>();
+    transient protected ArrayList<Token> tokens = new ArrayList<Token>();
+    transient protected HashMap<MissionPlanSpecification, Boolean> subMissionStatus = new HashMap<MissionPlanSpecification, Boolean>();
 
     public Place(String name, FunctionMode functionMode) {
         super(name, functionMode);

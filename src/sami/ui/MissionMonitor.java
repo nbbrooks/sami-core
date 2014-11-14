@@ -111,6 +111,7 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
         Engine.getInstance().addListener(this);
 
         // Try to load the last used DRM file
+        LOGGER.info("load DRM");
         Preferences p = Preferences.userRoot();
         try {
             String lastDrmPath = p.get(LAST_DRM_FILE, null);
@@ -120,6 +121,7 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
         } catch (AccessControlException e) {
             LOGGER.severe("Failed to load last used DRM");
         }
+        LOGGER.info("load EPF");
         // Try to load the last used EPF file
         try {
             String lastEpfPath = p.get(LAST_EPF_FILE, null);
@@ -129,6 +131,7 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
         } catch (AccessControlException e) {
             LOGGER.severe("Failed to load last used EPF");
         }
+        LOGGER.info("constructor done");
     }
 
     public HashMap<String, String> loadUi(String uiF) {
@@ -343,20 +346,17 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
                 }
                 setTitle("Mission Monitor [" + drmFile.toString() + "]");
             }
-        } catch (ClassNotFoundException ex) {
-            LOGGER.severe("Class not found exception in DRM load");
-            return false;
         } catch (FileNotFoundException ex) {
-            LOGGER.severe("DRM File not found");
+            LOGGER.severe("Exception in DRM open - DRM file not found");
             return false;
         } catch (InvalidClassException ex) {
-            LOGGER.severe("Version mismatch in DRM file");
+            LOGGER.severe("Exception in DRM open - DRM version mismatch");
             return false;
-        } catch (IOException ex) {
-            LOGGER.severe("IO Exception on DRM load");
+        } catch (SecurityException ex) {
+            LOGGER.severe("Exception in DRM open - error in JDK SHA implementation");
             return false;
-        } catch (NullPointerException ex) {
-            LOGGER.severe("Could not load DRM file");
+        } catch (Exception ex) {
+            LOGGER.severe("Exception in DRM open: " + ex.getLocalizedMessage());
             return false;
         }
         return true;

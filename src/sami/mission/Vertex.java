@@ -12,7 +12,7 @@ public abstract class Vertex implements java.io.Serializable {
 
     public enum FunctionMode {
 
-        Nominal, Recovery, HiddenRecovery, All
+        Nominal, Recovery, HiddenRecovery, All, Mockup
     };
     static final long serialVersionUID = 5L;
     protected String name = "";
@@ -91,7 +91,11 @@ public abstract class Vertex implements java.io.Serializable {
     }
 
     public void updateTag() {
-        if (this instanceof Place) {
+        if (this instanceof MockupPlace) {
+            ((MockupPlace) this).updateTag();
+        } else if (this instanceof MockupTransition) {
+            ((MockupTransition) this).updateTag();
+        } else if (this instanceof Place) {
             ((Place) this).updateTag();
         } else if (this instanceof Transition) {
             ((Transition) this).updateTag();

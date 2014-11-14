@@ -23,10 +23,10 @@ public class Transition extends Vertex {
     static final long serialVersionUID = 6L;
     protected ArrayList<InEdge> inEdges = new ArrayList<InEdge>();
     protected ArrayList<OutEdge> outEdges = new ArrayList<OutEdge>();
-    private ArrayList<Place> inPlaces = new ArrayList<Place>();
-    private ArrayList<Place> outPlaces = new ArrayList<Place>();
-    transient private ArrayList<InputEvent> inputEvents = new ArrayList<InputEvent>();
-    transient private Hashtable<InputEvent, Boolean> inputEventStatus = new Hashtable<InputEvent, Boolean>();
+    protected ArrayList<Place> inPlaces = new ArrayList<Place>();
+    protected ArrayList<Place> outPlaces = new ArrayList<Place>();
+    transient protected ArrayList<InputEvent> inputEvents = new ArrayList<InputEvent>();
+    transient protected Hashtable<InputEvent, Boolean> inputEventStatus = new Hashtable<InputEvent, Boolean>();
 
     public Transition(String name, FunctionMode functionMode) {
         super(name, functionMode);
