@@ -17,9 +17,9 @@ public class MockupPlace extends Place {
     };
     private static final Logger LOGGER = Logger.getLogger(MockupPlace.class.getName());
     static final long serialVersionUID = 0L;
-    transient protected Hashtable<String, ArrayList<String>> mockupOutputEventMarkups = new Hashtable<String, ArrayList<String>>();
-    transient protected ArrayList<String> mockupTokens = new ArrayList<String>();
-    transient protected Hashtable<String, MockupSubMissionType> mockupSubMissionType = new Hashtable<String, MockupSubMissionType>();
+    protected Hashtable<String, ArrayList<String>> mockupOutputEventMarkups = new Hashtable<String, ArrayList<String>>();
+    protected ArrayList<String> mockupTokens = new ArrayList<String>();
+    protected Hashtable<String, MockupSubMissionType> mockupSubMissionType = new Hashtable<String, MockupSubMissionType>();
 
     public MockupPlace(String name) {
         super(name, FunctionMode.Mockup);

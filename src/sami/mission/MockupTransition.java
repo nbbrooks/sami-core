@@ -17,8 +17,8 @@ public class MockupTransition extends Transition {
     };
     private static final Logger LOGGER = Logger.getLogger(Place.class.getName());
     static final long serialVersionUID = 0L;
-    transient protected Hashtable<String, MockupIeStatus> mockupInputEventStatus = new Hashtable<String, MockupIeStatus>();
-    transient protected Hashtable<String, ArrayList<String>> mockupInputEventMarkups = new Hashtable<String, ArrayList<String>>();
+    protected Hashtable<String, MockupIeStatus> mockupInputEventStatus = new Hashtable<String, MockupIeStatus>();
+    protected Hashtable<String, ArrayList<String>> mockupInputEventMarkups = new Hashtable<String, ArrayList<String>>();
 
     public MockupTransition(String name) {
         super(name, FunctionMode.Mockup);
