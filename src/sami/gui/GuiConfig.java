@@ -1,6 +1,9 @@
 package sami.gui;
 
+import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Font;
+import java.awt.Stroke;
 
 /**
  * Controls how things are drawn in the TaskModelEditor and displayed in the
@@ -25,8 +28,10 @@ public class GuiConfig {
 
         Full, Background, None
     };
+    // Shared
     public static final Color BACKGROUND_COLOR = new Color(255, 255, 255);
-//    public static final Color BACKGROUND_COLOR = new Color(230, 230, 230);
+//    public static final Font TEXT_FONT = new Font("Dialog", Font.PLAIN, 14);
+    public static final Font TEXT_FONT = new Font("Dialog", Font.PLAIN, 16);
     // Vertex
     public static final Color VERTEX_COLOR = new Color(0, 0, 0);
     public static final Color SEL_VERTEX_COLOR = new Color(160, 0, 160);
@@ -59,4 +64,8 @@ public class GuiConfig {
     public static final String TOKEN_REQ_TEXT_COLOR = "rgb(188,6,6)";
     public static final int MAX_STRING_LENGTH = 100;
     public static final Color INVIS_EDGE_COLOR = null;
+    public static final Stroke NOMINAL_STROKE = new BasicStroke(1);
+    public static final Stroke NOMINAL_STROKE_SEL = new BasicStroke(10);
+    public static final Stroke RECOVERY_STROKE =  new BasicStroke(1, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER, 10.0f, new float[]{10.0f, 10.0f}, 0.0f);
+    public static final Stroke RECOVERY_STROKE_SEL =  new BasicStroke(10, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER, 10.0f, new float[]{10.0f, 10.0f}, 0.0f);
 }
