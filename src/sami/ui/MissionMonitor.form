@@ -26,14 +26,19 @@
       <Group type="103" groupAlignment="0" attributes="0">
           <Group type="102" alignment="0" attributes="0">
               <EmptySpace max="-2" attributes="0"/>
-              <Group type="103" groupAlignment="0" max="-2" attributes="0">
-                  <Component id="planScrollP" alignment="0" pref="175" max="32767" attributes="0"/>
-                  <Component id="runB" alignment="0" max="32767" attributes="0"/>
-                  <Component id="loadDrmB" alignment="0" max="32767" attributes="0"/>
-                  <Component id="loadEpfB" alignment="0" max="32767" attributes="0"/>
+              <Group type="103" groupAlignment="0" attributes="0">
+                  <Component id="drmName" max="32767" attributes="0"/>
+                  <Group type="102" attributes="0">
+                      <Group type="103" groupAlignment="0" max="-2" attributes="0">
+                          <Component id="planScrollP" alignment="0" pref="175" max="32767" attributes="0"/>
+                          <Component id="runB" alignment="0" max="32767" attributes="0"/>
+                          <Component id="loadDrmB" alignment="0" max="32767" attributes="0"/>
+                          <Component id="loadEpfB" alignment="0" max="32767" attributes="0"/>
+                      </Group>
+                      <EmptySpace max="-2" attributes="0"/>
+                      <Component id="missionsScrollP" max="32767" attributes="0"/>
+                  </Group>
               </Group>
-              <EmptySpace max="-2" attributes="0"/>
-              <Component id="missionsScrollP" max="32767" attributes="0"/>
               <EmptySpace max="-2" attributes="0"/>
           </Group>
       </Group>
@@ -41,9 +46,10 @@
     <DimensionLayout dim="1">
       <Group type="103" groupAlignment="0" attributes="0">
           <Group type="102" alignment="0" attributes="0">
+              <Component id="drmName" min="-2" max="-2" attributes="0"/>
               <EmptySpace max="-2" attributes="0"/>
               <Group type="103" groupAlignment="0" attributes="0">
-                  <Component id="missionsScrollP" max="32767" attributes="0"/>
+                  <Component id="missionsScrollP" pref="458" max="32767" attributes="0"/>
                   <Group type="102" attributes="0">
                       <Component id="runB" min="-2" max="-2" attributes="0"/>
                       <EmptySpace min="-2" pref="5" max="-2" attributes="0"/>
@@ -149,6 +155,11 @@
       <Events>
         <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="loadEpfBActionPerformed"/>
       </Events>
+    </Component>
+    <Component class="javax.swing.JLabel" name="drmName">
+      <Properties>
+        <Property name="text" type="java.lang.String" value=" "/>
+      </Properties>
     </Component>
   </SubComponents>
 </Form>

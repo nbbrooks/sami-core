@@ -193,6 +193,7 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
         placeholderP = new javax.swing.JPanel();
         missionViewersP = new javax.swing.JPanel();
         loadEpfB = new javax.swing.JButton();
+        drmName = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setTitle("Mission Monitor");
@@ -256,27 +257,33 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
             }
         });
 
+        drmName.setText(" ");
+
         org.jdesktop.layout.GroupLayout layout = new org.jdesktop.layout.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(org.jdesktop.layout.GroupLayout.LEADING)
             .add(layout.createSequentialGroup()
                 .addContainerGap()
-                .add(layout.createParallelGroup(org.jdesktop.layout.GroupLayout.LEADING, false)
-                    .add(planScrollP, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, 175, Short.MAX_VALUE)
-                    .add(runB, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                    .add(loadDrmB, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                    .add(loadEpfB, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                .addPreferredGap(org.jdesktop.layout.LayoutStyle.RELATED)
-                .add(missionsScrollP)
+                .add(layout.createParallelGroup(org.jdesktop.layout.GroupLayout.LEADING)
+                    .add(drmName, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .add(layout.createSequentialGroup()
+                        .add(layout.createParallelGroup(org.jdesktop.layout.GroupLayout.LEADING, false)
+                            .add(planScrollP, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, 175, Short.MAX_VALUE)
+                            .add(runB, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                            .add(loadDrmB, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                            .add(loadEpfB, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                        .addPreferredGap(org.jdesktop.layout.LayoutStyle.RELATED)
+                        .add(missionsScrollP)))
                 .addContainerGap())
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(org.jdesktop.layout.GroupLayout.LEADING)
             .add(layout.createSequentialGroup()
-                .addContainerGap()
+                .add(drmName)
+                .addPreferredGap(org.jdesktop.layout.LayoutStyle.RELATED)
                 .add(layout.createParallelGroup(org.jdesktop.layout.GroupLayout.LEADING)
-                    .add(missionsScrollP)
+                    .add(missionsScrollP, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, 458, Short.MAX_VALUE)
                     .add(layout.createSequentialGroup()
                         .add(runB)
                         .add(5, 5, 5)
@@ -344,7 +351,7 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
                 } catch (AccessControlException e) {
                     LOGGER.severe("Failed to save preferences");
                 }
-                setTitle("Mission Monitor [" + drmFile.toString() + "]");
+                drmName.setText(drmFile.toString());
             }
         } catch (FileNotFoundException ex) {
             LOGGER.severe("Exception in DRM open - DRM file not found");
@@ -432,6 +439,7 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
         });
     }
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JLabel drmName;
     private javax.swing.JButton loadDrmB;
     private javax.swing.JButton loadEpfB;
     private javax.swing.JPanel missionViewersP;

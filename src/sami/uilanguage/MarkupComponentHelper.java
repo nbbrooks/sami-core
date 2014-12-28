@@ -43,11 +43,48 @@ public class MarkupComponentHelper {
                                     for (Class hashtableValue : supportedHashtableCreationClasses.get(hashtableKey)) {
                                         if (hashtableValue.isAssignableFrom(valueClass)) {
                                             score = 0;
+                                            break;
                                         }
+                                    }
+                                    if (score == 0) {
+                                        break;
                                     }
                                 }
                             }
                             if (score == 0) {
+                                for (Markup markup : markups) {
+                                    try {
+                                        ArrayList<String> enumFieldNames = (ArrayList<String>) (markup.getClass().getField("enumFieldNames").get(null));
+                                        for (String enumFieldName : enumFieldNames) {
+                                            Field enumField = ReflectionHelper.getField(markup.getClass(), enumFieldName);
+                                            if (enumField == null) {
+                                                LOGGER.severe("Could not find field \"" + enumFieldName + "\" in class " + markup.getClass().getSimpleName() + " or any super class");
+                                                continue;
+                                            }
+                                            Enum enumValue = (Enum) enumField.get(markup);
+                                            if (supportedMarkups.contains(enumValue)) {
+                                                score++;
+                                            } else {
+                                                for (Class widgetClass : widgetClasses) {
+                                                    MarkupComponentWidget widget = getWidgetInstance(widgetClass);
+                                                    ArrayList<Markup> singleMarkup = new ArrayList<Markup>();
+                                                    singleMarkup.add(markup);
+                                                    int widgetScore = widget.getMarkupScore(singleMarkup);
+                                                    if (widgetScore > 0) {
+                                                        score += widgetScore;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    } catch (IllegalAccessException ex) {
+                                        Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
+                                    } catch (NoSuchFieldException ex) {
+                                        Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
+                                    }
+                                }
+                            } else {
+                                // See if a widget supports the type
                                 for (Class widgetClass : widgetClasses) {
                                     MarkupComponentWidget widget = getWidgetInstance(widgetClass);
                                     score = Math.max(score, widget.getCreationWidgetScore((Type) creationClass, field, markups));
@@ -60,45 +97,44 @@ public class MarkupComponentHelper {
             } else {
                 if (supportedCreationClasses.contains(creationClass)) {
                     score = 0;
+                    if (score >= 0) {
+                        for (Markup markup : markups) {
+                            try {
+                                ArrayList<String> enumFieldNames = (ArrayList<String>) (markup.getClass().getField("enumFieldNames").get(null));
+                                for (String enumFieldName : enumFieldNames) {
+                                    Field enumField = ReflectionHelper.getField(markup.getClass(), enumFieldName);
+                                    if (enumField == null) {
+                                        LOGGER.severe("Could not find field \"" + enumFieldName + "\" in class " + markup.getClass().getSimpleName() + " or any super class");
+                                        continue;
+                                    }
+                                    Enum enumValue = (Enum) enumField.get(markup);
+                                    if (supportedMarkups.contains(enumValue)) {
+                                        score++;
+                                    } else {
+                                        for (Class widgetClass : widgetClasses) {
+                                            MarkupComponentWidget widget = getWidgetInstance(widgetClass);
+                                            ArrayList<Markup> singleMarkup = new ArrayList<Markup>();
+                                            singleMarkup.add(markup);
+                                            int widgetScore = widget.getMarkupScore(singleMarkup);
+                                            if (widgetScore > 0) {
+                                                score += widgetScore;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (IllegalAccessException ex) {
+                                Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
+                            } catch (NoSuchFieldException ex) {
+                                Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
+                            }
+                        }
+                    }
                 } else {
+                    // See if a widget supports the type
                     for (Class widgetClass : widgetClasses) {
                         MarkupComponentWidget widget = getWidgetInstance(widgetClass);
                         score = Math.max(score, widget.getCreationWidgetScore((Type) creationClass, field, markups));
-                    }
-                }
-            }
-
-            if (score >= 0) {
-                for (Markup markup : markups) {
-
-                    try {
-                        ArrayList<String> enumFieldNames = (ArrayList<String>) (markup.getClass().getField("enumFieldNames").get(null));
-                        for (String enumFieldName : enumFieldNames) {
-                            Field enumField = ReflectionHelper.getField(markup.getClass(), enumFieldName);
-                            if (enumField == null) {
-                                LOGGER.severe("Could not find field \"" + enumFieldName + "\" in class " + markup.getClass().getSimpleName() + " or any super class");
-                                continue;
-                            }
-                            Enum enumValue = (Enum) enumField.get(markup);
-                            if (supportedMarkups.contains(enumValue)) {
-                                score++;
-                            } else {
-                                for (Class widgetClass : widgetClasses) {
-                                    MarkupComponentWidget widget = getWidgetInstance(widgetClass);
-                                    ArrayList<Markup> singleMarkup = new ArrayList<Markup>();
-                                    singleMarkup.add(markup);
-                                    int widgetScore = widget.getMarkupScore(singleMarkup);
-                                    if (widgetScore > 0) {
-                                        score += widgetScore;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    } catch (IllegalAccessException ex) {
-                        Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
-                    } catch (NoSuchFieldException ex) {
-                        Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
                     }
                 }
             }
@@ -128,11 +164,48 @@ public class MarkupComponentHelper {
                             for (Class hashtableValue : supportedHashtableSelectionClasses.get(hashtableKey)) {
                                 if (hashtableValue.isAssignableFrom(valueClass)) {
                                     score = 0;
+                                    break;
                                 }
+                            }
+                            if (score == 0) {
+                                break;
                             }
                         }
                     }
                     if (score == 0) {
+                        for (Markup markup : markups) {
+                            try {
+                                ArrayList<String> enumFieldNames = (ArrayList<String>) (markup.getClass().getField("enumFieldNames").get(null));
+                                for (String enumFieldName : enumFieldNames) {
+                                    Field enumField = ReflectionHelper.getField(markup.getClass(), enumFieldName);
+                                    if (enumField == null) {
+                                        LOGGER.severe("Could not find field \"" + enumFieldName + "\" in class " + markup.getClass().getSimpleName() + " or any super class");
+                                        continue;
+                                    }
+                                    Enum enumValue = (Enum) enumField.get(markup);
+                                    if (supportedMarkups.contains(enumValue)) {
+                                        score++;
+                                    } else {
+                                        for (Class widgetClass : widgetClasses) {
+                                            MarkupComponentWidget widget = getWidgetInstance(widgetClass);
+                                            ArrayList<Markup> singleMarkup = new ArrayList<Markup>();
+                                            singleMarkup.add(markup);
+                                            int widgetScore = widget.getMarkupScore(singleMarkup);
+                                            if (widgetScore > 0) {
+                                                score += widgetScore;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (IllegalAccessException ex) {
+                                Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
+                            } catch (NoSuchFieldException ex) {
+                                Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
+                            }
+                        }
+                    } else {
+                        // See if a widget supports the type
                         for (Class widgetClass : widgetClasses) {
                             MarkupComponentWidget widget = getWidgetInstance(widgetClass);
                             score = Math.max(score, widget.getSelectionWidgetScore((Type) selectionClass, object, markups));
@@ -142,44 +215,42 @@ public class MarkupComponentHelper {
             } else {
                 if (supportedSelectionClasses.contains(selectionClass)) {
                     score = 0;
-                } else {
-                    for (Class widgetClass : widgetClasses) {
-                        MarkupComponentWidget widget = getWidgetInstance(widgetClass);
-                        score = Math.max(score, widget.getSelectionWidgetScore((Type) selectionClass, object, markups));
-                    }
-                }
-            }
-
-            if (score >= 0) {
-                for (Markup markup : markups) {
-                    try {
-                        ArrayList<String> enumFieldNames = (ArrayList<String>) (markup.getClass().getField("enumFieldNames").get(null));
-                        for (String enumFieldName : enumFieldNames) {
-                            Field enumField = ReflectionHelper.getField(markup.getClass(), enumFieldName);
-                            if (enumField == null) {
-                                LOGGER.severe("Could not find field \"" + enumFieldName + "\" in class " + markup.getClass().getSimpleName() + " or any super class");
-                                continue;
-                            }
-                            Enum enumValue = (Enum) enumField.get(markup);
-                            if (supportedMarkups.contains(enumValue)) {
-                                score++;
-                            } else {
-                                for (Class widgetClass : widgetClasses) {
-                                    MarkupComponentWidget widget = getWidgetInstance(widgetClass);
-                                    ArrayList<Markup> singleMarkup = new ArrayList<Markup>();
-                                    singleMarkup.add(markup);
-                                    int widgetScore = widget.getMarkupScore(singleMarkup);
-                                    if (widgetScore > 0) {
-                                        score += widgetScore;
-                                        break;
+                    for (Markup markup : markups) {
+                        try {
+                            ArrayList<String> enumFieldNames = (ArrayList<String>) (markup.getClass().getField("enumFieldNames").get(null));
+                            for (String enumFieldName : enumFieldNames) {
+                                Field enumField = ReflectionHelper.getField(markup.getClass(), enumFieldName);
+                                if (enumField == null) {
+                                    LOGGER.severe("Could not find field \"" + enumFieldName + "\" in class " + markup.getClass().getSimpleName() + " or any super class");
+                                    continue;
+                                }
+                                Enum enumValue = (Enum) enumField.get(markup);
+                                if (supportedMarkups.contains(enumValue)) {
+                                    score++;
+                                } else {
+                                    for (Class widgetClass : widgetClasses) {
+                                        MarkupComponentWidget widget = getWidgetInstance(widgetClass);
+                                        ArrayList<Markup> singleMarkup = new ArrayList<Markup>();
+                                        singleMarkup.add(markup);
+                                        int widgetScore = widget.getMarkupScore(singleMarkup);
+                                        if (widgetScore > 0) {
+                                            score += widgetScore;
+                                            break;
+                                        }
                                     }
                                 }
                             }
+                        } catch (IllegalAccessException ex) {
+                            Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
+                        } catch (NoSuchFieldException ex) {
+                            Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
                         }
-                    } catch (IllegalAccessException ex) {
-                        Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
-                    } catch (NoSuchFieldException ex) {
-                        Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                } else {
+                    // See if a widget supports the type
+                    for (Class widgetClass : widgetClasses) {
+                        MarkupComponentWidget widget = getWidgetInstance(widgetClass);
+                        score = Math.max(score, widget.getSelectionWidgetScore((Type) selectionClass, object, markups));
                     }
                 }
             }
@@ -260,9 +331,8 @@ public class MarkupComponentHelper {
                 }
             }
 
-            if (score >= 0) {
+            if (score == 0) {
                 for (Markup markup : markups) {
-
                     try {
                         ArrayList<String> enumFieldNames = (ArrayList<String>) (markup.getClass().getField("enumFieldNames").get(null));
                         for (String enumFieldName : enumFieldNames) {
@@ -320,9 +390,8 @@ public class MarkupComponentHelper {
                 }
             }
 
-            if (score >= 0) {
+            if (score == 0) {
                 for (Markup markup : markups) {
-
                     try {
                         ArrayList<String> enumFieldNames = (ArrayList<String>) (markup.getClass().getField("enumFieldNames").get(null));
                         for (String enumFieldName : enumFieldNames) {
