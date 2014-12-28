@@ -31,7 +31,9 @@ public class GuiConfig {
     // Shared
     public static final Color BACKGROUND_COLOR = new Color(255, 255, 255);
 //    public static final Font TEXT_FONT = new Font("Dialog", Font.PLAIN, 14);
-    public static final Font TEXT_FONT = new Font("Dialog", Font.PLAIN, 16);
+    public static final Font TEXT_FONT = new Font("Dialog", Font.BOLD, 16);
+    public static final int LABEL_OFFSET = 0;
+//    public static final int LABEL_OFFSET = 50; // interrupt plan
     // Vertex
     public static final Color VERTEX_COLOR = new Color(0, 0, 0);
     public static final Color SEL_VERTEX_COLOR = new Color(160, 0, 160);

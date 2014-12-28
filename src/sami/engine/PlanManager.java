@@ -1736,13 +1736,18 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         // Now we can check the transitions we added tokens to
         ////
         LOGGER.log(EXE_T_LVL, "\tDone executing " + transition + ", checking for new transitions");
+        ArrayList<Transition> transitionsToExecute = new ArrayList<Transition>();
         for (Place outPlace : transition.getOutPlaces()) {
             for (Transition t2 : outPlace.getOutTransitions()) {
+                LOGGER.log(EXE_T_LVL, "\t\tDone executing checking " + t2);
                 boolean execute2 = checkTransition(t2);
                 if (execute2) {
-                    executeTransition(t2);
+                    transitionsToExecute.add(t2);
                 }
             }
+        }
+        for (Transition t2 : transitionsToExecute) {
+            executeTransition(t2);
         }
     }
 
@@ -1896,9 +1901,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                     LOGGER.log(Level.FINE, "\tAdding <" + inputEvent + "," + transition + "> to inputEventToTransitionMap");
                     inputEvent.setActive(true);
                     transition.updateTag();
-                    synchronized (activeInputEvents) {
+//                    synchronized (activeInputEvents) {
                         activeInputEvents.add(inputEvent);
-                    }
+//                    }
                     InputEventMapper.getInstance().registerEvent(inputEvent, this);
                     inputEventToTransitionMap.put(inputEvent, transition);
                 }
@@ -1983,11 +1988,15 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
         // 8 - Check if any transitions out of this place should execute
         if (checkForTransition) {
+            ArrayList<Transition> transitionsToExecute = new ArrayList<Transition>();
             for (Transition transition : place.getOutTransitions()) {
                 boolean execute = checkTransition(transition);
                 if (execute) {
-                    executeTransition(transition);
-                };
+                    transitionsToExecute.add(transition);
+                }
+            }
+            for (Transition transition : transitionsToExecute) {
+                executeTransition(transition);
             }
         }
 

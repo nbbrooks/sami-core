@@ -22,32 +22,56 @@ public class MarkupComponentHelper {
     private static Hashtable<Class, MarkupComponent> componentInstances = new Hashtable<Class, MarkupComponent>();
     private static Hashtable<Class, MarkupComponentWidget> widgetInstances = new Hashtable<Class, MarkupComponentWidget>();
 
-    public static int getCreationComponentScore(ArrayList<Class> supportedCreationClasses, ArrayList<Enum> supportedMarkups, ArrayList<Class> widgetClasses, Type type, ArrayList<Markup> markups) {
-        // First check if we are dealing with a Hashtable
-        if (type instanceof ParameterizedType) {
-            ParameterizedType pt = (ParameterizedType) type;
-            if (pt.getRawType() instanceof Class && Hashtable.class.isAssignableFrom((Class) pt.getRawType())) {
-                // This is a hashtable, recurse on the Hashtable's value
-                Type hashtableValueType = pt.getActualTypeArguments()[1];
-                return getCreationComponentScore(supportedCreationClasses, supportedMarkups, widgetClasses, hashtableValueType, markups);
-            } else {
-                LOGGER.severe("Passed in ParameterizedType was not of a supported raw type: " + pt);
-                return -1;
-            }
-        } else if (type instanceof Class) {
+    public static int getCreationComponentScore(ArrayList<Class> supportedCreationClasses, Hashtable<Class, ArrayList<Class>> supportedHashtableCreationClasses, ArrayList<Enum> supportedMarkups, ArrayList<Class> widgetClasses, Type type, Field field, ArrayList<Markup> markups) {
+        int score = -1;
+
+        if (type instanceof Class) {
             Class creationClass = (Class) type;
-            int score = -1;
-            try {
+            if (creationClass == Hashtable.class) {
+                if (field != null) {
+                    Type genericType = field.getGenericType();
+                    if (genericType instanceof ParameterizedType) {
+                        ParameterizedType parameterizedType = (ParameterizedType) genericType;
+                        Type keyType = parameterizedType.getActualTypeArguments()[0];
+                        Type valueType = parameterizedType.getActualTypeArguments()[1];
+
+                        if (keyType instanceof Class && valueType instanceof Class) {
+                            Class keyClass = (Class) keyType;
+                            Class valueClass = (Class) valueType;
+                            for (Class hashtableKey : supportedHashtableCreationClasses.keySet()) {
+                                if (hashtableKey.isAssignableFrom(keyClass)) {
+                                    for (Class hashtableValue : supportedHashtableCreationClasses.get(hashtableKey)) {
+                                        if (hashtableValue.isAssignableFrom(valueClass)) {
+                                            score = 0;
+                                        }
+                                    }
+                                }
+                            }
+                            if (score == 0) {
+                                for (Class widgetClass : widgetClasses) {
+                                    MarkupComponentWidget widget = getWidgetInstance(widgetClass);
+                                    score = Math.max(score, widget.getCreationWidgetScore((Type) creationClass, field, markups));
+                                }
+                            }
+                        }
+
+                    }
+                }
+            } else {
                 if (supportedCreationClasses.contains(creationClass)) {
                     score = 0;
                 } else {
                     for (Class widgetClass : widgetClasses) {
                         MarkupComponentWidget widget = getWidgetInstance(widgetClass);
-                        score = Math.max(score, widget.getCreationWidgetScore((Type) creationClass, markups));
+                        score = Math.max(score, widget.getCreationWidgetScore((Type) creationClass, field, markups));
                     }
                 }
-                if (score >= 0) {
-                    for (Markup markup : markups) {
+            }
+
+            if (score >= 0) {
+                for (Markup markup : markups) {
+
+                    try {
                         ArrayList<String> enumFieldNames = (ArrayList<String>) (markup.getClass().getField("enumFieldNames").get(null));
                         for (String enumFieldName : enumFieldNames) {
                             Field enumField = ReflectionHelper.getField(markup.getClass(), enumFieldName);
@@ -71,46 +95,64 @@ public class MarkupComponentHelper {
                                 }
                             }
                         }
+                    } catch (IllegalAccessException ex) {
+                        Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
+                    } catch (NoSuchFieldException ex) {
+                        Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
                     }
                 }
-            } catch (IllegalAccessException ex) {
-                Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
-            } catch (NoSuchFieldException ex) {
-                Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
             }
-            return score;
         } else {
-            LOGGER.severe("Passed in type was not a ParameterizedType or Class: " + type);
-            return -1;
+            LOGGER.severe("Passed in type was not a Class: " + type);
         }
+        return score;
     }
 
-    public static int getSelectionComponentScore(ArrayList<Class> supportedSelectionClasses, ArrayList<Enum> supportedMarkups, ArrayList<Class> widgetClasses, Type type, ArrayList<Markup> markups) {
-        // First check if we are dealing with a Hashtable
-        if (type instanceof ParameterizedType) {
-            ParameterizedType pt = (ParameterizedType) type;
-            if (pt.getRawType() instanceof Class && Hashtable.class.isAssignableFrom((Class) pt.getRawType())) {
-                // This is a hashtable, recurse on the Hashtable's value
-                Type hashtableValueType = pt.getActualTypeArguments()[1];
-                return getSelectionComponentScore(supportedSelectionClasses, supportedMarkups, widgetClasses, hashtableValueType, markups);
-            } else {
-                LOGGER.severe("Passed in ParameterizedType was not of a supported raw type: " + pt);
-                return -1;
-            }
-        } else if (type instanceof Class) {
+    public static int getSelectionComponentScore(ArrayList<Class> supportedSelectionClasses, Hashtable<Class, ArrayList<Class>> supportedHashtableSelectionClasses, ArrayList<Enum> supportedMarkups, ArrayList<Class> widgetClasses, Type type, Object object, ArrayList<Markup> markups) {
+        int score = -1;
+
+        if (type instanceof Class) {
             Class selectionClass = (Class) type;
-            int score = -1;
-            try {
+            if (selectionClass == Hashtable.class) {
+                Hashtable hashtable = (Hashtable) object;
+                if (!hashtable.isEmpty()) {
+                    Class keyClass = null, valueClass = null;
+                    for (Object key : hashtable.keySet()) {
+                        keyClass = key.getClass();
+                        valueClass = hashtable.get(key).getClass();
+                        break;
+                    }
+
+                    for (Class hashtableKey : supportedHashtableSelectionClasses.keySet()) {
+                        if (hashtableKey.isAssignableFrom(keyClass)) {
+                            for (Class hashtableValue : supportedHashtableSelectionClasses.get(hashtableKey)) {
+                                if (hashtableValue.isAssignableFrom(valueClass)) {
+                                    score = 0;
+                                }
+                            }
+                        }
+                    }
+                    if (score == 0) {
+                        for (Class widgetClass : widgetClasses) {
+                            MarkupComponentWidget widget = getWidgetInstance(widgetClass);
+                            score = Math.max(score, widget.getSelectionWidgetScore((Type) selectionClass, object, markups));
+                        }
+                    }
+                }
+            } else {
                 if (supportedSelectionClasses.contains(selectionClass)) {
                     score = 0;
                 } else {
                     for (Class widgetClass : widgetClasses) {
                         MarkupComponentWidget widget = getWidgetInstance(widgetClass);
-                        score = Math.max(score, widget.getSelectionWidgetScore((Type) selectionClass, markups));
+                        score = Math.max(score, widget.getSelectionWidgetScore((Type) selectionClass, object, markups));
                     }
                 }
-                if (score >= 0) {
-                    for (Markup markup : markups) {
+            }
+
+            if (score >= 0) {
+                for (Markup markup : markups) {
+                    try {
                         ArrayList<String> enumFieldNames = (ArrayList<String>) (markup.getClass().getField("enumFieldNames").get(null));
                         for (String enumFieldName : enumFieldNames) {
                             Field enumField = ReflectionHelper.getField(markup.getClass(), enumFieldName);
@@ -134,18 +176,17 @@ public class MarkupComponentHelper {
                                 }
                             }
                         }
+                    } catch (IllegalAccessException ex) {
+                        Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
+                    } catch (NoSuchFieldException ex) {
+                        Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
                     }
                 }
-            } catch (IllegalAccessException ex) {
-                Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
-            } catch (NoSuchFieldException ex) {
-                Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
             }
-            return score;
         } else {
-            LOGGER.severe("Passed in type was not a ParameterizedType or Class: " + type);
-            return -1;
+            LOGGER.severe("Passed in type was not a Class: " + type);
         }
+        return score;
     }
 
     public static int getMarkupComponentScore(ArrayList<Enum> supportedMarkups, ArrayList<Class> widgetClasses, ArrayList<Markup> markups) {
@@ -184,25 +225,45 @@ public class MarkupComponentHelper {
         return score;
     }
 
-    public static int getCreationWidgetScore(ArrayList<Class> supportedCreationClasses, ArrayList<Enum> supportedMarkups, Type type, ArrayList<Markup> markups) {
-        // First check if we are dealing with a Hashtable
-        if (type instanceof ParameterizedType) {
-            ParameterizedType pt = (ParameterizedType) type;
-            if (pt.getRawType() instanceof Class && Hashtable.class.isAssignableFrom((Class) pt.getRawType())) {
-                // This is a hashtable, recurse on the Hashtable's value
-                Type hashtableValueType = pt.getActualTypeArguments()[1];
-                return getCreationWidgetScore(supportedCreationClasses, supportedMarkups, hashtableValueType, markups);
-            } else {
-                LOGGER.severe("Passed in ParameterizedType was not of a supported raw type: " + pt);
-                return -1;
-            }
-        } else if (type instanceof Class) {
+    public static int getCreationWidgetScore(ArrayList<Class> supportedCreationClasses, Hashtable<Class, ArrayList<Class>> supportedHashtableCreationClasses, ArrayList<Enum> supportedMarkups, Type type, Field field, ArrayList<Markup> markups) {
+        int score = -1;
+
+        if (type instanceof Class) {
             Class creationClass = (Class) type;
-            int score = -1;
-            try {
+            if (creationClass == Hashtable.class) {
+                if (field != null) {
+                    Type genericType = field.getGenericType();
+                    if (genericType instanceof ParameterizedType) {
+                        ParameterizedType parameterizedType = (ParameterizedType) genericType;
+                        Type keyType = parameterizedType.getActualTypeArguments()[0];
+                        Type valueType = parameterizedType.getActualTypeArguments()[1];
+
+                        if (keyType instanceof Class && valueType instanceof Class) {
+                            Class keyClass = (Class) keyType;
+                            Class valueClass = (Class) valueType;
+                            for (Class hashtableKey : supportedHashtableCreationClasses.keySet()) {
+                                if (hashtableKey.isAssignableFrom(keyClass)) {
+                                    for (Class hashtableValue : supportedHashtableCreationClasses.get(hashtableKey)) {
+                                        if (hashtableValue.isAssignableFrom(valueClass)) {
+                                            score = 0;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                    }
+                }
+            } else {
                 if (supportedCreationClasses.contains(creationClass)) {
                     score = 0;
-                    for (Markup markup : markups) {
+                }
+            }
+
+            if (score >= 0) {
+                for (Markup markup : markups) {
+
+                    try {
                         ArrayList<String> enumFieldNames = (ArrayList<String>) (markup.getClass().getField("enumFieldNames").get(null));
                         for (String enumFieldName : enumFieldNames) {
                             Field enumField = ReflectionHelper.getField(markup.getClass(), enumFieldName);
@@ -213,42 +274,56 @@ public class MarkupComponentHelper {
                             Enum enumValue = (Enum) enumField.get(markup);
                             if (supportedMarkups.contains(enumValue)) {
                                 score++;
-                                break;
                             }
                         }
+                    } catch (IllegalAccessException ex) {
+                        Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
+                    } catch (NoSuchFieldException ex) {
+                        Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
                     }
                 }
-            } catch (IllegalAccessException ex) {
-                Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
-            } catch (NoSuchFieldException ex) {
-                Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
             }
-            return score;
         } else {
-            LOGGER.severe("Passed in type was not a ParameterizedType or Class: " + type);
-            return -1;
+            LOGGER.severe("Passed in type was not a Class: " + type);
         }
+        return score;
     }
 
-    public static int getSelectionWidgetScore(ArrayList<Class> supportedSelectionClasses, ArrayList<Enum> supportedMarkups, Type type, ArrayList<Markup> markups) {
-        // First check if we are dealing with a Hashtable
-        if (type instanceof ParameterizedType) {
-            ParameterizedType pt = (ParameterizedType) type;
-            if (pt.getRawType() instanceof Class && Hashtable.class.isAssignableFrom((Class) pt.getRawType())) {
-                // This is a hashtable, recurse on the Hashtable's value
-                Type hashtableValueType = pt.getActualTypeArguments()[1];
-                return getSelectionWidgetScore(supportedSelectionClasses, supportedMarkups, hashtableValueType, markups);
-            } else {
-                LOGGER.severe("Passed in ParameterizedType was not of a supported raw type: " + pt);
-                return -1;
-            }
-        } else if (type instanceof Class) {
+    public static int getSelectionWidgetScore(ArrayList<Class> supportedSelectionClasses, Hashtable<Class, ArrayList<Class>> supportedHashtableSelectionClasses, ArrayList<Enum> supportedMarkups, Type type, Object object, ArrayList<Markup> markups) {
+        int score = -1;
+
+        if (type instanceof Class) {
             Class selectionClass = (Class) type;
-            int score = -1;
-            try {
+            if (selectionClass == Hashtable.class) {
+                Hashtable hashtable = (Hashtable) object;
+                if (!hashtable.isEmpty()) {
+                    Class keyClass = null, valueClass = null;
+                    for (Object key : hashtable.keySet()) {
+                        keyClass = key.getClass();
+                        valueClass = hashtable.get(key).getClass();
+                        break;
+                    }
+
+                    for (Class hashtableKey : supportedHashtableSelectionClasses.keySet()) {
+                        if (hashtableKey.isAssignableFrom(keyClass)) {
+                            for (Class hashtableValue : supportedHashtableSelectionClasses.get(hashtableKey)) {
+                                if (hashtableValue.isAssignableFrom(valueClass)) {
+                                    score = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
                 if (supportedSelectionClasses.contains(selectionClass)) {
                     score = 0;
-                    for (Markup markup : markups) {
+                }
+            }
+
+            if (score >= 0) {
+                for (Markup markup : markups) {
+
+                    try {
                         ArrayList<String> enumFieldNames = (ArrayList<String>) (markup.getClass().getField("enumFieldNames").get(null));
                         for (String enumFieldName : enumFieldNames) {
                             Field enumField = ReflectionHelper.getField(markup.getClass(), enumFieldName);
@@ -259,21 +334,19 @@ public class MarkupComponentHelper {
                             Enum enumValue = (Enum) enumField.get(markup);
                             if (supportedMarkups.contains(enumValue)) {
                                 score++;
-                                break;
                             }
                         }
+                    } catch (IllegalAccessException ex) {
+                        Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
+                    } catch (NoSuchFieldException ex) {
+                        Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
                     }
                 }
-            } catch (IllegalAccessException ex) {
-                Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
-            } catch (NoSuchFieldException ex) {
-                Logger.getLogger(MarkupComponentHelper.class.getName()).log(Level.SEVERE, null, ex);
             }
-            return score;
         } else {
-            LOGGER.severe("Passed in type was not a ParameterizedType or Class: " + type);
-            return -1;
+            LOGGER.severe("Passed in type was not a Class: " + type);
         }
+        return score;
     }
 
     public static int getMarkupWidgetScore(ArrayList<Enum> supportedMarkups, ArrayList<Markup> markups) {

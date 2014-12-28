@@ -11,9 +11,9 @@ import sami.markup.Markup;
  */
 public interface MarkupComponentWidget {
 
-    public abstract int getCreationWidgetScore(Type type, ArrayList<Markup> markups);
+    public abstract int getCreationWidgetScore(Type type, Field field, ArrayList<Markup> markups);
 
-    public abstract int getSelectionWidgetScore(Type type, ArrayList<Markup> markups);
+    public abstract int getSelectionWidgetScore(Type type, Object object, ArrayList<Markup> markups);
 
     public abstract int getMarkupScore(ArrayList<Markup> markups);
 

@@ -12,13 +12,13 @@ import sami.markup.Markup;
  */
 public interface MarkupComponent {
 
-    public abstract int getCreationComponentScore(Type type, ArrayList<Markup> markups);
+    public abstract int getCreationComponentScore(Type type, Field field, ArrayList<Markup> markups);
 
-    public abstract int getSelectionComponentScore(Type type, ArrayList<Markup> markups);
+    public abstract int getSelectionComponentScore(Type type, Object object, ArrayList<Markup> markups);
 
     public abstract int getMarkupScore(ArrayList<Markup> markups);
 
-    public abstract MarkupComponent useCreationComponent(Type type, ArrayList<Markup> markups);
+    public abstract MarkupComponent useCreationComponent(Type type, Field field, ArrayList<Markup> markups);
 
     public abstract MarkupComponent useSelectionComponent(Object selectionObject, ArrayList<Markup> markups);
 

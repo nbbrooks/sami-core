@@ -16,7 +16,7 @@ public interface UiComponentGeneratorInt {
         CREATE, SELECT
     };
 
-    public MarkupComponent getCreationComponent(Type type, ArrayList<Markup> markupList);
+    public MarkupComponent getCreationComponent(Type type, Field field, ArrayList<Markup> markupList);
 
     public MarkupComponent getSelectionComponent(Type type, Object value, ArrayList<Markup> markupList);
 
