@@ -87,7 +87,7 @@ public class MarkupComponentHelper {
                                 // See if a widget supports the type
                                 for (Class widgetClass : widgetClasses) {
                                     MarkupComponentWidget widget = getWidgetInstance(widgetClass);
-                                    score = Math.max(score, widget.getCreationWidgetScore((Type) creationClass, field, markups));
+                                    score = Math.max(score, widget.getCreationWidgetScore(type, field, markups));
                                 }
                             }
                         }
@@ -134,7 +134,7 @@ public class MarkupComponentHelper {
                     // See if a widget supports the type
                     for (Class widgetClass : widgetClasses) {
                         MarkupComponentWidget widget = getWidgetInstance(widgetClass);
-                        score = Math.max(score, widget.getCreationWidgetScore((Type) creationClass, field, markups));
+                        score = Math.max(score, widget.getCreationWidgetScore(type, field, markups));
                     }
                 }
             }
@@ -208,7 +208,7 @@ public class MarkupComponentHelper {
                         // See if a widget supports the type
                         for (Class widgetClass : widgetClasses) {
                             MarkupComponentWidget widget = getWidgetInstance(widgetClass);
-                            score = Math.max(score, widget.getSelectionWidgetScore((Type) selectionClass, object, markups));
+                            score = Math.max(score, widget.getSelectionWidgetScore(type, object, markups));
                         }
                     }
                 }
@@ -250,7 +250,7 @@ public class MarkupComponentHelper {
                     // See if a widget supports the type
                     for (Class widgetClass : widgetClasses) {
                         MarkupComponentWidget widget = getWidgetInstance(widgetClass);
-                        score = Math.max(score, widget.getSelectionWidgetScore((Type) selectionClass, object, markups));
+                        score = Math.max(score, widget.getSelectionWidgetScore(type, object, markups));
                     }
                 }
             }
