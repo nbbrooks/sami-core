@@ -90,7 +90,7 @@ public class MissionPlanSpecification implements java.io.Serializable {
                 eventSpec.addVariablePrefix(prefix, globalVariableNames);
             }
             if (key instanceof Place && ((Place) key).getSubMissionTemplates() != null) {
-                for (MissionPlanSpecification subMSpec : ((Place)key).getSubMissionTemplates()) {
+                for (MissionPlanSpecification subMSpec : ((Place) key).getSubMissionTemplates()) {
                     subMSpec.addVariablePrefix(prefix, globalVariableNames);
                 }
             }
@@ -139,6 +139,33 @@ public class MissionPlanSpecification implements java.io.Serializable {
             }
         }
         return ret;
+    }
+
+    /**
+     * Looks for RES on places with fields that have both an object and write
+     * variable definition
+     *
+     * @return
+     */
+    public Hashtable<String, Object> getDefinedOutputEventVariables() {
+        Hashtable<String, Object> variableToValue = new Hashtable<String, Object>();
+        for (Vertex vertex : vertexToEventSpecListMap.keySet()) {
+            if (vertex instanceof Place) {
+                if (vertexToEventSpecListMap.get(vertex) != null) {
+                    ArrayList<ReflectedEventSpecification> events = vertexToEventSpecListMap.get(vertex);
+                    for (ReflectedEventSpecification reflectedEventSpecification : events) {
+                        HashMap<String, String> fieldNameToWriteVariable = reflectedEventSpecification.getWriteVariables();
+                        HashMap<String, Object> fieldNameToValue = reflectedEventSpecification.getFieldValues();
+                        for (String fieldName : fieldNameToWriteVariable.keySet()) {
+                            if (fieldNameToValue.containsKey(fieldName)) {
+                                variableToValue.put(fieldNameToWriteVariable.get(fieldName), fieldNameToValue.get(fieldName));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return variableToValue;
     }
 
     public Place getUninstantiatedStart() {
@@ -366,20 +393,20 @@ public class MissionPlanSpecification implements java.io.Serializable {
         // Now remove the transition and edge data structures
         edge.prepareForRemoval();
     }
-    
+
     public void updateTags() {
-        for(Vertex v : graph.getVertices()) {
-            if(v instanceof Place) {
-                ((Place)v).updateTag();
-            } else if(v instanceof Transition) {
-                ((Transition)v).updateTag();
+        for (Vertex v : graph.getVertices()) {
+            if (v instanceof Place) {
+                ((Place) v).updateTag();
+            } else if (v instanceof Transition) {
+                ((Transition) v).updateTag();
             }
         }
-        for(Edge e : graph.getEdges()) {
-            if(e instanceof InEdge) {
-                ((InEdge)e).updateTag();
-            } else if(e instanceof OutEdge) {
-                ((OutEdge)e).updateTag();
+        for (Edge e : graph.getEdges()) {
+            if (e instanceof InEdge) {
+                ((InEdge) e).updateTag();
+            } else if (e instanceof OutEdge) {
+                ((OutEdge) e).updateTag();
             }
         }
     }

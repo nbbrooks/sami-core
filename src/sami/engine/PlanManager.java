@@ -52,7 +52,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     // Variable for counting how many things the operator still needs to fill in before execution
     int repliesExpected = 0;
     // Blocking queue of generated input events waiting to be matched to a parameter input event
-    private ArrayBlockingQueue<InputEvent> generatorEventQueue = new ArrayBlockingQueue<InputEvent>(20);
+    private ArrayBlockingQueue<InputEvent> generatorEventQueue = new ArrayBlockingQueue<InputEvent>(100);
     final ArrayList<InputEvent> activeInputEvents = new ArrayList<InputEvent>();
     final ArrayList<Place> placesBeingEntered = new ArrayList<Place>();
     // List of tokens on the mission spec's edges to be used as the default list of tokens to put in the starting place
@@ -100,6 +100,12 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             this.startingTokens.add(taskToken);
         }
 
+        // If any output events have values to save to variables, write them
+        Hashtable<String, Object> variableToValue = mSpec.getDefinedOutputEventVariables();
+        for (String variableName : variableToValue.keySet()) {
+            Engine.getInstance().setVariableValue(variableName, variableToValue.get(variableName));
+        }
+
         // If there are any parameters on the events that need to be filled in, request from the operator
         ArrayList<ReflectedEventSpecification> editableEventSpecs = mSpec.getEventSpecsRequestingParams();
         if (editableEventSpecs.size() > 0) {
@@ -145,6 +151,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         LOGGER.fine("\tField: " + fieldName + " = " + fieldNameToValue.get(fieldName));
                         if (!fieldNameToValue.containsKey(fieldName)
                                 && !fieldNameToReadVariable.containsKey(fieldName)) {
+                            // Field needs to be defined by operator
                             LOGGER.finer("\t\t Missing");
                             try {
                                 Class eventSpecClass = Class.forName(eventSpec.getClassName());
@@ -161,6 +168,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                             }
                         } else if (fieldNameToEditable.containsKey(fieldName)
                                 && fieldNameToEditable.get(fieldName)) {
+                            // Field needs to be defined by operator, but has default value
                             LOGGER.finer("\t\t Editable");
                             editableCount++;
                             try {
@@ -178,6 +186,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         } else if (!fieldNameToEditable.containsKey(fieldName)) {
                             LOGGER.severe("\t\tNo entry in fieldNameToEditable");
                         } else {
+                            // Field is defined and locked
                             LOGGER.finer("\t\t Locked");
                         }
 
@@ -1901,8 +1910,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                     LOGGER.log(Level.FINE, "\tAdding <" + inputEvent + "," + transition + "> to inputEventToTransitionMap");
                     inputEvent.setActive(true);
                     transition.updateTag();
+                    // Synchronization causes deadlocks somehow
 //                    synchronized (activeInputEvents) {
-                        activeInputEvents.add(inputEvent);
+                    activeInputEvents.add(inputEvent);
 //                    }
                     InputEventMapper.getInstance().registerEvent(inputEvent, this);
                     inputEventToTransitionMap.put(inputEvent, transition);
@@ -2063,7 +2073,10 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
     @Override
     public void eventGenerated(InputEvent generatedEvent) {
-        generatorEventQueue.offer(generatedEvent);
+        boolean success = generatorEventQueue.offer(generatedEvent);
+        if (!success) {
+            LOGGER.severe("Failed to add generated input event " + generatedEvent + " to event queue (size " + generatorEventQueue.size() + ", remaining capacity " + generatorEventQueue.remainingCapacity() + ") of plan " + getPlanName());
+        }
     }
 
     public void finishMission(Place endPlace) {
@@ -2499,8 +2512,14 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             Hashtable<ReflectedEventSpecification, Hashtable<Field, Object>> eventSpecToFieldValues = paramsReceived.getEventSpecToFieldValues();
             for (ReflectedEventSpecification eventSpec : eventSpecToFieldValues.keySet()) {
                 Hashtable<Field, Object> fieldToValues = eventSpecToFieldValues.get(eventSpec);
+                HashMap<String, String> fieldNameToWriteVariable = eventSpec.getWriteVariables();
                 for (Field field : fieldToValues.keySet()) {
+                    // Add definition to event Spec
                     eventSpec.addFieldValue(field.getName(), fieldToValues.get(field));
+                    // Write definition to variable (for output event fields with a variable specified)
+                    if (fieldNameToWriteVariable.containsKey(field.getName())) {
+                        Engine.getInstance().setVariableValue(fieldNameToWriteVariable.get(field.getName()), fieldToValues.get(field));
+                    }
                 }
             }
 

@@ -21,7 +21,7 @@ public class MissingParamsRequest extends OutputEvent {
         id = UUID.randomUUID();
     }
 
-    public Hashtable<ReflectedEventSpecification, Hashtable<Field, String>> getFieldDescriptions() {
+    public Hashtable<ReflectedEventSpecification, Hashtable<Field, String>> getEventToFieldDescriptions() {
         return eventSpecToFieldDescriptions;
     }
 

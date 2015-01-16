@@ -3,11 +3,14 @@ package sami.mission;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.lang.reflect.Field;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import sami.event.ReflectedEventSpecification;
 import sami.gui.GuiElementSpec;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Hashtable;
 import java.util.logging.Logger;
 import javax.swing.tree.DefaultMutableTreeNode;
 
@@ -148,52 +151,185 @@ public class ProjectSpecification implements java.io.Serializable {
     public ArrayList<String> getVariables(Field targetField) {
         ArrayList<String> useableVariableNames = new ArrayList<String>();
 
+        // Add compatible mission variables
         for (MissionPlanSpecification mSpec : allMissionPlans) {
             if (mSpec.getGraph() != null && mSpec.getGraph().getEdges() != null) {
                 for (Vertex v : mSpec.getGraph().getVertices()) {
-                    if (v instanceof Transition) {
-                        // For each Transition
-                        if (mSpec.getEventSpecList((Transition) v) != null) {
-                            for (ReflectedEventSpecification eventSpec : mSpec.getEventSpecList((Transition) v)) {
-                                // For each Input Event spec on the Transition
-                                try {
-                                    Class eventClass = Class.forName(eventSpec.getClassName());
-                                    HashMap<String, String> writeVariables = eventSpec.getWriteVariables();
-                                    for (String writeFieldName : writeVariables.keySet()) {
-                                        // For each field with a write variable assigned to it
-                                        Field writeField = eventClass.getField(writeFieldName);
-                                        if (targetField.getDeclaringClass().isAssignableFrom(writeField.getType()) || targetField.getType().isAssignableFrom(writeField.getType())) {
-                                            String writeVariable = writeVariables.get(writeFieldName);
-                                            if (!useableVariableNames.contains(writeVariable)) {
-                                                useableVariableNames.add(writeVariables.get(writeFieldName));
-                                            }
-                                            LOGGER.fine("Adding " + writeVariables.get(writeFieldName) + "(" + writeFieldName + ") to variable list");
+                    if (mSpec.getEventSpecList(v) != null) {
+                        for (ReflectedEventSpecification eventSpec : mSpec.getEventSpecList(v)) {
+                            try {
+                                Class eventClass = Class.forName(eventSpec.getClassName());
+                                HashMap<String, String> writeVariables = eventSpec.getWriteVariables();
+                                for (String writeFieldName : writeVariables.keySet()) {
+                                    boolean match = false;
+
+                                    // For each field with a write variable assigned to it
+                                    Field writeField = eventClass.getField(writeFieldName);
+                                    if (java.util.Hashtable.class.isAssignableFrom(targetField.getType()) && java.util.Hashtable.class.isAssignableFrom(writeField.getType())) {
+                                        // Hashtable check
+                                        if (parameterizedTypeMatch((ParameterizedType) targetField.getGenericType(), (ParameterizedType) writeField.getGenericType())) {
+                                            match = true;
+                                        }
+                                    } else if (java.util.List.class.isAssignableFrom(targetField.getType()) && java.util.List.class.isAssignableFrom(writeField.getType())) {
+                                        if (parameterizedTypeMatch((ParameterizedType) targetField.getGenericType(), (ParameterizedType) writeField.getGenericType())) {
+                                            match = true;
+                                        }
+                                    } else if (targetField.getType() instanceof Class && writeField.getType() instanceof Class) {
+                                        if (classTypeMatch((Class) targetField.getType(), (Class) writeField.getType())) {
+                                            match = true;
                                         }
                                     }
-                                } catch (ClassNotFoundException ex) {
-                                    ex.printStackTrace();
-                                } catch (NoSuchFieldException ex) {
-                                    ex.printStackTrace();
+                                    if (match) {
+                                        String writeVariable = writeVariables.get(writeFieldName);
+                                        if (!useableVariableNames.contains(writeVariable)) {
+                                            useableVariableNames.add(writeVariable);
+                                        }
+                                        LOGGER.fine("Adding " + writeVariable + " to variable list");
+                                    }
                                 }
+                            } catch (ClassNotFoundException ex) {
+                                ex.printStackTrace();
+                            } catch (NoSuchFieldException ex) {
+                                ex.printStackTrace();
                             }
-                        } else {
-                            LOGGER.fine("No events to check for variables.");
                         }
                     }
                 }
-            } else {
-                LOGGER.fine("No edges to check for events");
             }
         }
+
+        // Add commpatible global variables
         for (String variable : globalVariables.keySet()) {
-            if (targetField.getDeclaringClass().isAssignableFrom(globalVariables.get(variable).getClass()) || targetField.getType().isAssignableFrom(globalVariables.get(variable).getClass())) {
-                if (!useableVariableNames.contains(variable)) {
-                    useableVariableNames.add(variable);
+            Object globalValue = globalVariables.get(variable);
+            boolean match = false;
+
+            if (java.util.Hashtable.class.isAssignableFrom(targetField.getType()) && java.util.Hashtable.class.isAssignableFrom(globalValue.getClass())) {
+                // Hashtable check
+                Class targetKeyClass = null, targetValueClass = null, writeKeyClass = null, writeValueClass = null;
+                Type targetGenericType = targetField.getGenericType();
+                if (targetGenericType instanceof ParameterizedType) {
+                    ParameterizedType parameterizedType = (ParameterizedType) targetGenericType;
+                    Type targetKeyType = parameterizedType.getActualTypeArguments()[0];
+                    Type targetValueType = parameterizedType.getActualTypeArguments()[1];
+
+                    if (targetKeyType instanceof Class && targetValueType instanceof Class) {
+                        targetKeyClass = (Class) targetKeyType;
+                        targetValueClass = (Class) targetValueType;
+                    }
                 }
-                LOGGER.fine("Adding " + variable + " to variable list");
+                Hashtable hashtable = (Hashtable) globalValue;
+                if (!hashtable.isEmpty()) {
+                    for (Object key : hashtable.keySet()) {
+                        writeKeyClass = key.getClass();
+                        writeValueClass = hashtable.get(key).getClass();
+                        break;
+                    }
+                }
+                if (targetKeyClass != null && targetValueClass != null && writeKeyClass != null && writeValueClass != null
+                        && targetKeyClass.isAssignableFrom(writeKeyClass) && targetValueClass.isAssignableFrom(writeValueClass)) {
+                    match = true;
+                } else if (java.util.Hashtable.class.isAssignableFrom(targetValueClass)) {
+                    LOGGER.warning("Nested Hashtable in global variable value not yet supported");
+                } else if (java.util.List.class.isAssignableFrom(targetValueClass)) {
+                    LOGGER.warning("Nested List in global variable value not yet supported");
+                }
+
+            } else if (java.util.List.class.isAssignableFrom(targetField.getType()) && java.util.List.class.isAssignableFrom(globalValue.getClass())) {
+                Class targetClass = null, writeClass = null;
+                Type targetGenericType = targetField.getGenericType();
+                if (targetGenericType instanceof ParameterizedType) {
+                    ParameterizedType parameterizedType = (ParameterizedType) targetGenericType;
+                    Type targetType = parameterizedType.getActualTypeArguments()[0];
+                    if (targetType instanceof Class) {
+                        targetClass = (Class) targetType;
+                    }
+                }
+                ArrayList arrayList = (ArrayList) globalValue;
+                if (!arrayList.isEmpty()) {
+                    writeClass = arrayList.get(0).getClass();
+                }
+                if (targetClass != null && writeClass != null
+                        && targetClass.isAssignableFrom(writeClass)) {
+                    match = true;
+                } else if (java.util.Hashtable.class.isAssignableFrom(targetClass)) {
+                    LOGGER.warning("Nested Hashtable in global variable value not yet supported");
+                } else if (java.util.List.class.isAssignableFrom(targetClass)) {
+                    LOGGER.warning("Nested List in global variable value not yet supported");
+                }
+            } else if (primitiveTypeMatch(targetField.getType(), globalVariables.get(variable).getClass())) {
+                match = true;
+            } else if (targetField.getType().isAssignableFrom(globalVariables.get(variable).getClass())) {
+                match = true;
             }
+
+            if (match && !useableVariableNames.contains(variable)) {
+                useableVariableNames.add(variable);
+            }
+            LOGGER.fine("Adding " + variable + " to variable list");
         }
         return useableVariableNames;
+    }
+
+    public boolean primitiveTypeMatch(Class classA, Class classB) {
+        if ((classA.equals(Byte.class) && classB.equals(byte.class))
+                || (classA.equals(byte.class) && classB.equals(Byte.class))
+                || (classA.equals(Character.class) && classB.equals(char.class))
+                || (classA.equals(char.class) && classB.equals(Character.class))
+                || (classA.equals(Double.class) && classB.equals(double.class))
+                || (classA.equals(double.class) && classB.equals(Double.class))
+                || (classA.equals(Float.class) && classB.equals(float.class))
+                || (classA.equals(float.class) && classB.equals(Float.class))
+                || (classA.equals(Integer.class) && classB.equals(int.class))
+                || (classA.equals(int.class) && classB.equals(Integer.class))
+                || (classA.equals(Long.class) && classB.equals(long.class))
+                || (classA.equals(long.class) && classB.equals(Long.class))
+                || (classA.equals(Short.class) && classB.equals(short.class))
+                || (classA.equals(short.class) && classB.equals(Short.class))
+                || (classA.equals(Void.class) && classB.equals(void.class))
+                || (classA.equals(void.class) && classB.equals(Void.class))) {
+            return true;
+        }
+        return false;
+    }
+
+    public boolean parameterizedTypeMatch(ParameterizedType typeA, ParameterizedType typeB) {
+        if (java.util.Hashtable.class.isAssignableFrom((Class) typeA.getRawType()) && java.util.Hashtable.class.isAssignableFrom((Class) typeB.getRawType())) {
+            // Hashtable check
+            boolean matchA = false, matchB = false;
+            Type targetKeyType = typeA.getActualTypeArguments()[0];
+            Type targetValueType = typeA.getActualTypeArguments()[1];
+            Type writeKeyType = typeB.getActualTypeArguments()[0];
+            Type writeValueType = typeB.getActualTypeArguments()[1];
+            // Key
+            if (targetKeyType instanceof Class && writeKeyType instanceof Class) {
+                matchA = classTypeMatch((Class) targetKeyType, (Class) writeKeyType);
+            } else if (targetKeyType instanceof ParameterizedType && writeKeyType instanceof ParameterizedType) {
+                matchA = parameterizedTypeMatch((ParameterizedType) targetKeyType, (ParameterizedType) writeKeyType);
+            }
+            // Value
+            if (targetValueType instanceof Class && writeValueType instanceof Class) {
+                matchB = classTypeMatch((Class) targetValueType, (Class) writeValueType);
+            } else if (targetValueType instanceof ParameterizedType && writeValueType instanceof ParameterizedType) {
+                matchB = parameterizedTypeMatch((ParameterizedType) targetValueType, (ParameterizedType) writeValueType);
+            }
+            return matchA && matchB;
+        } else if (java.util.List.class.isAssignableFrom((Class) typeA.getRawType()) && java.util.List.class.isAssignableFrom((Class) typeB.getRawType())) {
+            // List check
+            boolean match = false;
+            Type targetType = typeA.getActualTypeArguments()[0];
+            Type writeType = typeB.getActualTypeArguments()[0];
+            if (targetType instanceof Class && writeType instanceof Class) {
+                match = classTypeMatch((Class) targetType, (Class) writeType);
+            } else if (targetType instanceof ParameterizedType && writeType instanceof ParameterizedType) {
+                match = parameterizedTypeMatch((ParameterizedType) targetType, (ParameterizedType) writeType);
+            }
+            return match;
+        }
+        return false;
+    }
+
+    public boolean classTypeMatch(Class classA, Class classB) {
+        return classA.isAssignableFrom(classB);
     }
 
     public boolean isGlobalVariable(String variable) {
@@ -291,5 +427,14 @@ public class ProjectSpecification implements java.io.Serializable {
             LOGGER.severe("Class Not Found Exception in ProjectSpecification readObject");
             throw e;
         }
+    }
+
+    public static void main(String[] args) {
+        Hashtable h = new Hashtable<ArrayList<Double>, Hashtable<Double, Double>>();
+        ArrayList<Double> a = new ArrayList<Double>();
+        a.add(new Double(0));
+        Hashtable h2 = new Hashtable<Double, Double>();
+        h2.put(2, 2);
+        h.put(a, h2);
     }
 }

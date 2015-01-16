@@ -3,6 +3,7 @@ package sami.event;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Hashtable;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import static sami.event.Event.NONE;
@@ -190,6 +191,16 @@ public class ReflectedEventSpecification implements java.io.Serializable {
             ex.printStackTrace();
         }
         return false;
+    }
+
+    public Hashtable<String, Object> getDefinedVariables() {
+        Hashtable<String, Object> variableToValue = new Hashtable<String, Object>();
+        for (String fieldName : fieldNameToValue.keySet()) {
+            if (fieldNameToWriteVariable.containsKey(fieldName)) {
+                variableToValue.put(fieldNameToWriteVariable.get(fieldName), fieldNameToValue.get(fieldName));
+            }
+        }
+        return variableToValue;
     }
 
     public String toString() {
