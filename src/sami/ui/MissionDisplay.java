@@ -361,12 +361,12 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
 //            System.out.println("Pressed " + e.getButton());
             final Point2D framePoint = me.getPoint();
 
-            if (me.getButton() == MouseEvent.BUTTON1
-                    || me.getButton() == MouseEvent.BUTTON2
-                    || (me.getModifiersEx() & (MouseEvent.BUTTON1_DOWN_MASK | MouseEvent.BUTTON3_DOWN_MASK)) == (MouseEvent.BUTTON1_DOWN_MASK | MouseEvent.BUTTON3_DOWN_MASK)) {
+            if ((me.getModifiersEx() & MouseEvent.BUTTON2_DOWN_MASK) != 0
+                    || (me.getModifiersEx() & (MouseEvent.BUTTON1_DOWN_MASK | MouseEvent.SHIFT_DOWN_MASK)) != 0
+                    || (me.getModifiersEx() & (MouseEvent.BUTTON1_DOWN_MASK | MouseEvent.BUTTON3_DOWN_MASK)) != 0) {
+                // Mouse 2 OR Mouse1+Shift OR Mouse1+Mouse3
                 amTranslating = true;
                 prevMousePoint = (Point2D) framePoint.clone();
-            } else if (me.getButton() == MouseEvent.BUTTON3) {
             }
         }
 

@@ -83,6 +83,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     // Logging levels
     final Level CHECK_T_LVL = Level.FINE;
     final Level EXE_T_LVL = Level.FINE;
+    final Level PROCESS_E_LVL = Level.FINE;
 
     public PlanManager(final MissionPlanSpecification mSpec, UUID missionId, String planName, ArrayList<Token> startingTokens) {
         LOGGER.info("Creating PlanManager for mSpec " + mSpec + " with mission ID " + missionId + " and planName " + planName);
@@ -751,7 +752,11 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 inPlaceToTokenAdd.put(inPlace, new boolean[inPlace.getTokens().size()]);
             }
             outPlaceToInPlaceToTokenAdd.put(outPlace, inPlaceToTokenAdd);
-            outPlaceToIeToRelTokenAdd.put(outPlace, (Hashtable<InputEvent, boolean[]>) ieToRelTokenAddMaster.clone());
+            Hashtable<InputEvent, boolean[]> ieToRelTokenAddMasterClone = new Hashtable<InputEvent, boolean[]>();
+            for(InputEvent ie : ieToRelTokenAddMaster.keySet()) {
+                ieToRelTokenAddMasterClone.put(ie, new boolean[ieToRelTokenAddMaster.get(ie).length]);
+            }
+            outPlaceToIeToRelTokenAdd.put(outPlace, ieToRelTokenAddMasterClone);
             outPlaceToTaskTokensToAdd.put(outPlace, new ArrayList<Token>());
             outPlaceToGenericTokenAdd.put(outPlace, 0);
             outPlaceToSMTokensToAdd.put(outPlace, new ArrayList<Token>());
@@ -2113,15 +2118,20 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     }
 
     public void processGeneratedEvent(InputEvent generatedEvent) {
-        LOGGER.log(Level.FINE, "Processing generated event " + generatedEvent + " with event UUID [" + generatedEvent.getId() + "], mission UUID [" + generatedEvent.getMissionId() + "], RP [" + generatedEvent.getRelevantProxyList() + "], RT [" + generatedEvent.getRelevantTaskList() + "]");
+        Level detailsLogLevel = PROCESS_E_LVL;
+        if (generatedEvent.toString().contains("ProxyPoseUpdated")) {
+            detailsLogLevel = Level.FINEST;
+        }
+
+        LOGGER.log(detailsLogLevel, "Processing generated event " + generatedEvent + " with event UUID [" + generatedEvent.getId() + "], mission UUID [" + generatedEvent.getMissionId() + "], RP [" + generatedEvent.getRelevantProxyList() + "], RT [" + generatedEvent.getRelevantTaskList() + "]");
         if (generatedEvent.getMissionId() == null) {
-            LOGGER.log(Level.FINE, "\tGenerated event has no mission UUID");
+            LOGGER.log(detailsLogLevel, "\tGenerated event has no mission UUID");
         } else {
             if (generatedEvent.getMissionId() != missionId) {
-                LOGGER.log(Level.FINE, "\tMatching failed on mission UUID comparison");
+                LOGGER.log(detailsLogLevel, "\tMatching failed on mission UUID comparison");
                 return;
             } else {
-                LOGGER.log(Level.FINE, "\tMatching success on mission UUID comparison");
+                LOGGER.log(detailsLogLevel, "\tMatching success on mission UUID comparison");
             }
         }
         // Events to add: A list of cloned IEs used to keep track of which proxy's have generated their instance of a Blocking IE
@@ -2132,16 +2142,16 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
         // 1 - Go through our list of parameter events waiting to be fulfilled by a generated event
         for (InputEvent paramEvent : activeInputEvents) {
-            LOGGER.log(Level.FINE, "\tChecking for match between parameter " + paramEvent + " to generated " + generatedEvent);
+            LOGGER.log(detailsLogLevel, "\tChecking for match between parameter " + paramEvent + " to generated " + generatedEvent);
 
             // 2 - Compare variables used by the generated event to find the param event(s) it fulfills
             // 2a - Same class? 
             //  @todo - can remove this step with some additional data structures...
             if (paramEvent.getClass() != generatedEvent.getClass()) {
-                LOGGER.log(Level.FINE, "\t\tMatching failed on class comparison: " + paramEvent.getClass() + " != " + generatedEvent.getClass());
+                LOGGER.log(detailsLogLevel, "\t\tMatching failed on class comparison: " + paramEvent.getClass() + " != " + generatedEvent.getClass());
                 continue;
             } else {
-                LOGGER.log(Level.FINE, "\t\tMatching success on class: " + paramEvent.getClass());
+                LOGGER.log(detailsLogLevel, "\t\tMatching success on class: " + paramEvent.getClass());
             }
             // 2b - If defined, we know the output event that caused this to occur
             //  Share a common OutputEvent uuid in a preceding place?
@@ -2152,17 +2162,17 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 for (Place inPlace : inPlaces) {
                     for (OutputEvent oe : inPlace.getOutputEvents()) {
                         if (oe.getId().equals(generatedEvent.getRelevantOutputEventId())) {
-                            LOGGER.log(Level.FINE, "\t\tMatching success on relevant OE UUID: " + oe.getId());
+                            LOGGER.log(detailsLogLevel, "\t\tMatching success on relevant OE UUID: " + oe.getId());
                             match = true;
                         }
                     }
                 }
                 if (!match) {
-                    LOGGER.log(Level.FINE, "\t\tMatching failed on UUID relevant OE UUID comparison - does not share a common OutputEvent uuid from a preceding place?");
+                    LOGGER.log(detailsLogLevel, "\t\tMatching failed on UUID relevant OE UUID comparison - does not share a common OutputEvent uuid from a preceding place?");
                     continue;
                 }
             } else {
-                LOGGER.log(Level.FINE, "\t\tMatching success on UUID - no UUID to match against");
+                LOGGER.log(detailsLogLevel, "\t\tMatching success on UUID - no UUID to match against");
             }
             // 2c - If defined, this was some sort of proxy triggered event
             //  Have a Proxy or Task token for each relevant proxy?
@@ -2180,7 +2190,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         //  If we have, we will/have match it, and if not, we should create it and set it to fulfilled. Repeat the IE copy 
                         //  process for each proxy token in all the transition's incoming places
                         //@todo Should it only be for incoming places with RP on the edge going to the transition?
-                        LOGGER.log(Level.FINE, "\t\tHandling occurence of BlockingInputEvent with null RP in param: " + paramEvent + " and defined RP in gen: " + generatedEvent + " RP [" + generatedEvent.getRelevantProxyList() + "]");
+                        LOGGER.log(detailsLogLevel, "\t\tHandling occurence of BlockingInputEvent with null RP in param: " + paramEvent + " and defined RP in gen: " + generatedEvent + " RP [" + generatedEvent.getRelevantProxyList() + "]");
 
                         Transition transition = inputEventToTransitionMap.get(paramEvent);
                         HashMap<ProxyInt, InputEvent> proxyLookup;
@@ -2270,18 +2280,18 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                     //  it will be checked and matched - we don't want to add it to matchingEvents a second time here
                                     matchingEvents.add(matchingClonedEvent);
                                     match = true;
-                                    LOGGER.log(Level.FINE, "\t\t\tMatching success on relevant proxy: " + proxy);
+                                    LOGGER.log(detailsLogLevel, "\t\t\tMatching success on relevant proxy: " + proxy);
                                 } else if (transition.getInputEventStatus(matchingClonedEvent)) {
                                     match = true;
                                     LOGGER.log(Level.WARNING, "\t\t\tMatching success on relevant proxy: " + proxy + ", but the corresponding cloned IE was already marked as having occurred!");
                                 } else if (!createdClones.contains(matchingClonedEvent)) {
                                     match = true;
-                                    LOGGER.log(Level.FINE, "\t\t\tMatching success on relevant proxy: " + proxy + ", but the corresponding cloned IE was already created!");
+                                    LOGGER.log(detailsLogLevel, "\t\t\tMatching success on relevant proxy: " + proxy + ", but the corresponding cloned IE was already created!");
                                 }
                             }
                         }
                         if (!match) {
-                            LOGGER.log(Level.FINE, "\t\tMatching failed on relevant proxy - param event had no relevant proxy and no preceding place with a token containing the gen event's relevant proxy [" + generatedEvent.getRelevantProxyList() + "]");
+                            LOGGER.log(detailsLogLevel, "\t\tMatching failed on relevant proxy - param event had no relevant proxy and no preceding place with a token containing the gen event's relevant proxy [" + generatedEvent.getRelevantProxyList() + "]");
                             continue;
                         }
                     } else {
@@ -2291,7 +2301,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         //  would choose from the proxies contained in the tokens passed into the Transition.
                         //  The resulting IE would have contain the selected proxies in its relevant proxy list, which would
                         //  be a subset of the proxies contained in the tokens in the incoming places
-                        LOGGER.log(Level.FINE, "\t\tHandling non-blocking InputEvent with null RP in param [" + paramEvent + "] and defined RP in gen [" + generatedEvent + "]");
+                        LOGGER.log(detailsLogLevel, "\t\tHandling non-blocking InputEvent with null RP in param [" + paramEvent + "] and defined RP in gen [" + generatedEvent + "]");
                         matchingEvents.add(paramEvent);
                     }
                 } else {
@@ -2304,11 +2314,11 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         }
                     }
                     if (match) {
-                        LOGGER.log(Level.FINE, "\t\tMatching success on relevant proxy - param event's relevant proxy matched gen event's relevant proxy");
+                        LOGGER.log(detailsLogLevel, "\t\tMatching success on relevant proxy - param event's relevant proxy matched gen event's relevant proxy");
                         // The process above has occurred previously, so we have versions of the ie with the proxy specified
                         matchingEvents.add(paramEvent);
                     } else {
-                        LOGGER.log(Level.FINE, "\t\tMatching failed on relevant proxy - param event's relevant proxy did not match gen event's relevant proxy");
+                        LOGGER.log(detailsLogLevel, "\t\tMatching failed on relevant proxy - param event's relevant proxy did not match gen event's relevant proxy");
                         continue;
                     }
                 }
@@ -2330,7 +2340,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         //  If we have, we will/have match it, and if not, we should create it and set it to fulfilled. Repeat the IE copy 
                         //  process for each proxy token in all the transition's incoming places
                         //@todo Should it only be for incoming places with RP on the edge going to the transition?
-                        LOGGER.log(Level.FINE, "\t\tHandling occurence of blocking InputEvent with null R Task in param: " + paramEvent + " and defined R Task in gen: " + generatedEvent);
+                        LOGGER.log(detailsLogLevel, "\t\tHandling occurence of blocking InputEvent with null R Task in param: " + paramEvent + " and defined R Task in gen: " + generatedEvent);
                         Transition transition = inputEventToTransitionMap.get(paramEvent);
                         HashMap<Task, InputEvent> taskLookup;
                         if (clonedIeTaskTable.containsKey(paramEvent)) {
@@ -2416,18 +2426,18 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                     //  it will be checked and matched - we don't want to add it to matchingEvents a second time here
                                     matchingEvents.add(matchingClonedEvent);
                                     match = true;
-                                    LOGGER.log(Level.FINE, "\t\t\tMatching success on relevant task: " + task);
+                                    LOGGER.log(detailsLogLevel, "\t\t\tMatching success on relevant task: " + task);
                                 } else if (transition.getInputEventStatus(matchingClonedEvent)) {
                                     match = true;
                                     LOGGER.log(Level.WARNING, "\t\t\tMatching success on relevant task: " + task + ", but the corresponding cloned IE was already marked as having occurred!");
                                 } else if (!createdClones.contains(matchingClonedEvent)) {
                                     match = true;
-                                    LOGGER.log(Level.FINE, "\t\t\tMatching success on relevant task: " + task + ", but the corresponding cloned IE was already created!");
+                                    LOGGER.log(detailsLogLevel, "\t\t\tMatching success on relevant task: " + task + ", but the corresponding cloned IE was already created!");
                                 }
                             }
                         }
                         if (!match) {
-                            LOGGER.log(Level.FINE, "\t\tMatching failed on relevant task - param event had no relevant task and no preceding place with a token containing the gen event's relevant task");
+                            LOGGER.log(detailsLogLevel, "\t\tMatching failed on relevant task - param event had no relevant task and no preceding place with a token containing the gen event's relevant task");
                             continue;
                         }
                     } else {
@@ -2437,7 +2447,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         //  would choose from the proxies contained in the tokens passed into the Transition.
                         //  The resulting IE would have contain the selected proxies in its relevant proxy list, which would
                         //  be a subset of the proxies contained in the tokens in the incoming places
-                        LOGGER.log(Level.FINE, "\t\tHandling non-blocking InputEvent with null R Task in param [" + paramEvent + "] and defined R Task in gen [" + generatedEvent + "]");
+                        LOGGER.log(detailsLogLevel, "\t\tHandling non-blocking InputEvent with null R Task in param [" + paramEvent + "] and defined R Task in gen [" + generatedEvent + "]");
 
                         matchingEvents.add(paramEvent);
                     }
@@ -2451,27 +2461,27 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         }
                     }
                     if (match) {
-                        LOGGER.log(Level.FINE, "\t\tMatching success on R Task - param event's R Task matched gen event's R Task");
+                        LOGGER.log(detailsLogLevel, "\t\tMatching success on R Task - param event's R Task matched gen event's R Task");
                         // The process above has occurred previously, so we have versions of the ie with the proxy specified
                         matchingEvents.add(paramEvent);
                     } else {
-                        LOGGER.log(Level.FINE, "\t\tMatching failed on R Task - param event's R Task did not match gen event's R Task");
+                        LOGGER.log(detailsLogLevel, "\t\tMatching failed on R Task - param event's R Task did not match gen event's R Task");
                         continue;
                     }
                 }
             }
 
             if (generatedEvent.getRelevantProxyList() == null && generatedEvent.getRelevantTaskList() == null) {
-                LOGGER.log(Level.FINE, "\t\tMatching success on relevant proxy and task - gen event had no relevant proxies nor tasks to match");
+                LOGGER.log(detailsLogLevel, "\t\tMatching success on relevant proxy and task - gen event had no relevant proxies nor tasks to match");
                 // Generator event had no relevant proxy so no matching is necessary
                 matchingEvents.add(paramEvent);
             }
         }
 
-        LOGGER.log(Level.FINE, "\tResult of comparisons: add " + clonedEventsToAdd.size() + ", update " + matchingEvents.size());
+        LOGGER.log(detailsLogLevel, "\tResult of comparisons: add " + clonedEventsToAdd.size() + ", update " + matchingEvents.size());
 
         for (InputEvent ie : clonedEventsToAdd.keySet()) {
-            LOGGER.log(Level.FINE, "\t\tAdding " + ie);
+            LOGGER.log(detailsLogLevel, "\t\tAdding " + ie);
             Transition t = clonedEventsToAdd.get(ie);
             ie.setActive(true);
             t.addInputEvent(ie);
@@ -2479,14 +2489,14 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             inputEventToTransitionMap.put(ie, t);
         }
         for (InputEvent ie : matchingEvents) {
-            LOGGER.log(Level.FINE, "\t\tUpdating " + ie);
+            LOGGER.log(detailsLogLevel, "\t\tUpdating " + ie);
             ie.setGeneratorEvent(generatedEvent);
             // Handle updated event
             processUpdatedParamEvent(ie);
         }
         // Repaint viewer
         Engine.getInstance().repaintPlan(this);
-        LOGGER.log(Level.FINE, "\tFinished handling generated event: " + generatedEvent);
+        LOGGER.log(detailsLogLevel, "\tFinished handling generated event: " + generatedEvent);
     }
 
     public void processUpdatedParamEvent(InputEvent updatedParamEvent) {
