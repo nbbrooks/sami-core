@@ -14,6 +14,9 @@ import java.util.prefs.Preferences;
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import static sami.config.DomainConfigManager.LAST_CFG_FOLDER;
+import static sami.config.DomainConfigManager.LAST_DCF_FILE;
+import static sami.config.DomainConfigManager.LAST_DCF_FOLDER;
 
 /**
  *
@@ -22,11 +25,8 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 public class DomainConfigF extends javax.swing.JFrame {
 
     private static final Logger LOGGER = Logger.getLogger(DomainConfigF.class.getName());
-    public static final String LAST_DCF_FILE = "LAST_DREAAM_DCF_NAME";
-    public static final String LAST_DCF_FOLDER = "LAST_DREAAM_DCF_FOLDER";
     private DomainConfig domainConfiguration = new DomainConfig();
     private File configLocation = null;
-    public static final String LAST_CFG_FOLDER = "LAST_DREAAM_CFG_FOLDER";
 
     /**
      * Creates new form ConfigurationF

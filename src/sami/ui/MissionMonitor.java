@@ -6,11 +6,8 @@ import java.io.BufferedReader;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.InvalidClassException;
-import java.io.ObjectInputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.security.AccessControlException;
 import java.util.ArrayList;
@@ -21,16 +18,15 @@ import java.util.prefs.Preferences;
 import java.util.regex.Pattern;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
-import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
-import javax.swing.filechooser.FileNameExtensionFilter;
 import sami.config.DomainConfigManager;
 import sami.engine.Engine;
+import sami.engine.Mediator;
 import sami.engine.PlanManager;
 import sami.engine.PlanManagerListenerInt;
-import sami.environment.EnvironmentProperties;
 import sami.mission.MissionPlanSpecification;
 import sami.mission.Place;
+import sami.mission.ProjectListenerInt;
 import sami.mission.ProjectSpecification;
 import sami.service.ServiceServer;
 import sami.uilanguage.LocalUiClientServer;
@@ -40,7 +36,7 @@ import sami.uilanguage.UiFrame;
  *
  * @author pscerri
  */
-public class MissionMonitor extends javax.swing.JFrame implements PlanManagerListenerInt {
+public class MissionMonitor extends javax.swing.JFrame implements PlanManagerListenerInt, ProjectListenerInt {
 
     private static final Logger LOGGER = Logger.getLogger(MissionMonitor.class.getName());
     public static final String LAST_DRM_FILE = "LAST_DRM_NAME";
@@ -108,30 +104,31 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
 //        (new AgentPlatform()).showMonitor();
         FrameManager.restoreLayout();
 
+        Mediator.getInstance().addProjectListener(this);
         Engine.getInstance().addListener(this);
 
         // Try to load the last used DRM file
-        LOGGER.info("load DRM");
+        LOGGER.info("Load DRM");
         Preferences p = Preferences.userRoot();
         try {
             String lastDrmPath = p.get(LAST_DRM_FILE, null);
             if (lastDrmPath != null) {
-                loadDrm(new File(lastDrmPath));
+                Mediator.getInstance().openProject(new File(lastDrmPath));
             }
         } catch (AccessControlException e) {
             LOGGER.severe("Failed to load last used DRM");
         }
-        LOGGER.info("load EPF");
+
         // Try to load the last used EPF file
+        LOGGER.info("Load EPF");
         try {
             String lastEpfPath = p.get(LAST_EPF_FILE, null);
             if (lastEpfPath != null) {
-                loadEpf(new File(lastEpfPath));
+                Mediator.getInstance().openEnvironment(new File(lastEpfPath));
             }
         } catch (AccessControlException e) {
             LOGGER.severe("Failed to load last used EPF");
         }
-        LOGGER.info("constructor done");
     }
 
     public HashMap<String, String> loadUi(String uiF) {
@@ -174,6 +171,27 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
             ret[i] = list.get(i);
         }
         return ret;
+    }
+
+    @Override
+    public void projectUpdated() {
+        applyProjectValues();
+    }
+
+    private void applyProjectValues() {
+        ProjectSpecification spec = Mediator.getInstance().getProject();
+        // Clear root missions 
+        missionListModel.removeAllElements();
+            // @todo Clear global variables?
+
+        // Add root missions and global variables
+        for (Object m : spec.getRootMissionPlans()) {
+            missionListModel.addElement(m);
+        }
+        for (String variable : spec.getGlobalVariableToValue().keySet()) {
+            Engine.getInstance().setVariableValue(variable, spec.getGlobalVariableValue(variable));
+        }
+        drmName.setText(Mediator.getInstance().getProjectFile().toString());
     }
 
     /**
@@ -299,74 +317,10 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
     }// </editor-fold>//GEN-END:initComponents
 
     private void loadDrmBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_loadDrmBActionPerformed
-        File specLocation = null;
-
-        if (specLocation == null) {
-            Preferences p = Preferences.userRoot();
-            String lastDrmFolder = p.get(LAST_DRM_FOLDER, "");
-            JFileChooser chooser = new JFileChooser(lastDrmFolder);
-            FileNameExtensionFilter filter = new FileNameExtensionFilter("DREAAM specification files", "drm");
-            chooser.setFileFilter(filter);
-            int ret = chooser.showOpenDialog(null);
-            if (ret == JFileChooser.APPROVE_OPTION) {
-                specLocation = chooser.getSelectedFile();
-            }
+        boolean success = Mediator.getInstance().openProject();
+        if (!success) {
+            JOptionPane.showMessageDialog(null, "Failed to load project");
         }
-        loadDrm(specLocation);
-    }
-
-    public boolean loadDrm(File drmFile) {
-        if (drmFile == null) {
-            return false;
-        }
-        ProjectSpecification projectSpec = null;
-        try {
-            ObjectInputStream ois = new ObjectInputStream(new FileInputStream(drmFile));
-            projectSpec = (ProjectSpecification) ois.readObject();
-
-            LOGGER.info("Reading project specification at [" + drmFile + "]");
-
-            if (projectSpec == null) {
-                LOGGER.log(Level.WARNING, "Failed to load project specification at [" + drmFile + "]");
-                JOptionPane.showMessageDialog(null, "Specification failed load");
-            } else {
-                // Add root missions
-                for (Object m : projectSpec.getRootMissionPlans()) {
-                    missionListModel.addElement(m);
-                }
-//                for (UiFrame uiFrame : uiFrames) {
-//                    uiFrame.setGUISpec(projectSpec.getGuiElements());
-//                }
-                // @todo Clear variables?
-
-                // Load project spec's global variables
-                for (String variable : projectSpec.getGlobalVariableToValue().keySet()) {
-                    Engine.getInstance().setVariableValue(variable, projectSpec.getGlobalVariableValue(variable));
-                }
-
-                Preferences p = Preferences.userRoot();
-                try {
-                    p.put(LAST_DRM_FILE, drmFile.getAbsolutePath());
-                    p.put(LAST_DRM_FOLDER, drmFile.getParent());
-                } catch (AccessControlException e) {
-                    LOGGER.severe("Failed to save preferences");
-                }
-                drmName.setText(drmFile.toString());
-            }
-        } catch (FileNotFoundException ex) {
-            LOGGER.severe("Exception in DRM open - DRM file not found");
-            return false;
-        } catch (InvalidClassException ex) {
-            LOGGER.severe("Exception in DRM open - DRM version mismatch");
-            return false;
-        } catch (SecurityException ex) {
-            LOGGER.severe("Exception in DRM open - error in JDK SHA implementation");
-            return false;
-        } catch (Exception ex) {
-            LOGGER.severe("Exception in DRM open: " + ex.getLocalizedMessage());
-            return false;
-        }
-        return true;
     }//GEN-LAST:event_loadDrmBActionPerformed
 
     private void runBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_runBActionPerformed
@@ -377,56 +331,11 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
     }//GEN-LAST:event_runBActionPerformed
 
     private void loadEpfBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_loadEpfBActionPerformed
-        File environmentLocation = null;
-
-        if (environmentLocation == null) {
-            Preferences p = Preferences.userRoot();
-            String lastEpfFolder = p.get(LAST_EPF_FOLDER, "");
-            JFileChooser chooser = new JFileChooser(lastEpfFolder);
-            FileNameExtensionFilter filter = new FileNameExtensionFilter("EPF specification files", "epf");
-            chooser.setFileFilter(filter);
-            int ret = chooser.showOpenDialog(null);
-            if (ret == JFileChooser.APPROVE_OPTION) {
-                environmentLocation = chooser.getSelectedFile();
-            }
+        boolean success = Mediator.getInstance().openEnvironment();
+        if (!success) {
+            JOptionPane.showMessageDialog(null, "Failed to load environment");
         }
-        loadEpf(environmentLocation);
     }//GEN-LAST:event_loadEpfBActionPerformed
-
-    public void loadEpf(File epfFile) {
-        if (epfFile == null) {
-            return;
-        }
-        EnvironmentProperties environmentProperties = null;
-        try {
-            ObjectInputStream ois = new ObjectInputStream(new FileInputStream(epfFile));
-            environmentProperties = (EnvironmentProperties) ois.readObject();
-
-            LOGGER.info("Reading environment properties at [" + epfFile + "]");
-
-            if (environmentProperties == null) {
-                LOGGER.log(Level.WARNING, "Failed to load environment properties at [" + epfFile + "]");
-                JOptionPane.showMessageDialog(null, "Environment properties failed load");
-            } else {
-                Preferences p = Preferences.userRoot();
-                try {
-                    p.put(LAST_EPF_FILE, epfFile.getAbsolutePath());
-                    p.put(LAST_EPF_FOLDER, epfFile.getParent());
-                } catch (AccessControlException e) {
-                    LOGGER.severe("Failed to save preferences");
-                }
-
-                Engine.getInstance().setEnvironmentProperties(environmentProperties);
-            }
-
-        } catch (ClassNotFoundException ex) {
-            LOGGER.severe("Class not found exception in EPF load");
-        } catch (FileNotFoundException ex) {
-            LOGGER.severe("EPF File not found");
-        } catch (IOException ex) {
-            LOGGER.severe("IO Exception on EPF load");
-        }
-    }
 
     /**
      * @param args the command line arguments

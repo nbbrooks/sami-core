@@ -12,8 +12,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import sami.allocation.ResourceAllocation;
 import sami.config.DomainConfigManager;
-import sami.environment.EnvironmentListenerInt;
-import sami.environment.EnvironmentProperties;
 import sami.event.InputEvent;
 import sami.event.TaskReassigned;
 import sami.event.TaskReleased;
@@ -21,7 +19,6 @@ import sami.event.TaskUnassigned;
 import sami.handler.EventHandlerInt;
 import sami.mission.MissionPlanSpecification;
 import sami.mission.Place;
-import sami.mission.ProjectSpecification;
 import sami.mission.Token;
 import sami.mission.Token.TokenType;
 import sami.proxy.ProxyInt;
@@ -44,7 +41,6 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
 
     private static final Logger LOGGER = Logger.getLogger(Engine.class.getName());
     // Plan related items
-    private ProjectSpecification loadedProject = null;
     private final ArrayList<PlanManager> plans = new ArrayList<PlanManager>();
     private final ArrayList<PlanManagerListenerInt> planManagerListeners = new ArrayList<PlanManagerListenerInt>();
     private final ArrayList<TaskAllocationListenerInt> taskAllocationListeners = new ArrayList<TaskAllocationListenerInt>();
@@ -60,8 +56,6 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
     private ProxyServerInt proxyServer;
     private final ArrayList<ObserverInt> observers = new ArrayList<ObserverInt>();
     private ObserverServerInt observerServer;
-    private final ArrayList<EnvironmentListenerInt> environmentListeners = new ArrayList<EnvironmentListenerInt>();
-    private EnvironmentProperties environmentProperties = null;
     private ServiceServer serviceServer;
     private sami.uilanguage.UiClientInt uiClient = null;
     private sami.uilanguage.UiServerInt uiServer = null;
@@ -74,6 +68,10 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
     private static class EngineHolder {
 
         public static final Engine INSTANCE = new Engine();
+    }
+
+    public static Engine getInstance() {
+        return EngineHolder.INSTANCE;
     }
 
     private Engine() {
@@ -138,10 +136,6 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         }
     }
 
-    public static Engine getInstance() {
-        return EngineHolder.INSTANCE;
-    }
-
     public void addListener(PlanManagerListenerInt planManagerListener) {
         synchronized (lock) {
             if (!planManagerListeners.contains(planManagerListener)) {
@@ -171,14 +165,6 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
 
     public ObserverServerInt getObserverServer() {
         return observerServer;
-    }
-
-    public ProjectSpecification getProjectSpecification() {
-        return loadedProject;
-    }
-
-    public void setProjectSpecification(ProjectSpecification loadedProject) {
-        this.loadedProject = loadedProject;
     }
 
     private PlanManager spawnMission(MissionPlanSpecification mSpec, final ArrayList<Token> startingTokens) {
@@ -512,21 +498,6 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
             }
         }
         return planName;
-    }
-
-    public void addEnvironmentLister(EnvironmentListenerInt listener) {
-        environmentListeners.add(listener);
-    }
-
-    public EnvironmentProperties getEnvironmentProperties() {
-        return environmentProperties;
-    }
-
-    public void setEnvironmentProperties(EnvironmentProperties environmentProperties) {
-        this.environmentProperties = environmentProperties;
-        for (EnvironmentListenerInt listener : environmentListeners) {
-            listener.environmentUpdated();
-        }
     }
 
     public Object getVariableValue(String variable) {

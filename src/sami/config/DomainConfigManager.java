@@ -14,13 +14,17 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 public class DomainConfigManager {
 
     private static final Logger LOGGER = Logger.getLogger(DomainConfigManager.class.getName());
+    
+    public static final String LAST_DCF_FILE = "LAST_DREAAM_DCF_NAME";
+    public static final String LAST_DCF_FOLDER = "LAST_DREAAM_DCF_FOLDER";
+    public static final String LAST_CFG_FOLDER = "LAST_DREAAM_CFG_FOLDER";
     private static volatile DomainConfigManager instance = null;
     public DomainConfig domainConfiguration = null;
 
     private DomainConfigManager() {
         // Try to load the last dcf automatically
         Preferences p = Preferences.userRoot();
-        String lastConfName = p.get(DomainConfigF.LAST_DCF_FILE, null);
+        String lastConfName = p.get(LAST_DCF_FILE, null);
         if (lastConfName != null) {
             domainConfiguration = load(lastConfName);
         }
@@ -49,7 +53,7 @@ public class DomainConfigManager {
 
     public String getPath() {
         Preferences p = Preferences.userRoot();
-        String lastConfName = p.get(DomainConfigF.LAST_DCF_FOLDER, "");
+        String lastConfName = p.get(LAST_DCF_FOLDER, "");
         JFileChooser chooser = new JFileChooser(lastConfName);
         FileNameExtensionFilter filter = new FileNameExtensionFilter("Domain configuration files", "dcf");
         chooser.setFileFilter(filter);
@@ -80,8 +84,8 @@ public class DomainConfigManager {
             // Update Preferences
             try {
                 Preferences p = Preferences.userRoot();
-                p.put(DomainConfigF.LAST_DCF_FILE, file.getAbsolutePath());
-                p.put(DomainConfigF.LAST_DCF_FOLDER, file.getParent());
+                p.put(LAST_DCF_FILE, file.getAbsolutePath());
+                p.put(LAST_DCF_FOLDER, file.getParent());
             } catch (AccessControlException e) {
                 LOGGER.severe("Failed to save preferences");
             }
