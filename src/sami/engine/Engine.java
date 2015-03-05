@@ -62,7 +62,10 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
     // Configuration of output events and the handler classes that will execute them
     private final Hashtable<Class, EventHandlerInt> handlers = new Hashtable<Class, EventHandlerInt>();
     // Keeps track of variables coming in from InputEvents, to be used in OutputEvents
-    private final HashMap<String, Object> variableNameToValue = new HashMap<String, Object>();
+    private final HashMap<String, Object> globalVariableNameToValue = new HashMap<String, Object>();
+    private final HashMap<PlanManager, HashMap<String, Object>> pmToVariableNameToValue = new HashMap<PlanManager, HashMap<String, Object>>();
+    private final HashMap<PlanManager, ArrayList<PlanManager>> pmToSubPms = new HashMap<PlanManager, ArrayList<PlanManager>>();
+    private final HashMap<PlanManager, PlanManager> subPmToParentPm = new HashMap<PlanManager, PlanManager>();
     private static final Object lock = new Object();
 
     private static class EngineHolder {
@@ -167,7 +170,7 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         return observerServer;
     }
 
-    private PlanManager spawnMission(MissionPlanSpecification mSpec, final ArrayList<Token> startingTokens) {
+    private PlanManager setUpPlanManager(MissionPlanSpecification mSpec, final ArrayList<Token> startingTokens) {
         // PlanManager will add mission's task tokens to the starting tokens
         UUID missionId = UUID.randomUUID();
         String planInstanceName = getUniquePlanName(mSpec.getName());
@@ -175,6 +178,7 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         final PlanManager pm = new PlanManager(mSpecInstance, missionId, planInstanceName, startingTokens);
         plans.add(pm);
         missionIdToPlanManager.put(missionId, pm);
+        pmToVariableNameToValue.put(pm, new HashMap<String, Object>());
 
         ArrayList<PlanManagerListenerInt> listenersCopy;
         synchronized (lock) {
@@ -183,12 +187,7 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         for (PlanManagerListenerInt listener : listenersCopy) {
             listener.planCreated(pm, mSpecInstance);
         }
-
-        (new Thread() {
-            public void run() {
-                pm.start();
-            }
-        }).start();
+        
         return pm;
     }
 
@@ -201,12 +200,33 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
             tokens.add(proxyToken);
         }
         LOGGER.info("Spawning root mission from spec [" + mSpec + "]");
-        return spawnMission(mSpec, tokens);
+        final PlanManager rootPm = setUpPlanManager(mSpec, tokens);
+        pmToSubPms.put(rootPm, new ArrayList<PlanManager>());
+
+        (new Thread() {
+            public void run() {
+                rootPm.start();
+            }
+        }).start();
+        
+        return rootPm;
     }
 
-    public PlanManager spawnSubMission(MissionPlanSpecification mSpec, final ArrayList<Token> parentMissionTokens) {
+    public PlanManager spawnSubMission(MissionPlanSpecification mSpec, PlanManager parentPm, final ArrayList<Token> parentMissionTokens) {
         LOGGER.info("Spawning child mission from spec [" + mSpec + "] with parent tokens [" + parentMissionTokens + "]");
-        return spawnMission(mSpec, parentMissionTokens);
+        final PlanManager subPm = setUpPlanManager(mSpec, parentMissionTokens);
+        subPmToParentPm.put(subPm, parentPm);
+        if (pmToSubPms.containsKey(parentPm)) {
+            pmToSubPms.get(parentPm).add(subPm);
+        }
+
+        (new Thread() {
+            public void run() {
+                subPm.start();
+            }
+        }).start();
+        
+        return subPm;
     }
 
     public PlanManager getPlanManager(UUID missionId) {
@@ -500,11 +520,83 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         return planName;
     }
 
-    public Object getVariableValue(String variable) {
-        return variableNameToValue.get(variable);
+    public Object getVariableValue(String variable, PlanManager pmScope) {
+        if (pmScope == null) {
+            return globalVariableNameToValue.get(variable);
+        } else {
+            // Check for local definition, if none, progressively check parent missions (if pmScope is a sub-mission)
+            ObjectWithDepth objectWithDepth = getParentVariableValue(variable, pmScope, 0);
+            if (objectWithDepth.object != null) {
+                return objectWithDepth.object;
+            } else {
+                // Not defined in the PM or a parent PM, check for global variable definition or else return null;
+                return globalVariableNameToValue.get(variable);
+            }
+        }
     }
 
-    public void setVariableValue(String variable, Object value) {
-        variableNameToValue.put(variable, value);
+    private ObjectWithDepth getParentVariableValue(String variable, PlanManager pmScope, int depth) {
+        if (variable == null || pmScope == null) {
+            // Shouldn't happen
+            return new ObjectWithDepth(null, Integer.MAX_VALUE);
+        }
+        if (pmToVariableNameToValue.get(pmScope).containsKey(variable)) {
+            return new ObjectWithDepth(pmToVariableNameToValue.get(pmScope).get(variable), depth);
+        } else if (subPmToParentPm.containsKey(pmScope)) {
+            return getParentVariableValue(variable, subPmToParentPm.get(pmScope), depth + 1);
+        } else {
+            return new ObjectWithDepth(null, depth);
+        }
+    }
+
+    private ObjectWithDepth getSubmissionVariableValue(String variable, PlanManager pmScope, int depth) {
+        if (variable == null || pmScope == null) {
+            // Shouldn't happen
+            return new ObjectWithDepth(null, Integer.MAX_VALUE);
+        }
+        HashMap<String, Object> variableNameToValue = pmToVariableNameToValue.get(pmScope);
+
+        if (variableNameToValue.containsKey(variable)) {
+            return new ObjectWithDepth(variableNameToValue.get(variable), depth);
+        } else {
+            ArrayList<PlanManager> subPms = pmToSubPms.get(pmScope);
+            int minDepth = Integer.MAX_VALUE;
+            Object value = null;
+            for (PlanManager subPm : subPms) {
+                ObjectWithDepth objectWithDepth = getSubmissionVariableValue(variable, subPm, depth + 1);
+                if (objectWithDepth.object != null && objectWithDepth.depth < minDepth) {
+                    minDepth = objectWithDepth.depth;
+                    value = objectWithDepth.object;
+                }
+            }
+            return new ObjectWithDepth(value, minDepth);
+        }
+    }
+
+    public void setVariableValue(String variable, Object value, PlanManager pmScope) {
+        if (pmScope == null) {
+            globalVariableNameToValue.put(variable, value);
+        } else {
+            pmToVariableNameToValue.get(pmScope).put(variable, value);
+        }
+    }
+
+    public void clearGlobalVariables() {
+        globalVariableNameToValue.clear();
+    }
+
+    public PlanManager getParentPm(PlanManager subPm) {
+        return subPmToParentPm.get(subPm);
+    }
+
+    class ObjectWithDepth {
+
+        public Object object;
+        public int depth;
+
+        public ObjectWithDepth(Object object, int depth) {
+            this.object = object;
+            this.depth = depth;
+        }
     }
 }

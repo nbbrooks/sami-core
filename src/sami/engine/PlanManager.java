@@ -104,7 +104,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         // If any output events have values to save to variables, write them
         Hashtable<String, Object> variableToValue = mSpec.getDefinedOutputEventVariables();
         for (String variableName : variableToValue.keySet()) {
-            Engine.getInstance().setVariableValue(variableName, variableToValue.get(variableName));
+            Engine.getInstance().setVariableValue(variableName, variableToValue.get(variableName), this);
         }
 
         // If there are any parameters on the events that need to be filled in, request from the operator
@@ -1944,7 +1944,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                     subMissionTokens.add(token);
 //                    }
                 }
-                PlanManager subMPlanManager = Engine.getInstance().spawnSubMission(subMSpecTemplate, subMissionTokens);
+                PlanManager subMPlanManager = Engine.getInstance().spawnSubMission(subMSpecTemplate, this, subMissionTokens);
                 planManagerToPlace.put(subMPlanManager, place);
                 if (placeToActivePlanManagers.containsKey(place)) {
                     placeToActivePlanManagers.get(place).add(subMPlanManager);
@@ -2042,7 +2042,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             // Write in values for any fields that were filled with a variable name
             if (oe.getVariables() != null) {
                 for (String variableName : oe.getVariables().keySet()) {
-                    Object variableValue = Engine.getInstance().getVariableValue(variableName);
+                    Object variableValue = Engine.getInstance().getVariableValue(variableName, this);
                     LOGGER.log(Level.FINE, "\tUsing " + variableName + " to set " + oe.getVariables().get(variableName) + " to " + variableValue);
                     if (variableValue != null) {
                         Field f = oe.getVariables().get(variableName);
@@ -2528,7 +2528,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                     eventSpec.addFieldValue(field.getName(), fieldToValues.get(field));
                     // Write definition to variable (for output event fields with a variable specified)
                     if (fieldNameToWriteVariable.containsKey(field.getName())) {
-                        Engine.getInstance().setVariableValue(fieldNameToWriteVariable.get(field.getName()), fieldToValues.get(field));
+                        Engine.getInstance().setVariableValue(fieldNameToWriteVariable.get(field.getName()), fieldToValues.get(field), this);
                     }
                 }
             }
@@ -2565,7 +2565,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                     if (definedField != null) {
                         definedField.setAccessible(true);
                         // Retrieve the value of the variable's Field object
-                        Engine.getInstance().setVariableValue(variables.get(fieldName), definedField.get(generatorEvent));
+                        Engine.getInstance().setVariableValue(variables.get(fieldName), definedField.get(generatorEvent), this);
                         LOGGER.log(Level.FINE, "\t\tVariable set " + variables.get(fieldName) + " = " + definedField.get(generatorEvent));
                     } else {
                         LOGGER.log(Level.WARNING, "\t\tGetting field failed: " + fieldName);
@@ -2781,7 +2781,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                     for (Transition checkTransition : lookup.keySet()) {
                         CheckReturn checkReturn = lookup.get(checkTransition);
                         if (checkReturn.getVariableName() != null) {
-                            if (!checkReturn.getVariableValue().equals(Engine.getInstance().getVariableValue(checkReturn.getVariableName()))) {
+                            if (!checkReturn.getVariableValue().equals(Engine.getInstance().getVariableValue(checkReturn.getVariableName(), this))) {
                                 // Return value did not match specified value - return without marking the CheckReturn as complete
                                 //  This transition will never execute
                             } else {

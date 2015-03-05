@@ -130,7 +130,15 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
             ReturnValue returnValue = (ReturnValue) oe;
             PlanManager pm = Engine.getInstance().getPlanManager(returnValue.getMissionId());
             String returnVariableName = pm.getPlanName() + MissionPlanSpecification.RETURN_SUFFIX;
-            Engine.getInstance().setVariableValue(returnVariableName, returnValue.getReturnValue());
+            // Set local scope
+            Engine.getInstance().setVariableValue(returnVariableName, returnValue.getReturnValue(), pm);
+            // Set in parent's scope
+            PlanManager parentPm = Engine.getInstance().getParentPm(pm);
+            if(parentPm != null) {
+                Engine.getInstance().setVariableValue(returnVariableName, returnValue.getReturnValue(), parentPm);
+            } else {
+                LOGGER.warning("ReturnValue on event in mission with no parent mission.");
+            }
         } else if (oe instanceof RefreshTasks) {
             for (Token token : tokens) {
                 if (token.getType() == Token.TokenType.Task) {
