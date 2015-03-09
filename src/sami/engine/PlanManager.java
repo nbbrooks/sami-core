@@ -2751,6 +2751,10 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     }
 
     @Override
+    public void planExecutedTransition(PlanManager planManager, Transition transition) {
+    }
+
+    @Override
     public void planRepaint(PlanManager planManager) {
     }
 

@@ -49,23 +49,22 @@ import sami.mission.Vertex;
 public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
 
     private static final Logger LOGGER = Logger.getLogger(MissionDisplay.class.getName());
-    private MissionMonitor missionMonitor;
-    private MissionPlanSpecification mSpec;
-    private PlanManager pm;
+    private final MissionMonitor missionMonitor;
+    private final MissionPlanSpecification mSpec;
+    private final PlanManager pm;
     ArrayList<Place> filledPlaces = new ArrayList<Place>();
     VisualizationViewer vv;
     AbstractLayout<Vertex, Edge> layout;
     Graph<Vertex, Edge> graph;
     private JPanel controlP;
     private GraphZoomScrollPane viewerP;
-    boolean minimized = false;
     // Need both preferred and max
     private final Dimension EXPANDED_DIM = new Dimension(400, 250);
     private final Dimension COLLAPSED_DIM = new Dimension(400, 30);
     private final Dimension CONTROL_BAR_DIM = new Dimension(400, 30);
     private final Dimension VIEWER_DIM = new Dimension(400, 190);
     private JButton visibilityB, abortB, followPlanB, snapViewB;
-    private boolean followPlan = false;
+    private boolean collapsed = false, followPlan = false;
     private JLabel eventCounterL, nameL;
     private int missedEventCounter = 0;
 
@@ -82,14 +81,18 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
     Hashtable<Place, ArrayList<Transition>> placeToFirstTransitions = new Hashtable<Place, ArrayList<Transition>>();
 
     public MissionDisplay(MissionMonitor missionMonitor, MissionPlanSpecification mSpec, PlanManager pm) {
-        System.out.println("MissionDisplay");
         this.missionMonitor = missionMonitor;
         this.mSpec = mSpec;
         this.pm = pm;
 
+        // Initialize sub-graph visibility lookups
         initTables();
+        // Create control button panel
         createControlPanel();
+        // Create mission view panel
         createViewerPanel();
+        loadGraph();
+
         setLayout(new BorderLayout());
         add(controlP, BorderLayout.NORTH);
         add(viewerP, BorderLayout.CENTER);
@@ -317,12 +320,12 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
     }
 
     private void createViewerPanel() {
-        // Create graph viewer
-        graph = new SparseMultigraph<Vertex, Edge>();
-        layout = new DAGLayout<Vertex, Edge>(graph); // StaticLayout<Place, Transition>(graph, new Dimension(600, 600));
+        // Create visualization
+        layout = new DAGLayout<Vertex, Edge>(new SparseMultigraph<Vertex, Edge>());
         vv = new VisualizationViewer<Vertex, Edge>(layout);
+
+        // Visualization settings
         vv.setBackground(GuiConfig.BACKGROUND_COLOR);
-        loadGraph();
 
         // EDGE
         vv.getRenderContext().setArrowDrawPaintTransformer(new Transformer<Edge, Paint>() {
@@ -536,59 +539,27 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
                     }
                 });
 
+        // Add mouse listener to visualization for panning and zooming the Petri Net
         MyMouseListener mml = new MyMouseListener();
         vv.addMouseListener(mml);
         vv.addMouseMotionListener(mml);
         vv.addMouseWheelListener(mml);
 
-//        if (mSpec.getGraph() != null) {
-//            SparseMultigraph uGraph = (SparseMultigraph) mSpec.getGraph();
-//            for (Object o : uGraph.getVertices()) {
-//                graph.addVertex((Vertex) o);
-//            }
-//            for (Object o : uGraph.getEdges()) {
-//                Edge e = (Edge) o;
-//                graph.addEdge(e, e.getStart(), e.getEnd());
-//            }
-//
-//            MultiLayerTransformer mlt = vv.getRenderContext().getMultiLayerTransformer();
-//            mlt.getTransformer(Layer.LAYOUT).getTransform().setTransform(mSpec.getLayoutTransform());
-//            mlt.getTransformer(Layer.VIEW).getTransform().setTransform(mSpec.getView());
-//
-//            layout.setGraph(graph);
-//            mSpec.updateThisLayout(layout);
-//            vv.repaint();
-//        }
+        // Encapsulate vizualization in scroll pane for buton-based panning and zooming
         viewerP = new GraphZoomScrollPane(vv);
         viewerP.setPreferredSize(VIEWER_DIM);
         viewerP.setMaximumSize(VIEWER_DIM);
         viewerP.revalidate();
     }
+    
+    private void loadGraph() {
+        // Apply vertice locations
+        mSpec.updateLayout(layout);
+        graph = mSpec.getGraph();
+        layout.setGraph(graph);
 
-    public void loadGraph() {
-        if (mSpec.getGraph() != null) {
-            SparseMultigraph uGraph = (SparseMultigraph) mSpec.getGraph();
-//            this.graph = new DirectedSparseGraph<Vertex, Edge>();
-            for (Object o : uGraph.getVertices()) {
-                graph.addVertex((Vertex) o);
-            }
-            for (Object o : uGraph.getEdges()) {
-                Edge edge = (Edge) o;
-                graph.addEdge(edge, edge.getStart(), edge.getEnd());
-            }
-
-            MultiLayerTransformer mlt = vv.getRenderContext().getMultiLayerTransformer();
-//            mlt.getTransformer(Layer.LAYOUT).getTransform().setTransform(mSpec.getLayoutTransform());
-//            mlt.getTransformer(Layer.VIEW).getTransform().setTransform(mSpec.getView());
-            layout.setGraph(graph);
-            mSpec.updateThisLayout(layout);
-
-            initGraphVisibility();
-
-//            mlt.getTransformer(Layer.VIEW).getTransform().setToIdentity();
-            snapViewToVisible();
-            vv.repaint();
-        }
+        initGraphVisibility();
+        snapViewToVisible();
     }
 
     private void createControlPanel() {
@@ -615,11 +586,7 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
                     @Override
                     public void actionPerformed(ActionEvent ae) {
                         toggleMissionViewer();
-                        if (minimized) {
-                            visibilityB.setText("Collapsed: ON");
-                        } else {
-                            visibilityB.setText("Collapsed: OFF");
-                        }
+                        visibilityB.setText("Collapsed: " + (collapsed ? "ON" : "OFF"));
                     }
                 });
         // Plan "follow" toggle button
@@ -630,6 +597,7 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
                     @Override
                     public void actionPerformed(ActionEvent ae) {
                         toggleFollowPlan();
+                        followPlanB.setText("Follow: " + (followPlan ? "ON" : "OFF"));
                     }
                 });
         // Snap view button
@@ -682,8 +650,8 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
     }
 
     public void toggleMissionViewer() {
-        minimized = !minimized;
-        if (minimized) {
+        collapsed = !collapsed;
+        if (collapsed) {
             hideMissionViewer();
         } else {
             showMissionViewer();
@@ -706,7 +674,6 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
 
     private void toggleFollowPlan() {
         followPlan = !followPlan;
-        followPlanB.setText("Follow: " + (followPlan ? "ON" : "OFF"));
         if (followPlan) {
             snapViewToActive();
             vv.repaint();

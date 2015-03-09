@@ -266,7 +266,7 @@ public class MissionPlanSpecification implements java.io.Serializable {
      *
      * @param layout The Layout object to be updated
      */
-    public void updateThisLayout(AbstractLayout<Vertex, Edge> layout) {
+    public void updateLayout(AbstractLayout<Vertex, Edge> layout) {
         for (Vertex v : locations.keySet()) {
             if (locations.get(v) != null) {
                 layout.setLocation(v, locations.get(v));
