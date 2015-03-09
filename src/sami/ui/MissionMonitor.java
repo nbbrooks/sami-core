@@ -28,6 +28,7 @@ import sami.mission.MissionPlanSpecification;
 import sami.mission.Place;
 import sami.mission.ProjectListenerInt;
 import sami.mission.ProjectSpecification;
+import sami.mission.Transition;
 import sami.service.ServiceServer;
 import sami.uilanguage.LocalUiClientServer;
 import sami.uilanguage.UiFrame;
@@ -381,6 +382,10 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
 
     @Override
     public void planLeftPlace(PlanManager planManager, Place p) {
+    }
+
+    @Override
+    public void planExecutedTransition(PlanManager planManager, Transition transition) {
     }
 
     @Override

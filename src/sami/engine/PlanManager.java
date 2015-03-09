@@ -1743,8 +1743,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
         // Reset status of input events so if we loop back to this incoming place the input events must occur again for the transition to fire again
         transition.clearInputEventStatus();
-        // Repaint viewer
-        Engine.getInstance().repaintPlan(this);
+        // Tell watchers thet we have updates
+        Engine.getInstance().executedTransition(this, transition);
 
         ////
         // Now we can check the transitions we added tokens to

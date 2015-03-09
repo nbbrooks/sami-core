@@ -21,6 +21,7 @@ import sami.mission.MissionPlanSpecification;
 import sami.mission.Place;
 import sami.mission.Token;
 import sami.mission.Token.TokenType;
+import sami.mission.Transition;
 import sami.proxy.ProxyInt;
 import sami.proxy.ProxyServerInt;
 import sami.proxy.ProxyServerListenerInt;
@@ -404,6 +405,16 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         }
         for (PlanManagerListenerInt listener : listenersCopy) {
             listener.planLeftPlace(planManager, p);
+        }
+    }
+
+    public void executedTransition(PlanManager planManager, Transition t) {
+        ArrayList<PlanManagerListenerInt> listenersCopy;
+        synchronized (lock) {
+            listenersCopy = (ArrayList<PlanManagerListenerInt>) planManagerListeners.clone();
+        }
+        for (PlanManagerListenerInt listener : listenersCopy) {
+            listener.planExecutedTransition(planManager, t);
         }
     }
 

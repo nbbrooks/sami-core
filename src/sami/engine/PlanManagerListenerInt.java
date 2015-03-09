@@ -2,6 +2,7 @@ package sami.engine;
 
 import sami.mission.MissionPlanSpecification;
 import sami.mission.Place;
+import sami.mission.Transition;
 
 /**
  *
@@ -16,6 +17,8 @@ public interface PlanManagerListenerInt {
     public void planEnteredPlace(PlanManager planManager, Place place);
 
     public void planLeftPlace(PlanManager planManager, Place place);
+
+    public void planExecutedTransition(PlanManager planManager, Transition transition);
     
     public void planRepaint(PlanManager planManager);
 
