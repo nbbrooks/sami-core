@@ -252,7 +252,7 @@ public class Mediator {
             if (chooser.getSelectedFile().getName().endsWith(".epf")) {
                 environmentPropertiesLocation = chooser.getSelectedFile();
             } else {
-                environmentPropertiesLocation = new File(chooser.getSelectedFile().getAbsolutePath() + ".drm");
+                environmentPropertiesLocation = new File(chooser.getSelectedFile().getAbsolutePath() + ".epf");
             }
             LOGGER.info("Saving as: " + environmentPropertiesLocation.toString());
             saveEnvironment();
