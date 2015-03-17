@@ -18,6 +18,7 @@ import sami.event.InputEvent;
 import sami.event.MissingParamsReceived;
 import sami.event.MissingParamsRequest;
 import sami.event.OutputEvent;
+import sami.event.RedefinedVariablesReceived;
 import sami.event.ReflectedEventSpecification;
 import sami.event.ReflectionHelper;
 import sami.handler.EventHandlerInt;
@@ -131,14 +132,11 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
             // Make list of missing/editable parameter fields
             Hashtable<ReflectedEventSpecification, Hashtable<Field, String>> eventSpecToFieldDescriptions = new Hashtable<ReflectedEventSpecification, Hashtable<Field, String>>();
-            Hashtable<ReflectedEventSpecification, ArrayList<Field>> eventSpecToFields = new Hashtable<ReflectedEventSpecification, ArrayList<Field>>();
             for (ReflectedEventSpecification eventSpec : editableEventSpecs) {
                 LOGGER.fine("Event spec for " + eventSpec.getClassName() + " has missing/editable fields");
                 // Hashtable entries for this eventSpec
                 Hashtable<Field, String> fieldDescriptions = new Hashtable<Field, String>();
-                ArrayList<Field> fields = new ArrayList<Field>();
                 eventSpecToFieldDescriptions.put(eventSpec, fieldDescriptions);
-                eventSpecToFields.put(eventSpec, fields);
                 // Defined but editable values
                 HashMap<String, Object> fieldNameToValue = eventSpec.getFieldValues();
                 HashMap<String, String> fieldNameToReadVariable = eventSpec.getReadVariables();
@@ -160,7 +158,6 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                 if (missingField != null) {
                                     missingCount++;
                                     fieldDescriptions.put(missingField, "");
-                                    fields.add(missingField);
                                 } else {
                                     LOGGER.severe("Could not find field \"" + fieldName + "\" in class " + eventSpecClass.getSimpleName() + " or any super class");
                                 }
@@ -177,7 +174,6 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                 Field editableField = ReflectionHelper.getField(eventSpecClass, fieldName);
                                 if (editableField != null) {
                                     fieldDescriptions.put(editableField, "");
-                                    fields.add(editableField);
                                 } else {
                                     LOGGER.severe("Could not find field \"" + fieldName + "\" in class " + eventSpecClass.getSimpleName() + " or any super class");
                                 }
@@ -753,7 +749,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             }
             outPlaceToInPlaceToTokenAdd.put(outPlace, inPlaceToTokenAdd);
             Hashtable<InputEvent, boolean[]> ieToRelTokenAddMasterClone = new Hashtable<InputEvent, boolean[]>();
-            for(InputEvent ie : ieToRelTokenAddMaster.keySet()) {
+            for (InputEvent ie : ieToRelTokenAddMaster.keySet()) {
                 ieToRelTokenAddMasterClone.put(ie, new boolean[ieToRelTokenAddMaster.get(ie).length]);
             }
             outPlaceToIeToRelTokenAdd.put(outPlace, ieToRelTokenAddMasterClone);
@@ -2549,7 +2545,15 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             }
         }
 
-        // 2b - Assign any variable values returned in the generator event
+        // 2b - Assign any variables that were defined by the operator and have now been received
+        if (generatorEvent instanceof RedefinedVariablesReceived) {
+            RedefinedVariablesReceived rvr = (RedefinedVariablesReceived) generatorEvent;
+            for (String variableName : rvr.getVariableNameToDefinition().keySet()) {
+                Engine.getInstance().setVariableValue(variableName, rvr.getVariableNameToDefinition().get(variableName), null);
+            }
+        }
+
+        // 2c - Assign any variable values returned in the generator event
         // The variables are on the InputEvent, because that has come from the spec, but the values are in the generator event
         HashMap<String, String> variables = updatedParamEvent.getWriteVariables();
         if (variables != null) {

@@ -148,8 +148,41 @@ public class ProjectSpecification implements java.io.Serializable {
         this.testCases = testCases;
     }
 
+    // @todo temporary method until VariableName scoping is implemented
+    public ArrayList<String> getVariables() {
+        ArrayList<String> useableVariableNames = new ArrayList<String>();
+
+        // Add all  mission variables
+        for (MissionPlanSpecification mSpec : allMissionPlans) {
+            if (mSpec.getGraph() != null && mSpec.getGraph().getEdges() != null) {
+                for (Vertex v : mSpec.getGraph().getVertices()) {
+                    if (mSpec.getEventSpecList(v) != null) {
+                        for (ReflectedEventSpecification eventSpec : mSpec.getEventSpecList(v)) {
+                            HashMap<String, String> writeVariables = eventSpec.getWriteVariables();
+                            for (String writeFieldName : writeVariables.keySet()) {
+                                String writeVariable = writeVariables.get(writeFieldName);
+                                if (!useableVariableNames.contains(writeVariable)) {
+                                    useableVariableNames.add(writeVariable);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Add all global variables
+        useableVariableNames.addAll(globalVariables.keySet());
+
+        return useableVariableNames;
+    }
+
     public ArrayList<String> getVariables(Field targetField) {
         ArrayList<String> useableVariableNames = new ArrayList<String>();
+        if (targetField == null) {
+            LOGGER.severe("Called getVariables with targetField NULL");
+            return useableVariableNames;
+        }
 
         // Add compatible mission variables
         for (MissionPlanSpecification mSpec : allMissionPlans) {
@@ -198,7 +231,7 @@ public class ProjectSpecification implements java.io.Serializable {
             }
         }
 
-        // Add commpatible global variables
+        // Add compatible global variables
         for (String variable : globalVariables.keySet()) {
             Object globalValue = globalVariables.get(variable);
             boolean match = false;

@@ -148,7 +148,7 @@ public class Mediator {
             return false;
         }
         try {
-            Logger.getLogger(this.getClass().getName()).log(Level.INFO, "Reading: " + location.toString());
+            LOGGER.info("Reading: " + location.toString());
             ObjectInputStream ois = new ObjectInputStream(new FileInputStream(location));
             ProjectSpecification projectSpecTemp = (ProjectSpecification) ois.readObject();
 

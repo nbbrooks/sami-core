@@ -253,7 +253,7 @@ public class ReflectedEventSpecification implements java.io.Serializable {
                     } else {
                         field.set(event, value);
                         if (value != null && field.get(event) == null) {
-                            LOGGER.log(Level.SEVERE, "Instantiation of field " + field.getName() + " on Event " + event.toString() + " failed!");
+                            LOGGER.severe("Instantiation of field " + field.getName() + " on Event " + event.toString() + " failed!");
                         }
                     }
                 }

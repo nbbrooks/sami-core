@@ -11,13 +11,11 @@ import java.util.UUID;
  */
 public class ParamsSelectedMessage extends CreationDoneMessage {
 
-    protected Hashtable<ReflectedEventSpecification, Hashtable<Field, Object>> eventSpecToFieldValues;
-
     public ParamsSelectedMessage(UUID relevantToUiMessageId, UUID relevantOutputEventId, UUID missionId, Hashtable<ReflectedEventSpecification, Hashtable<Field, Object>> eventSpecToFieldValues) {
         super(relevantToUiMessageId, relevantOutputEventId, missionId, eventSpecToFieldValues);
     }
-    
+
     public String toString() {
-        return "ParamsSelectedMessage, eventSpecToFieldValues: " + eventSpecToFieldValues;
+        return "ParamsSelectedMessage [" + (eventSpecToFieldValues != null ? eventSpecToFieldValues.toString() : "null") + "]";
     }
 }

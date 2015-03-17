@@ -188,7 +188,7 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         for (PlanManagerListenerInt listener : listenersCopy) {
             listener.planCreated(pm, mSpecInstance);
         }
-        
+
         return pm;
     }
 
@@ -209,7 +209,7 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
                 rootPm.start();
             }
         }).start();
-        
+
         return rootPm;
     }
 
@@ -226,7 +226,7 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
                 subPm.start();
             }
         }).start();
-        
+
         return subPm;
     }
 

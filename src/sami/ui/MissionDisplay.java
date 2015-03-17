@@ -415,13 +415,16 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
         });
 
         // VERTEX
-        vv.getRenderContext()
-                .setVertexDrawPaintTransformer(new Transformer<Vertex, Paint>() {
+        vv.getRenderContext().setVertexDrawPaintTransformer(new Transformer<Vertex, Paint>() {
                     @Override
                     public Paint transform(Vertex vertex) {
                         switch (vertex.getVisibilityMode()) {
                             case Full:
-                                return GuiConfig.VERTEX_COLOR;
+                                if (vertex instanceof Place && ((Place) vertex).getIsActive()) {
+                                    return GuiConfig.SEL_VERTEX_COLOR;
+                                } else {
+                                    return GuiConfig.VERTEX_COLOR;
+                                }
                             case Background:
                                 return GuiConfig.BKGND_VERTEX_COLOR;
                             case None:
@@ -431,8 +434,7 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
                     }
                 });
 
-        vv.getRenderContext()
-                .setVertexFillPaintTransformer(new Transformer<Vertex, Paint>() {
+        vv.getRenderContext().setVertexFillPaintTransformer(new Transformer<Vertex, Paint>() {
                     @Override
                     public Paint transform(Vertex vertex) {
                         switch (vertex.getVisibilityMode()) {
@@ -459,8 +461,7 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
                     }
                 });
 
-        vv.getRenderContext()
-                .setVertexFontTransformer(new Transformer<Vertex, Font>() {
+        vv.getRenderContext().setVertexFontTransformer(new Transformer<Vertex, Font>() {
                     @Override
                     public Font transform(Vertex vertex) {
                         switch (vertex.getVisibilityMode()) {
@@ -506,10 +507,18 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
             public Stroke transform(Vertex vertex) {
                 switch (vertex.getVisibilityMode()) {
                     case Full:
-                        if (vertex.getFunctionMode() == Vertex.FunctionMode.Recovery) {
-                            return GuiConfig.RECOVERY_STROKE;
+                        if (vertex instanceof Place && ((Place) vertex).getIsActive()) {
+                            if (vertex.getFunctionMode() == Vertex.FunctionMode.Recovery) {
+                                return GuiConfig.RECOVERY_STROKE_SEL;
+                            } else {
+                                return GuiConfig.NOMINAL_STROKE_SEL;
+                            }
                         } else {
-                            return GuiConfig.NOMINAL_STROKE;
+                            if (vertex.getFunctionMode() == Vertex.FunctionMode.Recovery) {
+                                return GuiConfig.RECOVERY_STROKE;
+                            } else {
+                                return GuiConfig.NOMINAL_STROKE;
+                            }
                         }
                     case Background:
                         if (vertex.getFunctionMode() == Vertex.FunctionMode.Recovery) {

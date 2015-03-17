@@ -1,6 +1,5 @@
 package sami.event;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Hashtable;
@@ -10,7 +9,7 @@ import java.util.UUID;
  *
  * @author nbb
  */
-public class MissingParamsReceived extends InputEvent {
+public class RedefinedVariablesReceived extends InputEvent {
 
     // List of fields for which a definition should be provided
     public static final ArrayList<String> fieldNames = new ArrayList<String>();
@@ -21,24 +20,24 @@ public class MissingParamsReceived extends InputEvent {
     // Description for each variable
     public static final HashMap<String, String> variableNameToDescription = new HashMap<String, String>();
     // Fields
-    protected Hashtable<ReflectedEventSpecification, Hashtable<Field, Object>> eventSpecToFieldValues;
+    protected Hashtable<String, Object> variableNameToDefinition;
 
-    public MissingParamsReceived() {
+    public RedefinedVariablesReceived() {
         id = UUID.randomUUID();
     }
 
-    public MissingParamsReceived(UUID relevantOutputEventId, UUID missionId, Hashtable<ReflectedEventSpecification, Hashtable<Field, Object>> eventSpecToFieldValues) {
+    public RedefinedVariablesReceived(UUID relevantOutputEventId, UUID missionId, Hashtable<String, Object> variableNameToDefinition) {
         this.relevantOutputEventId = relevantOutputEventId;
         this.missionId = missionId;
-        this.eventSpecToFieldValues = eventSpecToFieldValues;
+        this.variableNameToDefinition = variableNameToDefinition;
         id = UUID.randomUUID();
     }
 
-    public Hashtable<ReflectedEventSpecification, Hashtable<Field, Object>> getEventSpecToFieldValues() {
-        return eventSpecToFieldValues;
+    public Hashtable<String, Object> getVariableNameToDefinition() {
+        return variableNameToDefinition;
     }
 
     public String toString() {
-        return "MissingParamsReceived [" + (eventSpecToFieldValues != null ? eventSpecToFieldValues.toString() : "null") + "]";
+        return "RedefinedVariablesReceived [" + (variableNameToDefinition != null ? variableNameToDefinition.toString() : "null") + "]";
     }
 }

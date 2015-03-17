@@ -189,9 +189,9 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
         for (Object m : spec.getRootMissionPlans()) {
             missionListModel.addElement(m);
         }
+        Engine.getInstance().clearGlobalVariables();
         for (String variable : spec.getGlobalVariableToValue().keySet()) {
             // @todo should Engine implement ProjectListenerInt and do this itself?
-            Engine.getInstance().clearGlobalVariables();
             Engine.getInstance().setVariableValue(variable, spec.getGlobalVariableValue(variable), null);
         }
         drmName.setText(Mediator.getInstance().getProjectFile().toString());
