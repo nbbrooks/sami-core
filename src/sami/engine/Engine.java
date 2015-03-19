@@ -388,7 +388,17 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         }
     }
 
-    public void enterPlace(PlanManager planManager, Place p) {
+    public void instantiated(PlanManager planManager) {
+        ArrayList<PlanManagerListenerInt> listenersCopy;
+        synchronized (lock) {
+            listenersCopy = (ArrayList<PlanManagerListenerInt>) planManagerListeners.clone();
+        }
+        for (PlanManagerListenerInt listener : listenersCopy) {
+            listener.planInstantiated(planManager);
+        }
+    }
+
+    public void enteredPlace(PlanManager planManager, Place p) {
         ArrayList<PlanManagerListenerInt> listenersCopy;
         synchronized (lock) {
             listenersCopy = (ArrayList<PlanManagerListenerInt>) planManagerListeners.clone();
@@ -398,7 +408,7 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         }
     }
 
-    public void leavePlace(PlanManager planManager, Place p) {
+    public void leftPlace(PlanManager planManager, Place p) {
         ArrayList<PlanManagerListenerInt> listenersCopy;
         synchronized (lock) {
             listenersCopy = (ArrayList<PlanManagerListenerInt>) planManagerListeners.clone();

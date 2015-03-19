@@ -377,6 +377,10 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
     }
 
     @Override
+    public void planInstantiated(PlanManager planManager) {
+    }
+
+    @Override
     public void planEnteredPlace(PlanManager planManager, Place p) {
     }
 

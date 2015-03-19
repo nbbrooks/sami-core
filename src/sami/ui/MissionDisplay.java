@@ -117,6 +117,10 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
     }
 
     @Override
+    public void planInstantiated(PlanManager planManager) {
+    }
+
+    @Override
     public void planEnteredPlace(PlanManager planManager, Place p) {
         if (planManager != pm) {
             return;
@@ -416,64 +420,64 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
 
         // VERTEX
         vv.getRenderContext().setVertexDrawPaintTransformer(new Transformer<Vertex, Paint>() {
-                    @Override
-                    public Paint transform(Vertex vertex) {
-                        switch (vertex.getVisibilityMode()) {
-                            case Full:
-                                if (vertex instanceof Place && ((Place) vertex).getIsActive()) {
-                                    return GuiConfig.SEL_VERTEX_COLOR;
-                                } else {
-                                    return GuiConfig.VERTEX_COLOR;
-                                }
-                            case Background:
-                                return GuiConfig.BKGND_VERTEX_COLOR;
-                            case None:
-                            default:
-                                return null;
+            @Override
+            public Paint transform(Vertex vertex) {
+                switch (vertex.getVisibilityMode()) {
+                    case Full:
+                        if (vertex instanceof Place && ((Place) vertex).getIsActive()) {
+                            return GuiConfig.SEL_VERTEX_COLOR;
+                        } else {
+                            return GuiConfig.VERTEX_COLOR;
                         }
-                    }
-                });
+                    case Background:
+                        return GuiConfig.BKGND_VERTEX_COLOR;
+                    case None:
+                    default:
+                        return null;
+                }
+            }
+        });
 
         vv.getRenderContext().setVertexFillPaintTransformer(new Transformer<Vertex, Paint>() {
-                    @Override
-                    public Paint transform(Vertex vertex) {
-                        switch (vertex.getVisibilityMode()) {
-                            case Full:
-                                if (vertex instanceof Place) {
-                                    Place place = (Place) vertex;
-                                    if (place.isStart()) {
-                                        return GuiConfig.START_PLACE_COLOR;
-                                    } else if (place.isEnd()) {
-                                        return GuiConfig.END_PLACE_COLOR;
-                                    } else {
-                                        return GuiConfig.PLACE_COLOR;
-                                    }
-                                } else if (vertex instanceof Transition) {
-                                    return GuiConfig.TRANSITION_COLOR;
-                                }
-                                return null;
-                            case Background:
-                                return GuiConfig.BKGND_VERTEX_COLOR;
-                            case None:
-                            default:
-                                return null;
+            @Override
+            public Paint transform(Vertex vertex) {
+                switch (vertex.getVisibilityMode()) {
+                    case Full:
+                        if (vertex instanceof Place) {
+                            Place place = (Place) vertex;
+                            if (place.isStart()) {
+                                return GuiConfig.START_PLACE_COLOR;
+                            } else if (place.isEnd()) {
+                                return GuiConfig.END_PLACE_COLOR;
+                            } else {
+                                return GuiConfig.PLACE_COLOR;
+                            }
+                        } else if (vertex instanceof Transition) {
+                            return GuiConfig.TRANSITION_COLOR;
                         }
-                    }
-                });
+                        return null;
+                    case Background:
+                        return GuiConfig.BKGND_VERTEX_COLOR;
+                    case None:
+                    default:
+                        return null;
+                }
+            }
+        });
 
         vv.getRenderContext().setVertexFontTransformer(new Transformer<Vertex, Font>() {
-                    @Override
-                    public Font transform(Vertex vertex) {
-                        switch (vertex.getVisibilityMode()) {
-                            case Full:
-                            case Background:
-                                return GuiConfig.TEXT_FONT;
-                            case None:
-                            default:
-                                return null;
-                        }
-                    }
-                });
+            @Override
+            public Font transform(Vertex vertex) {
+                switch (vertex.getVisibilityMode()) {
+                    case Full:
+                    case Background:
+                        return GuiConfig.TEXT_FONT;
+                    case None:
+                    default:
+                        return null;
+                }
+            }
+        });
 
         vv.getRenderContext().setVertexLabelTransformer(new Transformer<Vertex, String>() {
             @Override

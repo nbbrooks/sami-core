@@ -14,12 +14,14 @@ public interface PlanManagerListenerInt {
 
     public void planStarted(PlanManager planManager);
 
+    public void planInstantiated(PlanManager planManager);
+
     public void planEnteredPlace(PlanManager planManager, Place place);
 
     public void planLeftPlace(PlanManager planManager, Place place);
 
     public void planExecutedTransition(PlanManager planManager, Transition transition);
-    
+
     public void planRepaint(PlanManager planManager);
 
     public void planFinished(PlanManager planManager);

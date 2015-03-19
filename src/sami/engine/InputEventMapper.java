@@ -4,7 +4,6 @@ import sami.event.GeneratedEventListenerInt;
 import sami.event.GeneratedInputEventSubscription;
 import sami.event.InputEvent;
 import java.util.Hashtable;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 import sami.service.ServiceServer;
 
@@ -13,6 +12,8 @@ import sami.service.ServiceServer;
  * @author pscerri
  */
 public class InputEventMapper {
+
+    private static final Logger LOGGER = Logger.getLogger(InputEventMapper.class.getName());
 
     private static class InputEventMapperHolder {
 
@@ -48,7 +49,10 @@ public class InputEventMapper {
      * @Override
      */
     public void registerEvent(InputEvent paramEvent, GeneratedEventListenerInt listener) {
-        Logger.getLogger(this.getClass().getName()).log(Level.FINE, "Registering event " + paramEvent, this);
+        LOGGER.fine("Registering event " + paramEvent);
+        if (eventToSub.containsKey(paramEvent)) {
+            LOGGER.warning("\tRegistering event " + paramEvent + ", but it is already linked to listener " + eventToSub.get(paramEvent) + ": overwriting with listener " + listener);
+        }
 
         GeneratedInputEventSubscription sub = new GeneratedInputEventSubscription(paramEvent, listener);
         eventToSub.put(paramEvent, sub);

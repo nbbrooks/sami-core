@@ -17,6 +17,7 @@ import sami.event.GeneratedEventListenerInt;
 import sami.event.InputEvent;
 import sami.event.MissingParamsReceived;
 import sami.event.MissingParamsRequest;
+import sami.event.OperatorInterruptReceived;
 import sami.event.OutputEvent;
 import sami.event.RedefinedVariablesReceived;
 import sami.event.ReflectedEventSpecification;
@@ -239,7 +240,10 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         } else {
             LOGGER.info("No missing params, instantiating plan");
             if (!mSpec.isInstantiated()) {
-                mSpec.instantiate(missionId);
+                instantiatePlan();
+
+                // Tell listeners we have instantiated the plan
+                Engine.getInstance().instantiated(this);
             }
         }
 
@@ -1812,7 +1816,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             }
 
             // Tell watchers thet we have updates
-            Engine.getInstance().leavePlace(this, place);
+            Engine.getInstance().leftPlace(this, place);
         }
     }
 
@@ -1905,18 +1909,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         table.put(((CheckReturn) inputEvent).getMSpec(), (CheckReturn) inputEvent);
                     }
                 }
-                if (!place.getIsActive()
-                        && !inputEventToTransitionMap.containsKey(inputEvent)) {
-                    // Register/re-register input events on transition
-                    LOGGER.log(Level.FINE, "\tAdding <" + inputEvent + "," + transition + "> to inputEventToTransitionMap");
-                    inputEvent.setActive(true);
-                    transition.updateTag();
-                    // Synchronization causes deadlocks somehow
-//                    synchronized (activeInputEvents) {
-                    activeInputEvents.add(inputEvent);
-//                    }
-                    InputEventMapper.getInstance().registerEvent(inputEvent, this);
-                    inputEventToTransitionMap.put(inputEvent, transition);
+                if (!place.getIsActive()) {
+                    registerInputEvent(inputEvent, transition);
                 }
             }
         }
@@ -1990,7 +1984,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         }
 
         // 6 - Tell listeners we have entered a place
-        Engine.getInstance().enterPlace(this, place);
+        Engine.getInstance().enteredPlace(this, place);
 
         // 7 - It is now safe to execute transitions leading out of this place
         synchronized (placesBeingEntered) {
@@ -2476,13 +2470,11 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
         LOGGER.log(detailsLogLevel, "\tResult of comparisons: add " + clonedEventsToAdd.size() + ", update " + matchingEvents.size());
 
-        for (InputEvent ie : clonedEventsToAdd.keySet()) {
-            LOGGER.log(detailsLogLevel, "\t\tAdding " + ie);
-            Transition t = clonedEventsToAdd.get(ie);
-            ie.setActive(true);
-            t.addInputEvent(ie);
-            activeInputEvents.add(ie);
-            inputEventToTransitionMap.put(ie, t);
+        for (InputEvent clonedEvent : clonedEventsToAdd.keySet()) {
+            LOGGER.log(detailsLogLevel, "\t\tAdding " + clonedEvent);
+            Transition t = clonedEventsToAdd.get(clonedEvent);
+            t.addInputEvent(clonedEvent);
+            registerInputEvent(clonedEvent, t);
         }
         for (InputEvent ie : matchingEvents) {
             LOGGER.log(detailsLogLevel, "\t\tUpdating " + ie);
@@ -2496,6 +2488,10 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     }
 
     public void processUpdatedParamEvent(InputEvent updatedParamEvent) {
+        Level detailsLogLevel = PROCESS_E_LVL;
+        if (updatedParamEvent.toString().contains("ProxyPoseUpdated")) {
+            detailsLogLevel = Level.FINEST;
+        }
         LOGGER.log(Level.FINE, "@STAT Processing updated param event " + updatedParamEvent + " with UUID " + updatedParamEvent.getId() + " and relevant proxy " + updatedParamEvent.getRelevantProxyList());
 
         InputEvent generatorEvent = updatedParamEvent.getGeneratorEvent();
@@ -2507,14 +2503,14 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
         // 1 - Check if there is an attached allocation to assign
         if (generatorEvent.getAllocation() != null) {
-            LOGGER.log(Level.FINE, "\tInputEvent " + updatedParamEvent + " tied to " + transition + " occurred with an attach allocation: " + generatorEvent.getAllocation().toString());
+            LOGGER.log(detailsLogLevel, "\tInputEvent " + updatedParamEvent + " tied to " + transition + " occurred with an attach allocation: " + generatorEvent.getAllocation().toString());
             Engine.getInstance().applyAllocation(generatorEvent.getAllocation());
         }
 
         // 2a - Assign any missing instance params that were missing and have now been received
         if (generatorEvent instanceof MissingParamsReceived) {
             MissingParamsReceived paramsReceived = (MissingParamsReceived) generatorEvent;
-            LOGGER.log(Level.FINE, "Writing parameters from MissingParamsReceived: " + paramsReceived);
+            LOGGER.log(detailsLogLevel, "Writing parameters from MissingParamsReceived: " + paramsReceived);
             Hashtable<ReflectedEventSpecification, Hashtable<Field, Object>> eventSpecToFieldValues = paramsReceived.getEventSpecToFieldValues();
             for (ReflectedEventSpecification eventSpec : eventSpecToFieldValues.keySet()) {
                 Hashtable<Field, Object> fieldToValues = eventSpecToFieldValues.get(eventSpec);
@@ -2541,7 +2537,10 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             //@todo what if we still have missing params that the operator decided not to fill out?
             // Should we instantiate the plan now?
             if (!mSpec.isInstantiated()) {
-                mSpec.instantiate(missionId);
+                instantiatePlan();
+
+                // Tell listeners we have instantiated the plan
+                Engine.getInstance().instantiated(this);
             }
         }
 
@@ -2557,10 +2556,10 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         // The variables are on the InputEvent, because that has come from the spec, but the values are in the generator event
         HashMap<String, String> variables = updatedParamEvent.getWriteVariables();
         if (variables != null) {
-            LOGGER.log(Level.FINE, "\tInputEvent " + updatedParamEvent + " tied to " + transition + " occurred with variables: " + variables);
+            LOGGER.log(detailsLogLevel, "\tInputEvent " + updatedParamEvent + " tied to " + transition + " occurred with variables: " + variables);
 
             for (String fieldName : variables.keySet()) {
-                LOGGER.log(Level.FINE, "\toccurred looking at variable " + fieldName);
+                LOGGER.log(detailsLogLevel, "\toccurred looking at variable " + fieldName);
                 // For each variable in the response event
                 Field definedField;
                 try {
@@ -2570,9 +2569,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         definedField.setAccessible(true);
                         // Retrieve the value of the variable's Field object
                         Engine.getInstance().setVariableValue(variables.get(fieldName), definedField.get(generatorEvent), this);
-                        LOGGER.log(Level.FINE, "\t\tVariable set " + variables.get(fieldName) + " = " + definedField.get(generatorEvent));
+                        LOGGER.log(detailsLogLevel, "\t\tVariable set " + variables.get(fieldName) + " = " + definedField.get(generatorEvent));
                     } else {
-                        LOGGER.log(Level.WARNING, "\t\tGetting field failed: " + fieldName);
+                        LOGGER.warning("\t\tGetting field failed: " + fieldName);
                     }
                 } catch (IllegalArgumentException ex) {
                     LOGGER.severe("\t\tFinding field for variable failed");
@@ -2583,7 +2582,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 }
             }
         } else {
-            LOGGER.log(Level.FINE, "\tInputEvent " + updatedParamEvent + " tied to " + transition + " occurred with no variables");
+            LOGGER.log(detailsLogLevel, "\tInputEvent " + updatedParamEvent + " tied to " + transition + " occurred with no variables");
         }
 
         // 3 - If there were no failures, update the input event's status in the transition, remove it from the "active" input event list, and check if the transition should trigger now
@@ -2744,6 +2743,10 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
     @Override
     public void planStarted(PlanManager planManager) {
+    }
+
+    @Override
+    public void planInstantiated(PlanManager planManager) {
     }
 
     @Override
