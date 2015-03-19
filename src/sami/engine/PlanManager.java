@@ -2146,14 +2146,27 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             // 2b - If defined, we know the output event that caused this to occur
             //  Share a common OutputEvent uuid in a preceding place?
             if (generatedEvent.getRelevantOutputEventId() != null) {
-                Transition transition = inputEventToTransitionMap.get(paramEvent);
-                ArrayList<Place> inPlaces = transition.getInPlaces();
                 match = false;
-                for (Place inPlace : inPlaces) {
-                    for (OutputEvent oe : inPlace.getOutputEvents()) {
-                        if (oe.getId().equals(generatedEvent.getRelevantOutputEventId())) {
-                            LOGGER.log(detailsLogLevel, "\t\tMatching success on relevant OE UUID: " + oe.getId());
-                            match = true;
+                if (paramEvent.getRelevantOutputEventId() != null) {
+                    // Special case for OperatorInterruptReceived
+                    //  We set a relevant OE UUID the OIR during its instantiation so each interrupt is distinct
+                    if (paramEvent.getRelevantOutputEventId().equals(generatedEvent.getRelevantOutputEventId())) {
+                        LOGGER.log(detailsLogLevel, "\t\tMatching success on relevant OE UUID: " + paramEvent.getId() + " found in paramEvent");
+                        match = true;
+                    }
+                } else {
+                    Transition transition = inputEventToTransitionMap.get(paramEvent);
+                    ArrayList<Place> inPlaces = transition.getInPlaces();
+                    for (Place inPlace : inPlaces) {
+                        for (OutputEvent oe : inPlace.getOutputEvents()) {
+                            if (oe.getId().equals(generatedEvent.getRelevantOutputEventId())) {
+                                LOGGER.log(detailsLogLevel, "\t\tMatching success on relevant OE UUID: " + oe.getId() + " found on incoming Place: " + inPlace);
+                                match = true;
+                                break;
+                            }
+                        }
+                        if (match) {
+                            break;
                         }
                     }
                 }
@@ -2595,6 +2608,44 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             boolean execute = checkTransition(transition);
             if (execute) {
                 executeTransition(transition);
+            }
+        }
+    }
+
+    private boolean registerInputEvent(InputEvent inputEvent, Transition transition) {
+        boolean registered = false;
+        // Register/re-register input events on transition
+        LOGGER.log(Level.FINE, "\tActivating <" + inputEvent + "," + transition + "> to inputEventToTransitionMap");
+        if (!inputEventToTransitionMap.containsKey(inputEvent)) {
+            inputEvent.setActive(true);
+            transition.updateTag();
+            // Synchronization causes deadlocks somehow
+//        synchronized (activeInputEvents) {
+            activeInputEvents.add(inputEvent);
+//      }
+            InputEventMapper.getInstance().registerEvent(inputEvent, this);
+            inputEventToTransitionMap.put(inputEvent, transition);
+            registered = true;
+        }
+
+        return registered;
+    }
+
+    private void instantiatePlan() {
+        mSpec.instantiate(missionId);
+
+        // Special case for OperatorInterruptReceived
+        for (Vertex v : mSpec.getGraph().getVertices()) {
+            if (v instanceof Transition) {
+                Transition transition = (Transition) v;
+                for (InputEvent inputEvent : transition.getInputEvents()) {
+                    if (inputEvent instanceof OperatorInterruptReceived) {
+                        // Set a relevant OE UUID so each interrupt is distinct
+                        inputEvent.setRelevantOutputEventId(UUID.randomUUID());
+                        // Register here as OIR resides on transitions with no incoming place
+                        registerInputEvent(inputEvent, transition);
+                    }
+                }
             }
         }
     }
