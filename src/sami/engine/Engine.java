@@ -3,13 +3,19 @@ package sami.engine;
 import com.perc.mitpas.adi.common.datamodels.AbstractAsset;
 import com.perc.mitpas.adi.mission.planning.task.ITask;
 import com.perc.mitpas.adi.mission.planning.task.Task;
+import java.awt.Color;
+import java.awt.Dimension;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.BoxLayout;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
 import sami.allocation.ResourceAllocation;
 import sami.config.DomainConfigManager;
 import sami.event.InputEvent;
@@ -68,6 +74,12 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
     private final HashMap<PlanManager, ArrayList<PlanManager>> pmToSubPms = new HashMap<PlanManager, ArrayList<PlanManager>>();
     private final HashMap<PlanManager, PlanManager> subPmToParentPm = new HashMap<PlanManager, PlanManager>();
     private static final Object lock = new Object();
+    // Variables for generating distinguishably unique color for each plan manager
+    final Color[] colorDividers = new Color[]{Color.BLACK, Color.RED, Color.MAGENTA, Color.BLUE, Color.CYAN, Color.GREEN, Color.YELLOW, Color.ORANGE, Color.WHITE};
+    Hashtable<PlanManager, Color[]> pmToColor = new Hashtable<PlanManager, Color[]>();
+    double genInc = 2.0;
+    double genFrac = colorDividers.length;
+    ArrayList<Color> freedColors = new ArrayList<Color>(Arrays.asList(colorDividers));
 
     private static class EngineHolder {
 
@@ -171,6 +183,66 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         return observerServer;
     }
 
+    public Color[] getPlanManagerColor(PlanManager pm) {
+        if (pmToColor.containsKey(pm)) {
+            return pmToColor.get(pm);
+        }
+        Color background;
+        if (!freedColors.isEmpty()) {
+            // Use a color from a previously completed/aborted PM
+            background = freedColors.remove(0);
+        } else {
+            // Generate the next color in the sequence
+            genFrac += genInc;
+            if (genFrac > colorDividers.length - 1) {
+                genInc /= 2;
+                genFrac = genInc / 2;
+            }
+            background = getMixedColor(genFrac);
+        }
+        Color foreground = getForeground(background);
+        Color[] doubleColor = new Color[]{background, foreground};
+        pmToColor.put(pm, doubleColor);
+        return doubleColor;
+    }
+
+    private Color getForeground(Color background) {
+        if ((background.getRed() < 120 && background.getGreen() < 120 && background.getBlue() < 120)
+                || background.getRed() + background.getGreen() * 2 + background.getBlue() < 382) {
+            // Use white text for dark backgrounds
+            //  Weight green a bit because it is so freaking bright
+            return Color.WHITE;
+        } else {
+            return Color.BLACK;
+        }
+    }
+
+    private void freePlanManagerColor(PlanManager pm) {
+        Color[] doubleColor = pmToColor.remove(pm);
+        if (doubleColor != null) {
+            freedColors.add(doubleColor[0]);
+        } else {
+            LOGGER.warning("Tried to free color for PlanManager " + pm + ", but there was no match");
+        }
+    }
+
+    private Color getMixedColor(double fraction) {
+        if (fraction < 0 || fraction > colorDividers.length - 1) {
+            LOGGER.warning("Request mixed color for fraction " + fraction + ", but color array is length " + colorDividers.length);
+            return colorDividers[0];
+        }
+        if (fraction == colorDividers.length - 1) {
+            return colorDividers[colorDividers.length - 1];
+        }
+        int trunc = (int) fraction;
+        double dec1 = fraction % 1;
+        double dec2 = 1 - dec1;
+        Color c = new Color((int) (colorDividers[trunc].getRed() * dec1 + colorDividers[trunc + 1].getRed() * dec2) / 2,
+                (int) (colorDividers[trunc].getGreen() * dec1 + colorDividers[trunc + 1].getGreen() * dec2) / 2,
+                (int) (colorDividers[trunc].getBlue() * dec1 + colorDividers[trunc + 1].getBlue() * dec2) / 2);
+        return c;
+    }
+
     private PlanManager setUpPlanManager(MissionPlanSpecification mSpec, final ArrayList<Token> startingTokens) {
         // PlanManager will add mission's task tokens to the starting tokens
         UUID missionId = UUID.randomUUID();
@@ -178,6 +250,8 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         MissionPlanSpecification mSpecInstance = mSpec.deepClone();
         final PlanManager pm = new PlanManager(mSpecInstance, missionId, planInstanceName, startingTokens);
         plans.add(pm);
+        // Create plan manager color
+        getPlanManagerColor(pm);
         missionIdToPlanManager.put(missionId, pm);
         pmToVariableNameToValue.put(pm, new HashMap<String, Object>());
 
@@ -447,6 +521,7 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
             listener.planFinished(planManager);
         }
         plans.remove(planManager);
+        freePlanManagerColor(planManager);
     }
 
     public void abort(PlanManager planManager) {
@@ -458,6 +533,7 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
             listener.planAborted(planManager);
         }
         plans.remove(planManager);
+        freePlanManagerColor(planManager);
     }
 
     @Override
@@ -619,5 +695,40 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
             this.object = object;
             this.depth = depth;
         }
+    }
+
+    // Color generation test
+    public Color[] getUniqueColor() {
+        Color[] doubleColor = new Color[2];
+        if (!freedColors.isEmpty()) {
+            doubleColor[0] = freedColors.remove(0);
+        } else {
+            genFrac += genInc;
+            if (genFrac > colorDividers.length - 1) {
+                genInc /= 2;
+                genFrac = genInc / 2;
+            }
+            // Now generate the mixed color
+            doubleColor[0] = getMixedColor(genFrac);
+        }
+        doubleColor[1] = getForeground(doubleColor[0]);
+        return doubleColor;
+    }
+
+    public static void main(String[] args) {
+        JFrame f = new JFrame();
+        f.getContentPane().setLayout(new BoxLayout(f.getContentPane(), BoxLayout.Y_AXIS));
+
+        for (int i = 0; i < 50; i++) {
+            JLabel l = new JLabel("Label " + i);
+            Color[] dc = Engine.getInstance().getUniqueColor();
+            l.setBackground(dc[0]);
+            l.setForeground(dc[1]);
+            l.setOpaque(true);
+            f.add(l);
+        }
+        f.pack();
+        f.setSize(new Dimension(400, 800));
+        f.setVisible(true);
     }
 }

@@ -65,7 +65,8 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
     private final Dimension VIEWER_DIM = new Dimension(400, 190);
     private JButton visibilityB, abortB, followPlanB, snapViewB;
     private boolean collapsed = false, followPlan = false;
-    private JLabel eventCounterL, nameL;
+//    private JLabel eventCounterL;
+    private JLabel nameL;
     private int missedEventCounter = 0;
 
     // Recovery visbility sub-graphs lookups
@@ -590,8 +591,11 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
         // Define control bar components
         // Name of the plan
         nameL = new JLabel(pm.getPlanName());
-        // Count number of missed "events" (transitions?) that have occurred in the plan since the operator last interacted with it 
-        eventCounterL = new JLabel("0");
+        Color[] pmColors = Engine.getInstance().getPlanManagerColor(pm);
+        nameL.setForeground(pmColors[1]);
+//        // Count number of missed "events" (transitions?) that have occurred in the plan since the operator last interacted with it 
+//        eventCounterL = new JLabel("0");
+//        eventCounterL.setForeground(pmColors[1]);
         // Abort button
         abortB = new JButton("Abort");
         abortB.addActionListener(new ActionListener() {
@@ -638,6 +642,8 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
 
         // Lay out left-aligned components
         JPanel leftAlignP = new JPanel(new GridBagLayout());
+        leftAlignP.setBackground(pmColors[0]);
+        leftAlignP.setOpaque(true);
         GridBagConstraints c = new GridBagConstraints();
         c.gridx = 0;
         c.gridy = 0;
@@ -650,10 +656,12 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
         leftAlignP.add(abortB, c);
         // Lay out right-aligned components
         JPanel rightAlignP = new JPanel(new GridBagLayout());
+        rightAlignP.setBackground(pmColors[0]);
+        rightAlignP.setOpaque(true);
         c.gridx = 0;
         c.anchor = GridBagConstraints.EAST;
-        rightAlignP.add(eventCounterL, c);
-        c.gridx++;
+//        rightAlignP.add(eventCounterL, c);
+//        c.gridx++;
         rightAlignP.add(followPlanB, c);
         c.gridx++;
         rightAlignP.add(snapViewB, c);
@@ -661,7 +669,8 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
         rightAlignP.add(visibilityB, c);
         // Combine left and right aligned panels into control bar
         controlP = new JPanel(new BorderLayout());
-        controlP.setBorder(BorderFactory.createLineBorder(Color.black));
+        controlP.setBackground(pmColors[0]);
+        controlP.setOpaque(true);
         controlP.add(leftAlignP, BorderLayout.WEST);
         controlP.add(rightAlignP, BorderLayout.EAST);
         controlP.setPreferredSize(CONTROL_BAR_DIM);

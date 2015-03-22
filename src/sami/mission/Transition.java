@@ -10,6 +10,7 @@ import java.io.ObjectInputStream;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.logging.Logger;
+import sami.CoreHelper;
 import sami.markup.Markup;
 import sami.markup.ReflectedMarkupSpecification;
 
@@ -166,7 +167,7 @@ public class Transition extends Vertex {
         shortTag = "<html>";
         if (GuiConfig.DRAW_LABELS && name != null && !name.equals("")) {
             tag += "<font color=" + GuiConfig.LABEL_TEXT_COLOR + ">" + name + "</font><br>";
-            shortTag += "<font color=" + GuiConfig.LABEL_TEXT_COLOR + ">" + shorten(name, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+            shortTag += "<font color=" + GuiConfig.LABEL_TEXT_COLOR + ">" + CoreHelper.shorten(name, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
         }
         if (GuiConfig.DRAW_EVENTS) {
             if (!inputEvents.isEmpty()) {
@@ -181,11 +182,11 @@ public class Transition extends Vertex {
                         color = GuiConfig.INPUT_EVENT_TEXT_COLOR_INACTIVE;
                     }
                     tag += "<font color=" + color + ">" + ie.getClass().getSimpleName() + "</font><br>";
-                    shortTag += "<font color=" + color + ">" + shorten(ie.getClass().getSimpleName(), GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+                    shortTag += "<font color=" + color + ">" + CoreHelper.shorten(ie.getClass().getSimpleName(), GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
                     if (GuiConfig.DRAW_MARKUPS) {
                         for (Markup markup : ie.getMarkups()) {
                             tag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + markup.getClass().getSimpleName() + "</font><br>";
-                            shortTag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + shorten(markup.getClass().getSimpleName(), GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+                            shortTag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + CoreHelper.shorten(markup.getClass().getSimpleName(), GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
                         }
                     }
                 }
@@ -197,7 +198,7 @@ public class Transition extends Vertex {
                         String simpleName = eventClass.getSimpleName();
                         if (InputEvent.class.isAssignableFrom(eventClass)) {
                             tag += "<font color=" + GuiConfig.INPUT_EVENT_TEXT_COLOR_INACTIVE + ">" + simpleName + "</font><br>";
-                            shortTag += "<font color=" + GuiConfig.INPUT_EVENT_TEXT_COLOR_INACTIVE + ">" + shorten(simpleName, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+                            shortTag += "<font color=" + GuiConfig.INPUT_EVENT_TEXT_COLOR_INACTIVE + ">" + CoreHelper.shorten(simpleName, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
                         } else {
                             continue;
                         }
@@ -205,7 +206,7 @@ public class Transition extends Vertex {
                             for (ReflectedMarkupSpecification markupSpec : eventSpec.getMarkupSpecs()) {
                                 Class markupClass = Class.forName(markupSpec.getClassName());
                                 tag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + markupClass.getSimpleName() + "</font><br>";
-                                shortTag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + shorten(markupClass.getSimpleName(), GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+                                shortTag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + CoreHelper.shorten(markupClass.getSimpleName(), GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
                             }
                         }
                     } catch (ClassNotFoundException cnfe) {

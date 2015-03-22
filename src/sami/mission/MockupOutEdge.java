@@ -3,6 +3,7 @@ package sami.mission;
 import sami.gui.GuiConfig;
 import sami.mission.Vertex.FunctionMode;
 import java.util.ArrayList;
+import sami.CoreHelper;
 
 /**
  *
@@ -35,7 +36,7 @@ public class MockupOutEdge extends OutEdge {
             shortTag += "<html>";
             for (String tokenReq : mockupTokenRequirements) {
                 tag += "<font color=" + GuiConfig.TOKEN_REQ_TEXT_COLOR + ">" + tokenReq + "</font><br>";
-                shortTag += "<font color=" + GuiConfig.TOKEN_REQ_TEXT_COLOR + ">" + shorten(tokenReq, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+                shortTag += "<font color=" + GuiConfig.TOKEN_REQ_TEXT_COLOR + ">" + CoreHelper.shorten(tokenReq, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
             }
             tag += "</html>";
             shortTag += "</html>";

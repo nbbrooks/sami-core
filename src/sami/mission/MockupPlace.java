@@ -3,6 +3,7 @@ package sami.mission;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.logging.Logger;
+import sami.CoreHelper;
 import sami.gui.GuiConfig;
 
 /**
@@ -59,16 +60,16 @@ public class MockupPlace extends Place {
         // Name
         if (name != null && !name.equals("")) {
             tag += "<font color=" + GuiConfig.LABEL_TEXT_COLOR + ">" + name + "</font><br>";
-            shortTag += "<font color=" + GuiConfig.LABEL_TEXT_COLOR + ">" + shorten(name, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+            shortTag += "<font color=" + GuiConfig.LABEL_TEXT_COLOR + ">" + CoreHelper.shorten(name, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
         }
         // Output events
         if (mockupOutputEventMarkups != null) {
             for (String oe : mockupOutputEventMarkups.keySet()) {
                 tag += "<font color=" + GuiConfig.OUTPUT_EVENT_TEXT_COLOR + ">" + oe + "</font><br>";
-                shortTag += "<font color=" + GuiConfig.OUTPUT_EVENT_TEXT_COLOR + ">" + shorten(oe, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+                shortTag += "<font color=" + GuiConfig.OUTPUT_EVENT_TEXT_COLOR + ">" + CoreHelper.shorten(oe, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
                 for (String markupSpec : mockupOutputEventMarkups.get(oe)) {
                     tag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + markupSpec + "</font><br>";
-                    shortTag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + shorten(markupSpec, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+                    shortTag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + CoreHelper.shorten(markupSpec, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
                 }
             }
         }
@@ -92,7 +93,7 @@ public class MockupPlace extends Place {
                 tag += "<font color=" + color + ">";
                 shortTag += "<font color=" + color + ">";
                 tag += subMissionName + "<br>";
-                shortTag += shorten(subMissionName, GuiConfig.MAX_STRING_LENGTH) + "<br>";
+                shortTag += CoreHelper.shorten(subMissionName, GuiConfig.MAX_STRING_LENGTH) + "<br>";
                 tag += "</font>";
                 shortTag += "</font>";
             }
@@ -101,7 +102,7 @@ public class MockupPlace extends Place {
         if (mockupTokens != null) {
             for (String tokenName : mockupTokens) {
                 tag += "<font color=" + GuiConfig.TOKEN_TEXT_COLOR + ">" + tokenName + "</font><br>";
-                shortTag += "<font color=" + GuiConfig.TOKEN_TEXT_COLOR + ">" + shorten(tokenName, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+                shortTag += "<font color=" + GuiConfig.TOKEN_TEXT_COLOR + ">" + CoreHelper.shorten(tokenName, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
             }
         }
         tag += "</html>";

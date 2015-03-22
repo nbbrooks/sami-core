@@ -8,6 +8,7 @@ import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import sami.CoreHelper;
 import sami.event.ReflectedEventSpecification;
 
 /**
@@ -71,7 +72,7 @@ public class OutEdge extends Edge {
             shortTag += "<html>";
             for (OutTokenRequirement outReq : tokenRequirements) {
                 tag += "<font color=" + GuiConfig.TOKEN_REQ_TEXT_COLOR + ">" + outReq.toString() + "</font><br>";
-                shortTag += "<font color=" + GuiConfig.TOKEN_REQ_TEXT_COLOR + ">" + shorten(outReq.toString(), GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+                shortTag += "<font color=" + GuiConfig.TOKEN_REQ_TEXT_COLOR + ">" + CoreHelper.shorten(outReq.toString(), GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
             }
             tag += "</html>";
             shortTag += "</html>";

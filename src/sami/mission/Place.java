@@ -10,6 +10,7 @@ import java.io.ObjectInputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.logging.Logger;
+import sami.CoreHelper;
 import sami.markup.ReflectedMarkupSpecification;
 
 /**
@@ -204,7 +205,7 @@ public class Place extends Vertex {
         shortTag = "<html>";
         if (GuiConfig.DRAW_LABELS && name != null && !name.equals("")) {
             tag += "<font color=" + GuiConfig.LABEL_TEXT_COLOR + ">" + name + "</font><br>";
-            shortTag += "<font color=" + GuiConfig.LABEL_TEXT_COLOR + ">" + shorten(name, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+            shortTag += "<font color=" + GuiConfig.LABEL_TEXT_COLOR + ">" + CoreHelper.shorten(name, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
         }
         if (GuiConfig.DRAW_EVENTS) {
             for (ReflectedEventSpecification eventSpec : eventSpecs) {
@@ -213,7 +214,7 @@ public class Place extends Vertex {
                     String simpleName = eventClass.getSimpleName();
                     if (OutputEvent.class.isAssignableFrom(eventClass)) {
                         tag += "<font color=" + GuiConfig.OUTPUT_EVENT_TEXT_COLOR + ">" + simpleName + "</font><br>";
-                        shortTag += "<font color=" + GuiConfig.OUTPUT_EVENT_TEXT_COLOR + ">" + shorten(simpleName, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+                        shortTag += "<font color=" + GuiConfig.OUTPUT_EVENT_TEXT_COLOR + ">" + CoreHelper.shorten(simpleName, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
                     } else {
                         continue;
                     }
@@ -221,7 +222,7 @@ public class Place extends Vertex {
                         for (ReflectedMarkupSpecification markupSpec : eventSpec.getMarkupSpecs()) {
                             Class markupClass = Class.forName(markupSpec.getClassName());
                             tag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + markupClass.getSimpleName() + "</font><br>";
-                            shortTag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + shorten(markupClass.getSimpleName(), GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+                            shortTag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + CoreHelper.shorten(markupClass.getSimpleName(), GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
                         }
                     }
                 } catch (ClassNotFoundException cnfe) {
@@ -237,7 +238,7 @@ public class Place extends Vertex {
                 shortTag += "<font color=" + GuiConfig.SUB_MISSION_TEXT_COLOR_TEMPLATE + ">";
                 for (MissionPlanSpecification subMission : subMissions) {
                     tag += subMission.getName() + "<br>";
-                    shortTag += shorten(subMission.getName(), GuiConfig.MAX_STRING_LENGTH) + "<br>";
+                    shortTag += CoreHelper.shorten(subMission.getName(), GuiConfig.MAX_STRING_LENGTH) + "<br>";
                 }
                 tag += "</font>";
                 shortTag += "</font>";
@@ -252,7 +253,7 @@ public class Place extends Vertex {
                     tag += "<font color=" + color + ">";
                     shortTag += "<font color=" + color + ">";
                     tag += subMission.getName() + "<br>";
-                    shortTag += shorten(subMission.getName(), GuiConfig.MAX_STRING_LENGTH) + "<br>";
+                    shortTag += CoreHelper.shorten(subMission.getName(), GuiConfig.MAX_STRING_LENGTH) + "<br>";
                     tag += "</font>";
                     shortTag += "</font>";
                 }
@@ -262,7 +263,7 @@ public class Place extends Vertex {
                 shortTag += "<font color=" + GuiConfig.SUB_MISSION_TEXT_COLOR_TEMPLATE + ">";
                 for (MissionPlanSpecification subMission : subMissions) {
                     tag += subMission.getName() + "<br>";
-                    shortTag += shorten(subMission.getName(), GuiConfig.MAX_STRING_LENGTH) + "<br>";
+                    shortTag += CoreHelper.shorten(subMission.getName(), GuiConfig.MAX_STRING_LENGTH) + "<br>";
                 }
                 tag += "</font>";
                 shortTag += "</font>";
@@ -273,7 +274,7 @@ public class Place extends Vertex {
             for (Token token : tokens) {
                 tokenName = token.getName();
                 tag += "<font color=" + GuiConfig.TOKEN_TEXT_COLOR + ">" + tokenName + "</font><br>";
-                shortTag += "<font color=" + GuiConfig.TOKEN_TEXT_COLOR + ">" + shorten(tokenName, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+                shortTag += "<font color=" + GuiConfig.TOKEN_TEXT_COLOR + ">" + CoreHelper.shorten(tokenName, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
             }
         }
         tag += "</html>";

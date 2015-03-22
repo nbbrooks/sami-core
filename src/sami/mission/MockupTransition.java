@@ -4,6 +4,7 @@ import sami.gui.GuiConfig;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.logging.Logger;
+import sami.CoreHelper;
 
 /**
  *
@@ -49,7 +50,7 @@ public class MockupTransition extends Transition {
         // Name
         if (name != null && !name.equals("")) {
             tag += "<font color=" + GuiConfig.LABEL_TEXT_COLOR + ">" + name + "</font><br>";
-            shortTag += "<font color=" + GuiConfig.LABEL_TEXT_COLOR + ">" + shorten(name, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+            shortTag += "<font color=" + GuiConfig.LABEL_TEXT_COLOR + ">" + CoreHelper.shorten(name, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
         }
         // Input events
         if (mockupInputEventStatus != null) {
@@ -69,11 +70,11 @@ public class MockupTransition extends Transition {
                         break;
                 }
                 tag += "<font color=" + color + ">" + ie + "</font><br>";
-                shortTag += "<font color=" + color + ">" + shorten(ie, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+                shortTag += "<font color=" + color + ">" + CoreHelper.shorten(ie, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
                 if (mockupInputEventMarkups.containsKey(ie)) {
                     for (String markup : mockupInputEventMarkups.get(ie)) {
                         tag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + markup + "</font><br>";
-                        shortTag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + shorten(markup, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+                        shortTag += "<font color=" + GuiConfig.MARKUP_TEXT_COLOR + ">\t" + CoreHelper.shorten(markup, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
                     }
                 }
             }

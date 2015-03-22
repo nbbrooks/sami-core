@@ -84,6 +84,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     public final UUID missionId;
     // Lookup of OE UUID to Place, used by QueueFrame
     private final HashMap<UUID, Place> oeIdToPlace = new HashMap<UUID, Place>();
+    // Lookup of OE UUID to OE
+    private final HashMap<UUID, OutputEvent> oeIdToOe = new HashMap<UUID, OutputEvent>();
 
     // Logging levels
     final Level CHECK_T_LVL = Level.FINE;
@@ -2033,10 +2035,17 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         return oeIdToPlace.get(oeId);
     }
 
+    public OutputEvent getOutputEvent(UUID oeId) {
+        return oeIdToOe.get(oeId);
+    }
+
     private void processOutputEvents(Place place, ArrayList<OutputEvent> outputEvents, ArrayList<Token> tokens) {
         for (OutputEvent oe : outputEvents) {
             if (!oeIdToPlace.containsKey(oe.getId())) {
                 oeIdToPlace.put(oe.getId(), place);
+            }
+            if (!oeIdToOe.containsKey(oe.getId())) {
+                oeIdToOe.put(oe.getId(), oe);
             }
 
             LOGGER.log(Level.FINE, "Processing event " + oe + " with input variables " + oe.getVariables());
