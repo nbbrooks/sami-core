@@ -224,19 +224,27 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
             if (vertex instanceof Transition && vertex.getFunctionMode() == Vertex.FunctionMode.Recovery) {
                 // Check if any incoming places have nominal function mode
                 Transition t = (Transition) vertex;
+                // If the transition has no incoming edges, it is for an operator interrupt
+                boolean isFirstTransition = t.getInEdges().isEmpty();
+                Edge inEdge = null;
+                // Otherwise check in edges for a connected place which is nominal
                 for (Edge e : t.getInEdges()) {
                     if (e.getStart().getFunctionMode() == Vertex.FunctionMode.Nominal) {
                         // This is a "first transition"
-                        ArrayList<Place> places = new ArrayList<Place>();
-                        ArrayList<Vertex> vertices = new ArrayList<Vertex>();
-                        ArrayList<Edge> edges = new ArrayList<Edge>();
-                        firstTransitionToActivePlaces.put(t, places);
-                        firstTransitionToVertices.put(t, vertices);
-                        firstTransitionToEdges.put(t, edges);
-                        firstTransitionToVisibility.put(t, false);
-                        addHiddenSubgraph(t, e, vertices, edges);
+                        isFirstTransition = true;
+                        inEdge = e;
                         break;
                     }
+                }
+                if (isFirstTransition) {
+                    ArrayList<Place> places = new ArrayList<Place>();
+                    ArrayList<Vertex> vertices = new ArrayList<Vertex>();
+                    ArrayList<Edge> edges = new ArrayList<Edge>();
+                    firstTransitionToActivePlaces.put(t, places);
+                    firstTransitionToVertices.put(t, vertices);
+                    firstTransitionToEdges.put(t, edges);
+                    firstTransitionToVisibility.put(t, false);
+                    addHiddenSubgraph(t, inEdge, vertices, edges);
                 }
             }
         }
@@ -244,7 +252,10 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
 
     private void addHiddenSubgraph(Transition transition, Edge inEdge, ArrayList<Vertex> vertices, ArrayList<Edge> edges) {
         vertices.add(transition);
-        edges.add(inEdge);
+        if (inEdge != null) {
+            // inEdge is NULL for first transitions for operator interrupts
+            edges.add(inEdge);
+        }
         for (Edge e : transition.getOutEdges()) {
             if (e.getFunctionMode() == Vertex.FunctionMode.Recovery && !edges.contains(e)) {
                 edges.add(e);
@@ -789,7 +800,8 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
             switch (mode) {
                 case 0:
                 default:
-                    add = vertex instanceof Place && ((Place) vertex).getIsActive();
+                    add = (vertex instanceof Place && ((Place) vertex).getIsActive())
+                            || (vertex instanceof Transition && ((Transition) vertex).getIsActive());
                     break;
                 case 1:
                     add = vertex.getVisibilityMode() == VisibilityMode.Full;

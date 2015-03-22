@@ -82,6 +82,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     private Place startPlace;
     private final String planName;
     public final UUID missionId;
+    // Lookup of OE UUID to Place, used by QueueFrame
+    private final HashMap<UUID, Place> oeIdToPlace = new HashMap<UUID, Place>();
+
     // Logging levels
     final Level CHECK_T_LVL = Level.FINE;
     final Level EXE_T_LVL = Level.FINE;
@@ -1920,7 +1923,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         }
 
         // 4 - Invoke each OutputEvent with the new tokens
-        processOutputEvents(place.getOutputEvents(), tokens);
+        processOutputEvents(place, place.getOutputEvents(), tokens);
 
         // 5 - Check for sub-missions and start them if required
         if (place.getSubMissionTemplates() != null && !place.getSubMissionTemplates().isEmpty()) {
@@ -2026,8 +2029,16 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         }
     }
 
-    private void processOutputEvents(ArrayList<OutputEvent> outputEvents, ArrayList<Token> tokens) {
+    public Place getPlace(UUID oeId) {
+        return oeIdToPlace.get(oeId);
+    }
+
+    private void processOutputEvents(Place place, ArrayList<OutputEvent> outputEvents, ArrayList<Token> tokens) {
         for (OutputEvent oe : outputEvents) {
+            if (!oeIdToPlace.containsKey(oe.getId())) {
+                oeIdToPlace.put(oe.getId(), place);
+            }
+
             LOGGER.log(Level.FINE, "Processing event " + oe + " with input variables " + oe.getVariables());
             // Write in values for any fields that were filled with a variable name
             if (oe.getVariables() != null) {

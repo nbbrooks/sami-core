@@ -152,6 +152,10 @@ public class Transition extends Vertex {
         updateTag();
     }
 
+    public boolean getIsActive() {
+        return !inputEventStatus.isEmpty();
+    }
+
     public Shape getShape() {
         return new Rectangle(-10, -10, 20, 20);
     }
