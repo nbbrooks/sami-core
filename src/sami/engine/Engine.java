@@ -18,6 +18,7 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import sami.allocation.ResourceAllocation;
 import sami.config.DomainConfigManager;
+import sami.event.AbortMissionReceived;
 import sami.event.InputEvent;
 import sami.event.TaskReassigned;
 import sami.event.TaskReleased;
@@ -537,6 +538,14 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         }
         plans.remove(planManager);
         freePlanManagerColor(planManager);
+
+        // Now abort any sub-missions
+        //  Only do immediate children, as this will recurse
+        if (pmToSubPms.containsKey(planManager)) {
+            for (PlanManager subPm : pmToSubPms.get(planManager)) {
+                subPm.eventGenerated(new AbortMissionReceived(subPm.missionId));
+            }
+        }
     }
 
     @Override

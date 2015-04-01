@@ -1,9 +1,9 @@
 package sami.ui;
 
 import edu.uci.ics.jung.algorithms.layout.AbstractLayout;
-import edu.uci.ics.jung.algorithms.layout.DAGLayout;
+import edu.uci.ics.jung.algorithms.layout.StaticLayout;
+import edu.uci.ics.jung.graph.DirectedSparseGraph;
 import edu.uci.ics.jung.graph.Graph;
-import edu.uci.ics.jung.graph.SparseMultigraph;
 import edu.uci.ics.jung.visualization.GraphZoomScrollPane;
 import edu.uci.ics.jung.visualization.Layer;
 import edu.uci.ics.jung.visualization.MultiLayerTransformer;
@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.Map;
 import java.util.logging.Logger;
-import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -337,7 +336,7 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
 
     private void createViewerPanel() {
         // Create visualization
-        layout = new DAGLayout<Vertex, Edge>(new SparseMultigraph<Vertex, Edge>());
+        layout = new StaticLayout<Vertex, Edge>(new DirectedSparseGraph<Vertex, Edge>());
         vv = new VisualizationViewer<Vertex, Edge>(layout);
 
         // Visualization settings
@@ -579,9 +578,9 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
 
     private void loadGraph() {
         // Apply vertice locations
-        mSpec.updateLayout(layout);
         graph = mSpec.getGraph();
         layout.setGraph(graph);
+        mSpec.updateLayout(layout);
 
         initGraphVisibility();
         snapViewToVisible();
