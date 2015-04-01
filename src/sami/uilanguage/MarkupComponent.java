@@ -4,7 +4,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import javax.swing.JComponent;
+import sami.engine.PlanManager;
 import sami.markup.Markup;
+import sami.mission.MissionPlanSpecification;
 
 /**
  *
@@ -18,9 +20,9 @@ public interface MarkupComponent {
 
     public abstract int getMarkupScore(ArrayList<Markup> markups);
 
-    public abstract MarkupComponent useCreationComponent(Type type, Field field, ArrayList<Markup> markups);
+    public abstract MarkupComponent useCreationComponent(Type type, Field field, ArrayList<Markup> markups, MissionPlanSpecification mSpecScope, PlanManager pmScope);
 
-    public abstract MarkupComponent useSelectionComponent(Object selectionObject, ArrayList<Markup> markups);
+    public abstract MarkupComponent useSelectionComponent(Object selectionObject, ArrayList<Markup> markups, MissionPlanSpecification mSpecScope, PlanManager pmScope);
 
     public JComponent getComponent();
 

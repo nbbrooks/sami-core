@@ -1,6 +1,7 @@
 package sami.mission;
 
 import edu.uci.ics.jung.algorithms.layout.AbstractLayout;
+import edu.uci.ics.jung.graph.DirectedSparseGraph;
 import edu.uci.ics.jung.graph.Graph;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
@@ -34,6 +35,7 @@ public class MissionPlanSpecification implements java.io.Serializable {
     // List of tasks created in the spec by the developer
     private ArrayList<TaskSpecification> taskSpecList = new ArrayList<TaskSpecification>();
     private Graph<Vertex, Edge> graph = null;
+    transient private Graph<Vertex, Edge> transientGraph = null;
     private Map<Vertex, ArrayList<ReflectedEventSpecification>> vertexToEventSpecListMap = new HashMap<Vertex, ArrayList<ReflectedEventSpecification>>();
     private Map<Vertex, Point2D> locations = null;
     private String name = "Anonymous";
@@ -98,7 +100,21 @@ public class MissionPlanSpecification implements java.io.Serializable {
     }
 
     public Graph<Vertex, Edge> getGraph() {
-        return graph;
+        if(graph == null) {
+            return null;
+        }
+        if (transientGraph == null) {
+            // Copy the SparseMultigraph into a DirectedSparseGraph
+            //  DirectedSparseGraph does not implement serialize correctly
+            transientGraph = new DirectedSparseGraph<Vertex, Edge>();
+                for (Vertex o : graph.getVertices()) {
+                    transientGraph.addVertex(o);
+                }
+                for (Edge o : graph.getEdges()) {
+                    transientGraph.addEdge(o, o.getStart(), o.getEnd());
+                }
+        }
+        return transientGraph;
     }
 
     public ArrayList<TaskSpecification> getTaskSpecList() {

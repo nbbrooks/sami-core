@@ -12,6 +12,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.logging.FileHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.prefs.Preferences;
@@ -19,6 +20,8 @@ import java.util.regex.Pattern;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
 import javax.swing.JOptionPane;
+import sami.CoreHelper;
+import sami.LoggerFormatter;
 import sami.config.DomainConfigManager;
 import sami.engine.Engine;
 import sami.engine.Mediator;
@@ -40,6 +43,7 @@ import sami.uilanguage.UiFrame;
 public class MissionMonitor extends javax.swing.JFrame implements PlanManagerListenerInt, ProjectListenerInt {
 
     private static final Logger LOGGER = Logger.getLogger(MissionMonitor.class.getName());
+    public static final String LOG_DIRECTORY = "run/logs/" + CoreHelper.LOGGING_TIMESTAMP + "/";
     public static final String LAST_DRM_FILE = "LAST_DRM_NAME";
     public static final String LAST_DRM_FOLDER = "LAST_DRM_FOLDER";
     public static final String LAST_EPF_FILE = "LAST_EPF_NAME";
@@ -60,8 +64,8 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
         LOGGER.info("java.library.path: " + System.getProperty("java.library.path"));
         LOGGER.info("java.ext.dirs: " + System.getProperty("java.ext.dirs"));
         LOGGER.info("java.util.logging.config.file: " + System.getProperty("java.util.logging.config.file"));
-        LOGGER.info("domainConfiguration:\n" + DomainConfigManager.getInstance().domainConfiguration.toString());
-        LOGGER.info("domainConfiguration:\n" + DomainConfigManager.getInstance().domainConfiguration.toVerboseString());
+        LOGGER.info("domainConfiguration:\n" + DomainConfigManager.getInstance().getDomainConfiguration().toString());
+        LOGGER.info("domainConfiguration:\n" + DomainConfigManager.getInstance().getDomainConfiguration().toVerboseString());
 
         initComponents();
 
@@ -75,7 +79,7 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
         // Set Engine singleton's services server
         Engine.getInstance().setServiceServer(new ServiceServer());
 
-        for (String className : DomainConfigManager.getInstance().domainConfiguration.uiList) {
+        for (String className : DomainConfigManager.getInstance().getDomainConfiguration().uiList) {
             try {
                 LOGGER.info("Initializing UI class: " + className);
                 Class uiClass = Class.forName(className);
@@ -94,7 +98,6 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
                 nsme.printStackTrace();
             } catch (InvocationTargetException ite) {
                 ite.printStackTrace();
-                System.out.println(ite.getCause());
             }
         }
 
@@ -115,6 +118,7 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
             String lastDrmPath = p.get(LAST_DRM_FILE, null);
             if (lastDrmPath != null) {
                 Mediator.getInstance().openProject(new File(lastDrmPath));
+                CoreHelper.copyLoadedDrmToDirectory(LOG_DIRECTORY);
             }
         } catch (AccessControlException e) {
             LOGGER.severe("Failed to load last used DRM");
@@ -126,6 +130,7 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
             String lastEpfPath = p.get(LAST_EPF_FILE, null);
             if (lastEpfPath != null) {
                 Mediator.getInstance().openEnvironment(new File(lastEpfPath));
+                CoreHelper.copyLoadedEpfToDirectory(LOG_DIRECTORY);
             }
         } catch (AccessControlException e) {
             LOGGER.severe("Failed to load last used EPF");
@@ -321,6 +326,7 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
 
     private void loadDrmBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_loadDrmBActionPerformed
         boolean success = Mediator.getInstance().openProject();
+        CoreHelper.copyLoadedDrmToDirectory(LOG_DIRECTORY);
         if (!success) {
             JOptionPane.showMessageDialog(null, "Failed to load project");
         }
@@ -335,15 +341,40 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
 
     private void loadEpfBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_loadEpfBActionPerformed
         boolean success = Mediator.getInstance().openEnvironment();
+        CoreHelper.copyLoadedEpfToDirectory(LOG_DIRECTORY);
         if (!success) {
             JOptionPane.showMessageDialog(null, "Failed to load environment");
         }
     }//GEN-LAST:event_loadEpfBActionPerformed
 
+    public static void setUpLogging() {
+        LOGGER.info("Log directory is " + LOG_DIRECTORY);
+        try {
+            // Create directory
+            new File(LOG_DIRECTORY).mkdir();
+            // Add log file
+            FileHandler fh = new FileHandler(LOG_DIRECTORY + "sami.log", 50000, 1);
+            fh.setFormatter(new LoggerFormatter());
+            fh.setLevel(Level.INFO);
+            LOGGER.addHandler(fh);
+
+            // Copy DCF to log directory - this won't change
+            //  DRM and EPF files will be copied as they are loaded
+            CoreHelper.copyLoadedDcfToDirectory(LOG_DIRECTORY);
+        } catch (IOException ex) {
+            Logger.getLogger(MissionMonitor.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (SecurityException ex) {
+            Logger.getLogger(MissionMonitor.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+
     /**
      * @param args the command line arguments
      */
     public static void main(String args[]) {
+
+        MissionMonitor.setUpLogging();
+
         java.awt.EventQueue.invokeLater(new Runnable() {
             public void run() {
                 new MissionMonitor().setVisible(true);

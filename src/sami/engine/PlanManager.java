@@ -86,7 +86,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     private final HashMap<UUID, Place> oeIdToPlace = new HashMap<UUID, Place>();
     // Lookup of OE UUID to OE
     private final HashMap<UUID, OutputEvent> oeIdToOe = new HashMap<UUID, OutputEvent>();
-
+    private boolean setupDone = false;
     // Logging levels
     final Level CHECK_T_LVL = Level.FINE;
     final Level EXE_T_LVL = Level.FINE;
@@ -98,6 +98,15 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         this.missionId = missionId;
         this.planName = planName;
         this.startingTokens = startingTokens;
+    }
+
+    public void finishSetup() {
+        if (setupDone) {
+            LOGGER.warning("Tried to setup plan manager " + this + " multiple times");
+            return;
+        }
+        setupDone = true;
+
         startPlace = mSpec.getUninstantiatedStart();
 
         // Create task tokens
@@ -106,12 +115,6 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             Token taskToken = createToken(taskSpec);
             LOGGER.info("\t" + taskSpec + " -> " + taskToken);
             this.startingTokens.add(taskToken);
-        }
-
-        // If any output events have values to save to variables, write them
-        Hashtable<String, Object> variableToValue = mSpec.getDefinedOutputEventVariables();
-        for (String variableName : variableToValue.keySet()) {
-            Engine.getInstance().setVariableValue(variableName, variableToValue.get(variableName), this);
         }
 
         // If there are any parameters on the events that need to be filled in, request from the operator
@@ -2581,7 +2584,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         if (generatorEvent instanceof RedefinedVariablesReceived) {
             RedefinedVariablesReceived rvr = (RedefinedVariablesReceived) generatorEvent;
             for (String variableName : rvr.getVariableNameToDefinition().keySet()) {
-                Engine.getInstance().setVariableValue(variableName, rvr.getVariableNameToDefinition().get(variableName), null);
+                Engine.getInstance().redefineVariableValue(variableName, rvr.getVariableNameToDefinition().get(variableName), Engine.getInstance().getPlanManager(generatorEvent.getMissionId()));
             }
         }
 
@@ -2652,7 +2655,15 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     }
 
     private void instantiatePlan() {
+        // Instantiate plan
         mSpec.instantiate(missionId);
+
+        // If any output events have values to save to variables, write them
+        //@todo move into mSpec.instantiate?
+        Hashtable<String, Object> variableToValue = mSpec.getDefinedOutputEventVariables();
+        for (String variableName : variableToValue.keySet()) {
+            Engine.getInstance().setVariableValue(variableName, variableToValue.get(variableName), this);
+        }
 
         // Special case for OperatorInterruptReceived
         for (Vertex v : mSpec.getGraph().getVertices()) {

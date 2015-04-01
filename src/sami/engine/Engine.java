@@ -91,7 +91,7 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
     }
 
     private Engine() {
-        for (String className : DomainConfigManager.getInstance().domainConfiguration.serverList) {
+        for (String className : DomainConfigManager.getInstance().getDomainConfiguration().serverList) {
             try {
                 Class serverClass = Class.forName(className);
                 Object serverElement = serverClass.getConstructor(new Class[]{}).newInstance();
@@ -122,7 +122,7 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
             LOGGER.log(Level.SEVERE, "Failed to find Observer Server in domain configuration!");
         }
 
-        Hashtable<String, String> handlerMapping = DomainConfigManager.getInstance().domainConfiguration.eventHandlerMapping;
+        Hashtable<String, String> handlerMapping = DomainConfigManager.getInstance().getDomainConfiguration().eventHandlerMapping;
         Class eventClass, handlerClass;
         EventHandlerInt handlerObject;
         HashMap<String, EventHandlerInt> handlerObjects = new HashMap<String, EventHandlerInt>();
@@ -252,8 +252,11 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         plans.add(pm);
         // Create plan manager color
         getPlanManagerColor(pm);
+        // Add lookups
         missionIdToPlanManager.put(missionId, pm);
         pmToVariableNameToValue.put(pm, new HashMap<String, Object>());
+        // Now finish setup actions which require lookup tables
+        pm.finishSetup();
 
         ArrayList<PlanManagerListenerInt> listenersCopy;
         synchronized (lock) {
@@ -617,6 +620,34 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         return planName;
     }
 
+    public ArrayList<String> getVariablesInScope(PlanManager pmScope) {
+        ArrayList<String> useableVariableNames = new ArrayList<String>();
+        // Add variables in current PM, if one exists
+        if (pmScope != null && pmToVariableNameToValue.get(pmScope) != null) {
+            useableVariableNames.addAll(pmToVariableNameToValue.get(pmScope).keySet());
+            // Add variables from parent PMs, if any exist
+            PlanManager recursiveScope = pmScope;
+            while (subPmToParentPm.containsKey(recursiveScope) && subPmToParentPm.get(recursiveScope) != null) {
+                recursiveScope = subPmToParentPm.get(recursiveScope);
+                if (pmToVariableNameToValue.get(recursiveScope) != null) {
+                    for (String variableName : pmToVariableNameToValue.get(recursiveScope).keySet()) {
+                        if (!useableVariableNames.contains(variableName)) {
+                            useableVariableNames.add(variableName);
+                        }
+                    }
+                }
+            }
+        }
+        // Add all global variables
+        for (String variableName : globalVariableNameToValue.keySet()) {
+            if (!useableVariableNames.contains(variableName)) {
+                useableVariableNames.add(variableName);
+            }
+        }
+
+        return useableVariableNames;
+    }
+
     public Object getVariableValue(String variable, PlanManager pmScope) {
         if (pmScope == null) {
             return globalVariableNameToValue.get(variable);
@@ -676,6 +707,61 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         } else {
             pmToVariableNameToValue.get(pmScope).put(variable, value);
         }
+    }
+
+    public boolean redefineVariableValue(String variable, Object newValue, PlanManager currentPmScope) {
+        if (currentPmScope == null) {
+            // Global scope variable
+            if (globalVariableNameToValue.containsKey(variable)) {
+                // Check if new value is the same or superclass of current value
+                Object currentValue = globalVariableNameToValue.get(variable);
+
+                boolean match = objectClassMatch(newValue, currentValue);
+                if (!match) {
+                    LOGGER.warning("Redefining variable \"" + variable + "\" with current definition \"" + currentValue.toString() + "\" (" + currentValue.getClass().getSimpleName() + ") with value of different class \"" + newValue.toString() + "\" (" + newValue.getClass().getSimpleName() + ")");
+                }
+                // Write value, even if new value's class is different
+                globalVariableNameToValue.put(variable, newValue);
+
+                return true;
+            } else {
+                // Failed to match variable
+                LOGGER.severe("Failed to find existing definition to redefine for variable \"" + variable + "\"");
+                return false;
+            }
+        } else {
+            if (pmToVariableNameToValue.get(currentPmScope).containsKey(variable)) {
+                // Check if new value is the same or superclass of current value
+                Object currentValue = pmToVariableNameToValue.get(currentPmScope).get(variable);
+
+                boolean match = objectClassMatch(newValue, currentValue);
+                if (!match) {
+                    LOGGER.warning("Redefining variable \"" + variable + "\" with current definition \"" + currentValue.toString() + "\" (" + currentValue.getClass().getSimpleName() + ") with value of different class \"" + newValue.toString() + "\" (" + newValue.getClass().getSimpleName() + ")");
+                }
+                // Write value, even if new value's class is different
+                pmToVariableNameToValue.get(currentPmScope).put(variable, newValue);
+
+                return true;
+            } else {
+                // Recurse with parent PM or NULL PM to indicate checking global variables
+                return redefineVariableValue(variable, newValue, subPmToParentPm.get(currentPmScope));
+            }
+        }
+    }
+
+    private boolean objectClassMatch(Object objectA, Object objectB) {
+        boolean match = false;
+        // For each field with a write variable assigned to it
+        if (java.util.Hashtable.class.isAssignableFrom(objectA.getClass()) && java.util.Hashtable.class.isAssignableFrom(objectB.getClass())) {
+            //@todo Check key/value compatibility
+            match = true;
+        } else if (java.util.List.class.isAssignableFrom(objectA.getClass()) && java.util.List.class.isAssignableFrom(objectB.getClass())) {
+            //@todo Check item type compatibility
+            match = true;
+        } else if (objectA.getClass().isAssignableFrom(objectB.getClass())) {
+            match = true;
+        }
+        return match;
     }
 
     public void clearGlobalVariables() {

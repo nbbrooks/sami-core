@@ -2,12 +2,9 @@ package sami.config;
 
 import java.awt.Color;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.security.AccessControlException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.prefs.Preferences;
@@ -33,7 +30,8 @@ public class DomainConfigF extends javax.swing.JFrame {
      */
     public DomainConfigF() {
         initComponents();
-        domainConfiguration = new DomainConfig();
+        domainConfiguration = DomainConfigManager.getInstance().getDomainConfiguration();
+        refreshComponents();
         checkComplete();
     }
 
@@ -101,58 +99,19 @@ public class DomainConfigF extends javax.swing.JFrame {
         }
     }
 
-    public boolean open() {
-        Preferences p = Preferences.userRoot();
-        String lastConfName = p.get(LAST_DCF_FILE, "");
-        JFileChooser chooser = new JFileChooser(lastConfName);
-        FileNameExtensionFilter filter = new FileNameExtensionFilter("Domain configuration files", "dcf");
-        chooser.setFileFilter(filter);
-        int ret = chooser.showOpenDialog(null);
-        if (ret != JFileChooser.APPROVE_OPTION) {
-            return false;
-        }
-        configLocation = chooser.getSelectedFile();
-        try {
-            LOGGER.info("Reading: " + configLocation.toString());
-            ObjectInputStream ois = new ObjectInputStream(new FileInputStream(configLocation));
-            domainConfiguration = (DomainConfig) ois.readObject();
-
-            if (domainConfiguration == null) {
-                JOptionPane.showMessageDialog(null, "Specification failed load");
-                domainConfiguration = new DomainConfig();
-                return false;
-            } else {
-                try {
-                    p.put(LAST_DCF_FILE, configLocation.getAbsolutePath());
-                    p.put(LAST_DCF_FOLDER, configLocation.getParent());
-                } catch (AccessControlException e) {
-                    LOGGER.severe("Failed to save preferences");
-                }
-                LOGGER.info("Read: " + configLocation.toString());
-                LOGGER.info("Read: " + domainConfiguration.toVerboseString());;
-                nameTF.setText(domainConfiguration.domainName);
-                descriptionTA.setText(domainConfiguration.domainDescription);
-                agentTF.setText(domainConfiguration.agentTreeFilePath);
-                assetTF.setText(domainConfiguration.assetTreeFilePath);
-                componentTF.setText(domainConfiguration.componentGeneratorListFilePath);
-                messageTF.setText(domainConfiguration.fromUiMessageGeneratorListFilePath);
-                eventTF.setText(domainConfiguration.eventTreeFilePath);
-                handlerTF.setText(domainConfiguration.eventHandlerMappingFilePath);
-                markupTF.setText(domainConfiguration.markupTreeFilePath);
-                serverTF.setText(domainConfiguration.serverListFilePath);
-                taskTF.setText(domainConfiguration.taskTreeFilePath);
-                uiTF.setText(domainConfiguration.uiListFilePath);
-
-                return true;
-            }
-
-        } catch (ClassNotFoundException cnfe) {
-            cnfe.printStackTrace();
-        } catch (IOException ioe) {
-            ioe.printStackTrace();
-        }
-
-        return false;
+    public void refreshComponents() {
+        nameTF.setText(domainConfiguration.domainName);
+        descriptionTA.setText(domainConfiguration.domainDescription);
+        agentTF.setText(domainConfiguration.agentTreeFilePath);
+        assetTF.setText(domainConfiguration.assetTreeFilePath);
+        componentTF.setText(domainConfiguration.componentGeneratorListFilePath);
+        messageTF.setText(domainConfiguration.fromUiMessageGeneratorListFilePath);
+        eventTF.setText(domainConfiguration.eventTreeFilePath);
+        handlerTF.setText(domainConfiguration.eventHandlerMappingFilePath);
+        markupTF.setText(domainConfiguration.markupTreeFilePath);
+        serverTF.setText(domainConfiguration.serverListFilePath);
+        taskTF.setText(domainConfiguration.taskTreeFilePath);
+        uiTF.setText(domainConfiguration.uiListFilePath);
     }
 
     public File selectConf(String text) {
@@ -609,8 +568,12 @@ public class DomainConfigF extends javax.swing.JFrame {
     }//GEN-LAST:event_saveBActionPerformed
 
     private void openBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_openBActionPerformed
-        open();
-        domainConfiguration.reload();
+        boolean success = DomainConfigManager.getInstance().openDomainConfiguration();
+        if (!success) {
+            JOptionPane.showMessageDialog(null, "Failed to load domain configuration");
+        }
+        domainConfiguration = DomainConfigManager.getInstance().getDomainConfiguration();
+        refreshComponents();
         checkComplete();
     }//GEN-LAST:event_openBActionPerformed
 

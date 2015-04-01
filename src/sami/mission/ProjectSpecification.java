@@ -33,6 +33,7 @@ public class ProjectSpecification implements java.io.Serializable {
     private HashMap<String, Object> globalVariables = new HashMap<String, Object>();
     transient private ArrayList<MissionPlanSpecification> allMissionPlans = new ArrayList<MissionPlanSpecification>();
     transient private ArrayList<MissionPlanSpecification> rootMissionPlans = new ArrayList<MissionPlanSpecification>();
+    transient private HashMap<MissionPlanSpecification, MissionPlanSpecification> childToParent = new HashMap<MissionPlanSpecification, MissionPlanSpecification>();
     transient private HashMap<MissionPlanSpecification, DefaultMutableTreeNode> mSpecToNode = new HashMap<MissionPlanSpecification, DefaultMutableTreeNode>();
     transient private HashMap<DefaultMutableTreeNode, MissionPlanSpecification> nodeToMSpec = new HashMap<DefaultMutableTreeNode, MissionPlanSpecification>();
 
@@ -60,6 +61,9 @@ public class ProjectSpecification implements java.io.Serializable {
         nodeToMSpec.put(childNode, childMSpec);
         parentNode.add(childNode);
         allMissionPlans.add(childMSpec);
+        if (parentNode.getUserObject() instanceof MissionPlanSpecification) {
+            childToParent.put(childMSpec, (MissionPlanSpecification) parentNode.getUserObject());
+        }
         needsSaving = true;
         return childNode;
     }
@@ -148,8 +152,67 @@ public class ProjectSpecification implements java.io.Serializable {
         this.testCases = testCases;
     }
 
-    // @todo temporary method until VariableName scoping is implemented
-    public ArrayList<String> getVariables() {
+    public ArrayList<String> getVariablesInScope(MissionPlanSpecification mSpecScope) {
+        ArrayList<String> useableVariableNames = new ArrayList<String>();
+
+        // Add variables in current PM, if one exists
+        if (mSpecScope != null) {
+            ArrayList<String> mSpecVariableNames = getMissionSpecVariables(mSpecScope);
+            for (String variableName : mSpecVariableNames) {
+                useableVariableNames.add(variableName);
+            }
+            // Add variables from parent PMs, if any exist
+            MissionPlanSpecification recursiveScope = mSpecScope;
+            while (childToParent.containsKey(recursiveScope) && childToParent.get(recursiveScope) != null) {
+                recursiveScope = childToParent.get(recursiveScope);
+                mSpecVariableNames = getMissionSpecVariables(recursiveScope);
+                for (String variableName : mSpecVariableNames) {
+                    if (!useableVariableNames.contains(variableName)) {
+                        useableVariableNames.add(variableName);
+                    }
+                }
+            }
+        }
+        // Add all global variables
+        for (String variableName : globalVariables.keySet()) {
+            if (!useableVariableNames.contains(variableName)) {
+                useableVariableNames.add(variableName);
+            }
+        }
+
+        return useableVariableNames;
+    }
+
+    private ArrayList<String> getMissionSpecVariables(MissionPlanSpecification mSpec) {
+        ArrayList<String> variableNames = new ArrayList<String>();
+        if (mSpec == null) {
+            LOGGER.warning("Called getMissionSpecVariables with NULL mSpec");
+            return variableNames;
+        }
+
+        // Add variables in current PM, if one exists
+        if (mSpec != null) {
+            if (mSpec.getGraph() != null && mSpec.getGraph().getEdges() != null) {
+                for (Vertex v : mSpec.getGraph().getVertices()) {
+                    if (mSpec.getEventSpecList(v) != null) {
+                        for (ReflectedEventSpecification eventSpec : mSpec.getEventSpecList(v)) {
+                            HashMap<String, String> writeVariables = eventSpec.getWriteVariables();
+                            for (String writeFieldName : writeVariables.keySet()) {
+                                String writeVariable = writeVariables.get(writeFieldName);
+                                if (!variableNames.contains(writeVariable)) {
+                                    variableNames.add(writeVariable);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return variableNames;
+    }
+
+    public ArrayList<String> getAllVariables() {
         ArrayList<String> useableVariableNames = new ArrayList<String>();
 
         // Add all  mission variables
@@ -177,60 +240,84 @@ public class ProjectSpecification implements java.io.Serializable {
         return useableVariableNames;
     }
 
-    public ArrayList<String> getVariables(Field targetField) {
-        ArrayList<String> useableVariableNames = new ArrayList<String>();
+    public ArrayList<String> getMissionSpecVariables(Field targetField, MissionPlanSpecification mSpec) {
+        ArrayList<String> variableNames = new ArrayList<String>();
         if (targetField == null) {
-            LOGGER.severe("Called getVariables with targetField NULL");
-            return useableVariableNames;
+            LOGGER.warning("Called getMissionSpecVariables with NULL targetField");
+            return variableNames;
+        }
+        if (mSpec == null) {
+            LOGGER.warning("Called getMissionSpecVariables with NULL mSpec");
+            return variableNames;
         }
 
-        // Add compatible mission variables
-        for (MissionPlanSpecification mSpec : allMissionPlans) {
-            if (mSpec.getGraph() != null && mSpec.getGraph().getEdges() != null) {
-                for (Vertex v : mSpec.getGraph().getVertices()) {
-                    if (mSpec.getEventSpecList(v) != null) {
-                        for (ReflectedEventSpecification eventSpec : mSpec.getEventSpecList(v)) {
-                            try {
-                                Class eventClass = Class.forName(eventSpec.getClassName());
-                                HashMap<String, String> writeVariables = eventSpec.getWriteVariables();
-                                for (String writeFieldName : writeVariables.keySet()) {
-                                    boolean match = false;
+        if (mSpec.getGraph() != null && mSpec.getGraph().getEdges() != null) {
+            for (Vertex v : mSpec.getGraph().getVertices()) {
+                if (mSpec.getEventSpecList(v) != null) {
+                    for (ReflectedEventSpecification eventSpec : mSpec.getEventSpecList(v)) {
+                        try {
+                            Class eventClass = Class.forName(eventSpec.getClassName());
+                            HashMap<String, String> writeVariables = eventSpec.getWriteVariables();
+                            for (String writeFieldName : writeVariables.keySet()) {
+                                boolean match = false;
 
-                                    // For each field with a write variable assigned to it
-                                    Field writeField = eventClass.getField(writeFieldName);
-                                    if (java.util.Hashtable.class.isAssignableFrom(targetField.getType()) && java.util.Hashtable.class.isAssignableFrom(writeField.getType())) {
-                                        // Hashtable check
-                                        if (parameterizedTypeMatch((ParameterizedType) targetField.getGenericType(), (ParameterizedType) writeField.getGenericType())) {
-                                            match = true;
-                                        }
-                                    } else if (java.util.List.class.isAssignableFrom(targetField.getType()) && java.util.List.class.isAssignableFrom(writeField.getType())) {
-                                        if (parameterizedTypeMatch((ParameterizedType) targetField.getGenericType(), (ParameterizedType) writeField.getGenericType())) {
-                                            match = true;
-                                        }
-                                    } else if (targetField.getType() instanceof Class && writeField.getType() instanceof Class) {
-                                        if (classTypeMatch((Class) targetField.getType(), (Class) writeField.getType())) {
-                                            match = true;
-                                        }
+                                // For each field with a write variable assigned to it
+                                Field writeField = eventClass.getField(writeFieldName);
+                                if (java.util.Hashtable.class.isAssignableFrom(targetField.getType()) && java.util.Hashtable.class.isAssignableFrom(writeField.getType())) {
+                                    // Hashtable check
+                                    if (parameterizedTypeMatch((ParameterizedType) targetField.getGenericType(), (ParameterizedType) writeField.getGenericType())) {
+                                        match = true;
                                     }
-                                    if (match) {
-                                        String writeVariable = writeVariables.get(writeFieldName);
-                                        if (!useableVariableNames.contains(writeVariable)) {
-                                            useableVariableNames.add(writeVariable);
-                                        }
-                                        LOGGER.fine("Adding " + writeVariable + " to variable list");
+                                } else if (java.util.List.class.isAssignableFrom(targetField.getType()) && java.util.List.class.isAssignableFrom(writeField.getType())) {
+                                    if (parameterizedTypeMatch((ParameterizedType) targetField.getGenericType(), (ParameterizedType) writeField.getGenericType())) {
+                                        match = true;
+                                    }
+                                } else if (targetField.getType() instanceof Class && writeField.getType() instanceof Class) {
+                                    if (classTypeMatch((Class) targetField.getType(), (Class) writeField.getType())) {
+                                        match = true;
                                     }
                                 }
-                            } catch (ClassNotFoundException ex) {
-                                ex.printStackTrace();
-                            } catch (NoSuchFieldException ex) {
-                                ex.printStackTrace();
+                                if (match) {
+                                    String writeVariable = writeVariables.get(writeFieldName);
+                                    if (!variableNames.contains(writeVariable)) {
+                                        variableNames.add(writeVariable);
+                                    }
+                                    LOGGER.fine("Adding " + writeVariable + " to variable list");
+                                }
                             }
+                        } catch (ClassNotFoundException ex) {
+                            ex.printStackTrace();
+                        } catch (NoSuchFieldException ex) {
+                            ex.printStackTrace();
                         }
                     }
                 }
             }
         }
+        return variableNames;
+    }
 
+    public ArrayList<String> getVariablesInScope(Field targetField, MissionPlanSpecification mSpecScope) {
+        ArrayList<String> useableVariableNames = new ArrayList<String>();
+
+        // Add compatible variables in current PM, if one exists
+        if (mSpecScope != null) {
+            ArrayList<String> mSpecVariableNames = getMissionSpecVariables(targetField, mSpecScope);
+            for (String variableName : mSpecVariableNames) {
+                useableVariableNames.add(variableName);
+            }
+            // Add compatible variables from parent PMs, if any exist
+            MissionPlanSpecification recursiveScope = mSpecScope;
+            while (childToParent.containsKey(recursiveScope) && childToParent.get(recursiveScope) != null) {
+                recursiveScope = childToParent.get(recursiveScope);
+                mSpecVariableNames = getMissionSpecVariables(targetField, recursiveScope);
+                for (String variableName : mSpecVariableNames) {
+                    if (!useableVariableNames.contains(variableName)) {
+                        useableVariableNames.add(variableName);
+                    }
+                }
+            }
+        }
         // Add compatible global variables
         for (String variable : globalVariables.keySet()) {
             Object globalValue = globalVariables.get(variable);
@@ -431,11 +518,12 @@ public class ProjectSpecification implements java.io.Serializable {
             if (globalVariables == null) {
                 globalVariables = new HashMap<String, Object>();
             }
-            // Populate mSpecToNode, nodeToMSpec, and allMissionPlans
+            // Populate mSpecToNode, nodeToMSpec, allMissionPlans, rootMissionPlans, and childToParent
             mSpecToNode = new HashMap<MissionPlanSpecification, DefaultMutableTreeNode>();
             nodeToMSpec = new HashMap<DefaultMutableTreeNode, MissionPlanSpecification>();
             allMissionPlans = new ArrayList<MissionPlanSpecification>();
             rootMissionPlans = new ArrayList<MissionPlanSpecification>();
+            childToParent = new HashMap<MissionPlanSpecification, MissionPlanSpecification>();
             Enumeration e = missionTree.breadthFirstEnumeration();
             while (e.hasMoreElements()) {
                 DefaultMutableTreeNode node = (DefaultMutableTreeNode) e.nextElement();
@@ -451,6 +539,12 @@ public class ProjectSpecification implements java.io.Serializable {
                 DefaultMutableTreeNode node = (DefaultMutableTreeNode) e.nextElement();
                 if (node.getUserObject() instanceof MissionPlanSpecification) {
                     rootMissionPlans.add((MissionPlanSpecification) node.getUserObject());
+                    // Populate childToParent
+                    for (int i = 0; i < node.getChildCount(); i++) {
+                        if (node.getChildAt(i) instanceof DefaultMutableTreeNode) {
+                            addParentLookup(node, (DefaultMutableTreeNode) node.getChildAt(i));
+                        }
+                    }
                 }
             }
         } catch (IOException e) {
@@ -459,6 +553,17 @@ public class ProjectSpecification implements java.io.Serializable {
         } catch (ClassNotFoundException e) {
             LOGGER.severe("Class Not Found Exception in ProjectSpecification readObject");
             throw e;
+        }
+    }
+
+    private void addParentLookup(DefaultMutableTreeNode parentNode, DefaultMutableTreeNode childNode) {
+        if (parentNode.getUserObject() instanceof MissionPlanSpecification && childNode.getUserObject() instanceof MissionPlanSpecification) {
+            childToParent.put((MissionPlanSpecification) childNode.getUserObject(), (MissionPlanSpecification) parentNode.getUserObject());
+            for (int i = 0; i < childNode.getChildCount(); i++) {
+                if (childNode.getChildAt(i) instanceof DefaultMutableTreeNode) {
+                    addParentLookup(childNode, (DefaultMutableTreeNode) childNode.getChildAt(i));
+                }
+            }
         }
     }
 

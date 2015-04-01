@@ -193,15 +193,6 @@ public class ReflectedEventSpecification implements java.io.Serializable {
         return false;
     }
 
-    public Hashtable<String, Object> getDefinedVariables() {
-        Hashtable<String, Object> variableToValue = new Hashtable<String, Object>();
-        for (String fieldName : fieldNameToValue.keySet()) {
-            if (fieldNameToWriteVariable.containsKey(fieldName)) {
-                variableToValue.put(fieldNameToWriteVariable.get(fieldName), fieldNameToValue.get(fieldName));
-            }
-        }
-        return variableToValue;
-    }
 
     public String toString() {
         return className.substring(className.lastIndexOf(".") + 1);

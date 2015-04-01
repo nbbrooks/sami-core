@@ -12,8 +12,10 @@ import javax.swing.BorderFactory;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.border.Border;
+import sami.engine.PlanManager;
 import sami.markup.Attention;
 import sami.markup.Markup;
+import sami.mission.MissionPlanSpecification;
 
 /**
  *
@@ -59,12 +61,12 @@ public class UiPanel extends JPanel implements MarkupComponent {
     }
 
     @Override
-    public MarkupComponent useCreationComponent(java.lang.reflect.Type type, Field field, ArrayList<Markup> markups) {
+    public MarkupComponent useCreationComponent(java.lang.reflect.Type type, Field field, ArrayList<Markup> markups, MissionPlanSpecification mSpecScope, PlanManager pmScope) {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public MarkupComponent useSelectionComponent(Object selectionObject, ArrayList<Markup> markups) {
+    public MarkupComponent useSelectionComponent(Object selectionObject, ArrayList<Markup> markups, MissionPlanSpecification mSpecScope, PlanManager pmScope) {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 

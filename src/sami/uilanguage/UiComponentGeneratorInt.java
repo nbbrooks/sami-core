@@ -3,7 +3,9 @@ package sami.uilanguage;
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import sami.engine.PlanManager;
 import sami.markup.Markup;
+import sami.mission.MissionPlanSpecification;
 
 /**
  *
@@ -16,9 +18,9 @@ public interface UiComponentGeneratorInt {
         CREATE, SELECT
     };
 
-    public MarkupComponent getCreationComponent(Type type, Field field, ArrayList<Markup> markupList);
+    public MarkupComponent getCreationComponent(Type type, Field field, ArrayList<Markup> markupList, MissionPlanSpecification mSpecScope, PlanManager pmScope);
 
-    public MarkupComponent getSelectionComponent(Type type, Object value, ArrayList<Markup> markupList);
+    public MarkupComponent getSelectionComponent(Type type, Object value, ArrayList<Markup> markupList, MissionPlanSpecification mSpecScope, PlanManager pmScope);
 
     public Object getComponentValue(MarkupComponent component, Class componentClass);
 

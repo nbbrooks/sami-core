@@ -308,6 +308,9 @@ public class MarkupManager {
             LOGGER.severe("Failed to retrieve Mixed Initiative decision for UI message: " + toUiMessage);
             return;
         }
+        
+        // Mark that autonomy made this decision for playback purposes
+        autonomyDecision.setGeneratedFromAutonomy(true);
 
         if (trigger.trigger == MixedInitiativeTrigger.Trigger.IMMEDIATELY) {
             // Send FromUiMessage and notify listeners

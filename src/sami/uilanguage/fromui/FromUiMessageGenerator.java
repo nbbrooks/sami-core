@@ -24,7 +24,7 @@ public class FromUiMessageGenerator {
 
     private static FromUiMessageGeneratorInt createInstance() {
         try {
-            ArrayList<String> list = (ArrayList<String>) DomainConfigManager.getInstance().domainConfiguration.fromUiMessageGeneratorList.clone();
+            ArrayList<String> list = (ArrayList<String>) DomainConfigManager.getInstance().getDomainConfiguration().fromUiMessageGeneratorList.clone();
             for (String className : list) {
                 Class uiClass = Class.forName(className);
                 Method factoryMethod = uiClass.getDeclaredMethod("getInstance");

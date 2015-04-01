@@ -1,12 +1,111 @@
 package sami;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.Random;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import sami.config.DomainConfigManager;
+import sami.engine.Mediator;
 
 /**
  *
  * @author nbb
  */
 public class CoreHelper {
+
+    private static final Logger LOGGER = Logger.getLogger(CoreHelper.class.getName());
+    public static final long START_TIME = System.currentTimeMillis();
+    public static final Date LOGGING_DATE = new Date();
+    public static final String LOGGING_TIMESTAMP = new SimpleDateFormat("yyyy.MM.dd.HH.mm.ss").format(LOGGING_DATE);
+    public static final Random RANDOM = new Random(START_TIME);
+    private static long id = 0;
+
+    public static long getNewId() {
+        return id++;
+    }
+    
+    public static void copyLoadedDcfToFile(File destination) {
+        File loadedDcf = DomainConfigManager.getInstance().getDomainConfigurationFile();
+        if (loadedDcf != null) {
+            try {
+                Files.copy(loadedDcf.toPath(), destination.toPath());
+                LOGGER.info("Copied DCF \"" + loadedDcf.getAbsolutePath() + "\" to \"" + destination.getAbsolutePath() + "\"");
+            } catch (IOException ex) {
+                LOGGER.severe("Failed to copy DCF \"" + loadedDcf.getAbsolutePath() + "\" to \"" + destination.getAbsolutePath() + "\"");
+                ex.printStackTrace();
+            }
+        } else {
+            LOGGER.severe("No loaded DCF to copy");
+        }
+    }
+
+    public static void copyLoadedDcfToDirectory(String destinationDirectory) {
+        File directory = new File(destinationDirectory);
+        if (!directory.isDirectory()) {
+            LOGGER.severe("Failed to copy DCF, \"" + destinationDirectory + "\" is not a valid directory path");
+            return;
+        }
+        File loadedDcf = DomainConfigManager.getInstance().getDomainConfigurationFile();
+        File copy = new File(directory.getAbsolutePath() + File.separator + loadedDcf.getName());
+        copyLoadedDcfToFile(copy);
+    }
+
+    public static void copyLoadedDrmToFile(File destination) {
+        File loadedDrm = Mediator.getInstance().getProjectFile();
+        if (loadedDrm != null) {
+            try {
+                Files.copy(loadedDrm.toPath(), destination.toPath());
+                LOGGER.info("Copied DRM \"" + loadedDrm.getAbsolutePath() + "\" to \"" + destination.getAbsolutePath() + "\"");
+            } catch (IOException ex) {
+                LOGGER.severe("Failed to copy DRM \"" + loadedDrm.getAbsolutePath() + "\" to \"" + destination.getAbsolutePath() + "\"");
+                ex.printStackTrace();
+            }
+        } else {
+            LOGGER.severe("No loaded DRM to copy");
+        }
+    }
+
+    public static void copyLoadedDrmToDirectory(String destinationDirectory) {
+        File directory = new File(destinationDirectory);
+        if (!directory.isDirectory()) {
+            LOGGER.severe("Failed to copy DRM, \"" + destinationDirectory + "\" is not a valid directory path");
+            return;
+        }
+        File loadedDrm = Mediator.getInstance().getProjectFile();
+        File copy = new File(directory.getAbsolutePath() + File.separator + loadedDrm.getName());
+        copyLoadedDrmToFile(copy);
+    }
+
+    public static void copyLoadedEpfToFile(File destination) {
+        File loadedEpf = Mediator.getInstance().getEnvironmentFile();
+        if (loadedEpf != null) {
+            try {
+                Files.copy(loadedEpf.toPath(), destination.toPath());
+                LOGGER.info("Copied EPF \"" + loadedEpf.getAbsolutePath() + "\" to \"" + destination.getAbsolutePath() + "\"");
+            } catch (IOException ex) {
+                LOGGER.severe("Failed to copy EPF \"" + loadedEpf.getAbsolutePath() + "\" to \"" + destination.getAbsolutePath() + "\"");
+                Logger.getLogger(CoreHelper.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        } else {
+            LOGGER.severe("No loaded EPF to copy");
+        }
+    }
+
+    public static void copyLoadedEpfToDirectory(String destinationDirectory) {
+        File directory = new File(destinationDirectory);
+        if (!directory.isDirectory()) {
+            LOGGER.severe("Failed to copy EPF, \"" + destinationDirectory + "\" is not a valid directory path");
+            return;
+        }
+        File loadedEpf = Mediator.getInstance().getEnvironmentFile();
+        File copy = new File(directory.getAbsolutePath() + File.separator + loadedEpf.getName());
+        copyLoadedEpfToFile(copy);
+    }
 
     public static String shorten(String full, int maxLength) {
         String reduced = "";
