@@ -2908,7 +2908,6 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
     @Override
     public void planAborted(PlanManager planManager) {
-        throw new UnsupportedOperationException("Not supported yet.");
     }
 
     public ArrayList<Token> getEndTokens() {

@@ -1,8 +1,17 @@
 package sami.ui;
 
-import java.awt.*;
-import java.io.*;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.Frame;
+import java.awt.Rectangle;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.util.ArrayList;
 import java.util.logging.Logger;
+import javax.swing.JOptionPane;
 
 /** * * @author  Jijun Wang */
 public class FrameManager extends javax.swing.JFrame {
@@ -96,6 +105,17 @@ public class FrameManager extends javax.swing.JFrame {
 
     public static void restoreLayout() {
         Frame[] frames = Frame.getFrames();
+
+        // Don't include any JOptionPanes
+        ArrayList<Frame> usableFrames = new ArrayList<Frame>();
+        for (Frame frame : frames) {
+            if (frame != JOptionPane.getRootFrame()) {
+                usableFrames.add(frame);
+            }
+        }
+        frames = new Frame[usableFrames.size()];
+        frames = usableFrames.toArray(frames);
+
         try {
             BufferedReader br = new BufferedReader(new FileReader(confName));
             String line;

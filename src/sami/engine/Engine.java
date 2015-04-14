@@ -526,6 +526,14 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         }
         plans.remove(planManager);
         freePlanManagerColor(planManager);
+
+        // Now abort any sub-missions
+        //  Only do immediate children, as this will recurse
+        if (pmToSubPms.containsKey(planManager)) {
+            for (PlanManager subPm : pmToSubPms.get(planManager)) {
+                subPm.eventGenerated(new AbortMissionReceived(subPm.missionId));
+            }
+        }
     }
 
     public void abort(PlanManager planManager) {
@@ -595,6 +603,10 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
             return taskToPlanManager.get(task).getToken(task);
         }
         return null;
+    }
+
+    public ArrayList<ProxyInt> getAllProxies() {
+        return (ArrayList<ProxyInt>) proxies.clone();
     }
 
     public Token createToken(ProxyInt proxy) {

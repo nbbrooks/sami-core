@@ -2,18 +2,12 @@ package sami.config;
 
 import java.awt.Color;
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.ObjectOutputStream;
-import java.util.logging.Level;
+import java.security.AccessControlException;
 import java.util.logging.Logger;
 import java.util.prefs.Preferences;
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
 import javax.swing.filechooser.FileNameExtensionFilter;
-import static sami.config.DomainConfigManager.LAST_CFG_FOLDER;
-import static sami.config.DomainConfigManager.LAST_DCF_FILE;
-import static sami.config.DomainConfigManager.LAST_DCF_FOLDER;
 
 /**
  *
@@ -22,7 +16,7 @@ import static sami.config.DomainConfigManager.LAST_DCF_FOLDER;
 public class DomainConfigF extends javax.swing.JFrame {
 
     private static final Logger LOGGER = Logger.getLogger(DomainConfigF.class.getName());
-    private DomainConfig domainConfiguration = new DomainConfig();
+    private DomainConfig domainConfiguration;
     private File configLocation = null;
 
     /**
@@ -30,76 +24,26 @@ public class DomainConfigF extends javax.swing.JFrame {
      */
     public DomainConfigF() {
         initComponents();
+        boolean success = DomainConfigManager.getInstance().openLatestDomainConfiguration();
+        if (!success) {
+            JOptionPane.showMessageDialog(null, "Failed to load previous domain configuration, opening new configuration");
+            DomainConfigManager.getInstance().newDomainConfiguration();
+        }
         domainConfiguration = DomainConfigManager.getInstance().getDomainConfiguration();
+        configLocation = DomainConfigManager.getInstance().getDomainConfigurationFile();
         refreshComponents();
-        checkComplete();
     }
 
-    public void checkComplete() {
-        if (domainConfiguration.complete) {
-            completeB.setBackground(Color.GREEN);
+    /**
+     * Write DCF's CFG locations to corresponding text fields and update
+     * completeness coloring
+     */
+    private void refreshComponents() {
+        if (configLocation != null) {
+            setTitle(configLocation.getAbsolutePath());
         } else {
-            completeB.setBackground(Color.RED);
+            setTitle("Not saved");
         }
-    }
-
-    private void save() {
-        if (configLocation == null) {
-            saveAs();
-            if (configLocation == null) {
-                return;
-            }
-        }
-        Preferences p = Preferences.userRoot();
-        p.put(LAST_DCF_FILE, configLocation.getAbsolutePath());
-        p.put(LAST_DCF_FOLDER, configLocation.getParent());
-
-        // Update dc values
-        domainConfiguration.domainName = nameTF.getText();
-        domainConfiguration.domainDescription = descriptionTA.getText();
-        domainConfiguration.agentTreeFilePath = agentTF.getText();
-        domainConfiguration.assetTreeFilePath = assetTF.getText();
-        domainConfiguration.componentGeneratorListFilePath = componentTF.getText();
-        domainConfiguration.fromUiMessageGeneratorListFilePath = messageTF.getText();
-        domainConfiguration.eventHandlerMappingFilePath = handlerTF.getText();
-        domainConfiguration.eventTreeFilePath = eventTF.getText();
-        domainConfiguration.markupTreeFilePath = markupTF.getText();
-        domainConfiguration.serverListFilePath = serverTF.getText();
-        domainConfiguration.taskTreeFilePath = taskTF.getText();
-        domainConfiguration.uiListFilePath = uiTF.getText();
-        domainConfiguration.reload();
-
-        // Serialize dc
-        ObjectOutputStream oos;
-        try {
-            oos = new ObjectOutputStream(new FileOutputStream(configLocation));
-            oos.writeObject(domainConfiguration);
-            LOGGER.info("Saved: " + configLocation.toString());
-            LOGGER.info("Saved: " + domainConfiguration.toVerboseString());
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
-    }
-
-    public void saveAs() {
-        Preferences p = Preferences.userRoot();
-        String lastDcfFolder = p.get(LAST_DCF_FOLDER, "");
-        JFileChooser chooser = new JFileChooser(lastDcfFolder);
-        FileNameExtensionFilter filter = new FileNameExtensionFilter("Domain configuration file", "dcf");
-        chooser.setFileFilter(filter);
-        int ret = chooser.showSaveDialog(null);
-        if (ret == JFileChooser.APPROVE_OPTION) {
-            if (chooser.getSelectedFile().getName().endsWith(".dcf")) {
-                configLocation = chooser.getSelectedFile();
-            } else {
-                configLocation = new File(chooser.getSelectedFile().getAbsolutePath() + ".dcf");
-            }
-            Logger.getLogger(this.getClass().getName()).log(Level.INFO, "Saving as: " + configLocation.toString());
-            save();
-        }
-    }
-
-    public void refreshComponents() {
         nameTF.setText(domainConfiguration.domainName);
         descriptionTA.setText(domainConfiguration.domainDescription);
         agentTF.setText(domainConfiguration.agentTreeFilePath);
@@ -112,19 +56,59 @@ public class DomainConfigF extends javax.swing.JFrame {
         serverTF.setText(domainConfiguration.serverListFilePath);
         taskTF.setText(domainConfiguration.taskTreeFilePath);
         uiTF.setText(domainConfiguration.uiListFilePath);
+        refreshCompleteComponent();
     }
 
-    public File selectConf(String text) {
-        Preferences p = Preferences.userRoot();
-        String lastCfgFolder = p.get(LAST_CFG_FOLDER, "");
-        JFileChooser chooser = new JFileChooser(lastCfgFolder);
+    public void refreshCompleteComponent() {
+        if (domainConfiguration == null) {
+            return;
+        }
+        if (domainConfiguration.complete) {
+            completeB.setBackground(Color.GREEN);
+        } else {
+            completeB.setBackground(Color.RED);
+        }
+    }
+
+    private File selectConf(String text) {
+        JFileChooser chooser = new JFileChooser();
+        // Try to set the chooser's directory to the last directory a DRM file was successfully loaded from
+        Preferences p = null;
+        try {
+            p = Preferences.userRoot();
+            if (p == null) {
+                LOGGER.severe("Java preferences file is NULL");
+            } else {
+                String folderPath = p.get(DomainConfigManager.LAST_CFG_FOLDER, "");
+                if (folderPath == null) {
+                    LOGGER.warning("Last CFG folder preferences entry was NULL");
+                } else {
+                    File currentFolder = new File(folderPath);
+                    if (!currentFolder.isDirectory()) {
+                        LOGGER.warning("Last CFG folder preferences entry is not a folder: " + currentFolder.getAbsolutePath());
+                    } else {
+                        chooser.setCurrentDirectory(currentFolder);
+                    }
+                }
+            }
+        } catch (AccessControlException e) {
+            LOGGER.severe("Preferences.userRoot access control exception: " + e.toString());
+        }
+        // Limit the chooser to .cfg files
         FileNameExtensionFilter filter = new FileNameExtensionFilter(text + " (.cfg)", "cfg");
         chooser.setFileFilter(filter);
+
         int ret = chooser.showOpenDialog(null);
         if (ret != JFileChooser.APPROVE_OPTION) {
             return null;
         }
-        p.put(LAST_CFG_FOLDER, chooser.getSelectedFile().getParent());
+        if (p != null) {
+            try {
+                p.put(DomainConfigManager.LAST_CFG_FOLDER, chooser.getSelectedFile().getParent());
+            } catch (AccessControlException e) {
+                LOGGER.severe("Preferences.userRoot access control exception: " + e.toString());
+            }
+        }
         return chooser.getSelectedFile();
     }
 
@@ -477,9 +461,9 @@ public class DomainConfigF extends javax.swing.JFrame {
         if (file != null) {
             agentTF.setText(file.getAbsolutePath());
             domainConfiguration.agentTreeFilePath = file.getAbsolutePath();
-            domainConfiguration.reload();
+            domainConfiguration.loadCfgValues();
         }
-        checkComplete();
+        refreshCompleteComponent();
     }//GEN-LAST:event_agentBActionPerformed
 
     private void assetBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_assetBActionPerformed
@@ -487,7 +471,7 @@ public class DomainConfigF extends javax.swing.JFrame {
         if (file != null) {
             assetTF.setText(file.getAbsolutePath());
             domainConfiguration.assetTreeFilePath = file.getAbsolutePath();
-            domainConfiguration.reload();
+            domainConfiguration.loadCfgValues();
         }
     }//GEN-LAST:event_assetBActionPerformed
 
@@ -496,9 +480,9 @@ public class DomainConfigF extends javax.swing.JFrame {
         if (file != null) {
             componentTF.setText(file.getAbsolutePath());
             domainConfiguration.componentGeneratorListFilePath = file.getAbsolutePath();
-            domainConfiguration.reload();
+            domainConfiguration.loadCfgValues();
         }
-        checkComplete();
+        refreshCompleteComponent();
     }//GEN-LAST:event_componentBActionPerformed
 
     private void eventBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_eventBActionPerformed
@@ -506,9 +490,9 @@ public class DomainConfigF extends javax.swing.JFrame {
         if (file != null) {
             eventTF.setText(file.getAbsolutePath());
             domainConfiguration.eventTreeFilePath = file.getAbsolutePath();
-            domainConfiguration.reload();
+            domainConfiguration.loadCfgValues();
         }
-        checkComplete();
+        refreshCompleteComponent();
     }//GEN-LAST:event_eventBActionPerformed
 
     private void handlerBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_handlerBActionPerformed
@@ -516,9 +500,9 @@ public class DomainConfigF extends javax.swing.JFrame {
         if (file != null) {
             handlerTF.setText(file.getAbsolutePath());
             domainConfiguration.eventHandlerMappingFilePath = file.getAbsolutePath();
-            domainConfiguration.reload();
+            domainConfiguration.loadCfgValues();
         }
-        checkComplete();
+        refreshCompleteComponent();
     }//GEN-LAST:event_handlerBActionPerformed
 
     private void markupBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_markupBActionPerformed
@@ -526,9 +510,9 @@ public class DomainConfigF extends javax.swing.JFrame {
         if (file != null) {
             markupTF.setText(file.getAbsolutePath());
             domainConfiguration.markupTreeFilePath = file.getAbsolutePath();
-            domainConfiguration.reload();
+            domainConfiguration.loadCfgValues();
         }
-        checkComplete();
+        refreshCompleteComponent();
     }//GEN-LAST:event_markupBActionPerformed
 
     private void serverBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_serverBActionPerformed
@@ -536,9 +520,9 @@ public class DomainConfigF extends javax.swing.JFrame {
         if (file != null) {
             serverTF.setText(file.getAbsolutePath());
             domainConfiguration.serverListFilePath = file.getAbsolutePath();
-            domainConfiguration.reload();
+            domainConfiguration.loadCfgValues();
         }
-        checkComplete();
+        refreshCompleteComponent();
     }//GEN-LAST:event_serverBActionPerformed
 
     private void taskBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_taskBActionPerformed
@@ -546,9 +530,9 @@ public class DomainConfigF extends javax.swing.JFrame {
         if (file != null) {
             taskTF.setText(file.getAbsolutePath());
             domainConfiguration.taskTreeFilePath = file.getAbsolutePath();
-            domainConfiguration.reload();
+            domainConfiguration.loadCfgValues();
         }
-        checkComplete();
+        refreshCompleteComponent();
     }//GEN-LAST:event_taskBActionPerformed
 
     private void uiBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_uiBActionPerformed
@@ -556,31 +540,28 @@ public class DomainConfigF extends javax.swing.JFrame {
         if (file != null) {
             uiTF.setText(file.getAbsolutePath());
             domainConfiguration.uiListFilePath = file.getAbsolutePath();
-            domainConfiguration.reload();
+            domainConfiguration.loadCfgValues();
         }
-        checkComplete();
+        refreshCompleteComponent();
     }//GEN-LAST:event_uiBActionPerformed
 
     private void saveBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_saveBActionPerformed
-        domainConfiguration.reload();
-        checkComplete();
-        save();
+        DomainConfigManager.getInstance().saveDomainConfiguration();
     }//GEN-LAST:event_saveBActionPerformed
 
     private void openBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_openBActionPerformed
-        boolean success = DomainConfigManager.getInstance().openDomainConfiguration();
+        boolean success = DomainConfigManager.getInstance().openDomainConfigurationFromBrowser();
         if (!success) {
-            JOptionPane.showMessageDialog(null, "Failed to load domain configuration");
+            JOptionPane.showMessageDialog(null, "Failed to load domain configuration, opening new configuration");
+            DomainConfigManager.getInstance().newDomainConfiguration();
         }
         domainConfiguration = DomainConfigManager.getInstance().getDomainConfiguration();
+        configLocation = DomainConfigManager.getInstance().getDomainConfigurationFile();
         refreshComponents();
-        checkComplete();
     }//GEN-LAST:event_openBActionPerformed
 
     private void saveAsBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_saveAsBActionPerformed
-        domainConfiguration.reload();
-        checkComplete();
-        saveAs();
+        DomainConfigManager.getInstance().saveDomainConfigurationAs();
     }//GEN-LAST:event_saveAsBActionPerformed
 
     private void messageBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_messageBActionPerformed
@@ -588,9 +569,9 @@ public class DomainConfigF extends javax.swing.JFrame {
         if (file != null) {
             messageTF.setText(file.getAbsolutePath());
             domainConfiguration.fromUiMessageGeneratorListFilePath = file.getAbsolutePath();
-            domainConfiguration.reload();
+            domainConfiguration.loadCfgValues();
         }
-        checkComplete();
+        refreshCompleteComponent();
     }//GEN-LAST:event_messageBActionPerformed
 
     /**

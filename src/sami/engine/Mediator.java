@@ -11,7 +11,6 @@ import java.io.ObjectOutputStream;
 import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.prefs.Preferences;
 import javax.swing.JFileChooser;
@@ -36,12 +35,12 @@ public class Mediator {
     public static final String LAST_EPF_FOLDER = "LAST_EPF_FOLDER";
 
     // Environment related items
-    private ProjectSpecification projectSpec = null;
-    private File projectSpecLocation = null;
+    private ProjectSpecification project = null;
+    private File projectFile = null;
     private final ArrayList<ProjectListenerInt> projectListeners = new ArrayList<ProjectListenerInt>();
     // Environment related items
     private EnvironmentProperties environmentProperties = null;
-    private File environmentPropertiesLocation = null;
+    private File environmentPropertiesFile = null;
     private final ArrayList<EnvironmentListenerInt> environmentListeners = new ArrayList<EnvironmentListenerInt>();
 //        private Platform platform = new Platform();
     // Variable name to number of references (for garbage collection)
@@ -57,115 +56,227 @@ public class Mediator {
     }
 
     private Mediator() {
-
     }
 
     public ProjectSpecification getProject() {
-        if (projectSpec == null) {
-            newProject();
-        }
+        if (project == null) {
+            LOGGER.warning("Called getProject before loading/starting a DRM");
+            boolean success;
+            int answer;
 
-        return projectSpec;
+            // Try to load the last used DRM file
+            success = openLatestProject();
+            if (!success) {
+                LOGGER.severe("Failed to load last used DRM");
+                answer = JOptionPane.showOptionDialog(null, "Failed to load last used DRM: Load different DRM or start new DRM?", "Load different DRM?", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE, null, null, null);
+                if (answer == JOptionPane.YES_OPTION) {
+                    success = openProjectFromBrowser();
+                } else {
+                    newProject();
+                    success = true;
+                }
+            }
+            while (!success) {
+                LOGGER.severe("Failed to load specified DRM");
+                answer = JOptionPane.showOptionDialog(null, "Failed to load specified DRM: Load different DRM or start new DRM?", "Load different DRM?", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE, null, null, null);
+                if (answer == JOptionPane.YES_OPTION) {
+                    success = openProjectFromBrowser();
+                } else {
+                    newProject();
+                    success = true;
+                }
+            }
+        }
+        return project;
     }
 
     public File getProjectFile() {
-        return projectSpecLocation;
+        return projectFile;
     }
 
     public void newProject() {
-        if (projectSpec != null && projectSpec.needsSaving()) {
+        if (project != null && project.needsSaving()) {
             int answer = JOptionPane.showOptionDialog(null, "Save current specification?", "Save first?", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE, null, null, null);
             if (answer == JOptionPane.YES_OPTION) {
                 saveProject();
             }
         }
-        projectSpecLocation = null;
+        // Set DRM location to NULL
+        projectFile = null;
+        // Create new DRM
         setProjectSpecification(new ProjectSpecification());
     }
 
     public void saveProject() {
-        if (projectSpecLocation == null) {
+        // If project has no location (IE is a new project), use save as instead
+        if (projectFile == null) {
             saveProjectAs();
-            if (projectSpecLocation == null) {
-                return;
-            }
+            return;
         }
+
+        // Try to write the project to its location
         ObjectOutputStream oos;
         try {
-            oos = new ObjectOutputStream(new FileOutputStream(projectSpecLocation));
-            oos.writeObject(projectSpec);
-            LOGGER.info("Writing projectSpec with " + projectSpec.getAllMissionPlans());
-            projectSpec.saved();
-            LOGGER.info("Saved: " + projectSpec);
+            oos = new ObjectOutputStream(new FileOutputStream(projectFile));
+            oos.writeObject(project);
+            LOGGER.info("Writing DRM with " + project.getAllMissionPlans());
+            project.saved();
+            LOGGER.info("Saved: " + project);
 
-            // Update last DRM file
-            Preferences p = Preferences.userRoot();
+            // Update latest DRM file and folder in Java preferences
             try {
-                p.put(LAST_DRM_FILE, projectSpecLocation.getAbsolutePath());
-                p.put(LAST_DRM_FOLDER, projectSpecLocation.getParent());
+                Preferences p = Preferences.userRoot();
+                if (p == null) {
+                    LOGGER.severe("Java preferences file is NULL");
+                } else {
+                    p.put(LAST_DRM_FILE, projectFile.getAbsolutePath());
+                    p.put(LAST_DRM_FOLDER, projectFile.getParent());
+                }
             } catch (AccessControlException e) {
-                LOGGER.severe("Failed to save preferences");
+                LOGGER.severe("Preferences.userRoot access control exception: " + e.toString());
             }
         } catch (IOException ex) {
-            Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, ex);
+            LOGGER.severe("Failed to write DRM file: " + ex.toString());
         }
     }
 
     public void saveProjectAs() {
-        Preferences p = Preferences.userRoot();
-        String folder = p.get(LAST_DRM_FOLDER, "");
-        JFileChooser chooser = new JFileChooser(folder);
+        JFileChooser chooser = new JFileChooser();
+        // Try to set the chooser's directory to the last directory a DRM file was successfully loaded from
+        try {
+            Preferences p = Preferences.userRoot();
+            if (p == null) {
+                LOGGER.severe("Java preferences file is NULL");
+            } else {
+                String folderPath = p.get(LAST_DRM_FOLDER, "");
+                if (folderPath == null) {
+                    LOGGER.warning("Last DRM folder preferences entry was NULL");
+                } else {
+                    File currentFolder = new File(folderPath);
+                    if (!currentFolder.isDirectory()) {
+                        LOGGER.warning("Last DRM folder preferences entry is not a folder: " + currentFolder.getAbsolutePath());
+                    } else {
+                        chooser.setCurrentDirectory(currentFolder);
+                    }
+                }
+            }
+        } catch (AccessControlException e) {
+            LOGGER.severe("Preferences.userRoot access control exception: " + e.toString());
+        }
+        // Limit the chooser to .drm files
         FileNameExtensionFilter filter = new FileNameExtensionFilter("DREAAM specification files", "drm");
         chooser.setFileFilter(filter);
         int ret = chooser.showSaveDialog(null);
         if (ret == JFileChooser.APPROVE_OPTION) {
+            // If file was manually named without DRM extension, add it
             if (chooser.getSelectedFile().getName().endsWith(".drm")) {
-                projectSpecLocation = chooser.getSelectedFile();
+                projectFile = chooser.getSelectedFile();
             } else {
-                projectSpecLocation = new File(chooser.getSelectedFile().getAbsolutePath() + ".drm");
+                projectFile = new File(chooser.getSelectedFile().getAbsolutePath() + ".drm");
             }
-            Logger.getLogger(this.getClass().getName()).log(Level.INFO, "Saving as: " + projectSpecLocation.toString());
+            // Save project to file
+            LOGGER.info("Saving as: " + projectFile.toString());
             saveProject();
         }
     }
 
-    public boolean openProject() {
-        Preferences p = Preferences.userRoot();
-        String folder = p.get(LAST_DRM_FOLDER, "");
-        JFileChooser chooser = new JFileChooser(folder);
+    /**
+     * Attempts to load the last DRM file successfully opened as specified by
+     * the user's Java preferences
+     *
+     * @return Success of loading last used DRM file
+     */
+    public boolean openLatestProject() {
+        // Try to load the last used DRM file
+        LOGGER.info("Load latest DRM");
+        try {
+            Preferences p = Preferences.userRoot();
+            if (p == null) {
+                LOGGER.severe("Java preferences file is NULL");
+                return false;
+            } else {
+                String lastDrmPath = p.get(LAST_DRM_FILE, null);
+                if (lastDrmPath == null) {
+                    LOGGER.warning("Last drm file preferences entry was NULL");
+                    return false;
+                }
+                File lastDrmFile = new File(lastDrmPath);
+                return openSpecifiedProject(lastDrmFile);
+            }
+        } catch (AccessControlException e) {
+            LOGGER.severe("Preferences.userRoot access control exception: " + e.toString());
+            return false;
+        }
+    }
+
+    /**
+     * Prompts the user to specify a DRM file to attempt to load from the file
+     * browser
+     *
+     * @return Whether a DRM file was successfully chosen and loaded
+     */
+    public boolean openProjectFromBrowser() {
+        JFileChooser chooser = new JFileChooser();
+        // Try to set the chooser's directory to the last directory a DRM file was successfully loaded from
+        try {
+            Preferences p = Preferences.userRoot();
+            if (p == null) {
+                LOGGER.severe("Java preferences file is NULL");
+            } else {
+                String folderPath = p.get(LAST_DRM_FOLDER, "");
+                if (folderPath == null) {
+                    LOGGER.warning("Last DRM folder preferences entry was NULL");
+                } else {
+                    File currentFolder = new File(folderPath);
+                    if (!currentFolder.isDirectory()) {
+                        LOGGER.warning("Last DRM folder preferences entry is not a folder: " + currentFolder.getAbsolutePath());
+                    } else {
+                        chooser.setCurrentDirectory(currentFolder);
+                    }
+                }
+            }
+        } catch (AccessControlException e) {
+            LOGGER.severe("Preferences.userRoot access control exception: " + e.toString());
+        }
+        // Limit the chooser to .drm files
         FileNameExtensionFilter filter = new FileNameExtensionFilter("DREAAM specification files", "drm");
         chooser.setFileFilter(filter);
         int ret = chooser.showOpenDialog(null);
         if (ret == JFileChooser.APPROVE_OPTION) {
-            projectSpecLocation = chooser.getSelectedFile();
-            return openProject(projectSpecLocation);
+            // Try to open the selected DRM file
+            File selectedProjectFile = chooser.getSelectedFile();
+            return openSpecifiedProject(selectedProjectFile);
         }
         return false;
     }
 
-    public boolean openProject(File location) {
+    public boolean openSpecifiedProject(File location) {
         if (location == null) {
+            LOGGER.severe("Called openSpecifiedProject with NULL file");
             return false;
         }
+        // Catch all exceptions
         try {
             LOGGER.info("Reading: " + location.toString());
             ObjectInputStream ois = new ObjectInputStream(new FileInputStream(location));
             ProjectSpecification projectSpecTemp = (ProjectSpecification) ois.readObject();
 
-            if (projectSpecTemp == null) {
-                return false;
-            } else {
-                projectSpecLocation = location;
-                setProjectSpecification(projectSpecTemp);
+            // Successfully loaded DRM file
+            projectFile = location;
+            setProjectSpecification(projectSpecTemp);
+            // Update latest DRM file and folder in Java preferences
+            try {
                 Preferences p = Preferences.userRoot();
-                try {
+                if (p == null) {
+                    LOGGER.severe("Java preferences file is NULL");
+                } else {
                     p.put(LAST_DRM_FILE, location.getAbsolutePath());
                     p.put(LAST_DRM_FOLDER, location.getParent());
-                } catch (AccessControlException e) {
-                    LOGGER.severe("Failed to save preferences");
                 }
-                return true;
+            } catch (AccessControlException e) {
+                LOGGER.severe("Preferences.userRoot access control exception: " + e.toString());
             }
+            return true;
         } catch (FileNotFoundException ex) {
             LOGGER.severe("Exception in DRM open - DRM file not found");
         } catch (InvalidClassException ex) {
@@ -173,7 +284,7 @@ public class Mediator {
         } catch (SecurityException ex) {
             LOGGER.severe("Exception in DRM open - error in JDK SHA implementation");
         } catch (Exception ex) {
-            LOGGER.severe("Exception in DRM open: " + ex.getLocalizedMessage());
+            LOGGER.severe("Exception in DRM open: " + ex.toString());
         }
 
         return false;
@@ -184,7 +295,7 @@ public class Mediator {
     }
 
     public void setProjectSpecification(ProjectSpecification projectSpec) {
-        this.projectSpec = projectSpec;
+        this.project = projectSpec;
         for (ProjectListenerInt listener : projectListeners) {
             listener.projectUpdated();
         }
@@ -192,110 +303,224 @@ public class Mediator {
 
     public EnvironmentProperties getEnvironment() {
         if (environmentProperties == null) {
-            newEnvironment();
+            LOGGER.warning("Called getEnvironment before loading/starting a EPF");
+            boolean success;
+            int answer;
+
+            // Try to load the last used EPF file
+            success = Mediator.getInstance().openLatestEnvironment();
+            if (!success) {
+                LOGGER.severe("Failed to load last used EPF");
+                answer = JOptionPane.showOptionDialog(null, "Failed to load last used EPF: Load different EPF or start new EPF?", "Load different EPF?", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE, null, null, null);
+                if (answer == JOptionPane.YES_OPTION) {
+                    success = Mediator.getInstance().openEnvironmentFromBrowser();
+                } else {
+                    newEnvironment();
+                    success = true;
+                }
+            }
+            while (!success) {
+                LOGGER.severe("Failed to load specified EPF");
+                answer = JOptionPane.showOptionDialog(null, "Failed to load specified EPF: Load different EPF or start new EPF?", "Load different EPF?", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE, null, null, null);
+                if (answer == JOptionPane.YES_OPTION) {
+                    success = Mediator.getInstance().openEnvironmentFromBrowser();
+                } else {
+                    newEnvironment();
+                    success = true;
+                }
+            }
         }
 
         return environmentProperties;
     }
 
     public File getEnvironmentFile() {
-        return environmentPropertiesLocation;
+        return environmentPropertiesFile;
     }
 
     public void newEnvironment() {
         if (environmentProperties != null && environmentProperties.needsSaving()) {
-            int answer = JOptionPane.showOptionDialog(null, "Save current environment?", "Save first?", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE, null, null, null);
+            int answer = JOptionPane.showOptionDialog(null, "Save current specification?", "Save first?", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE, null, null, null);
             if (answer == JOptionPane.YES_OPTION) {
                 saveEnvironment();
             }
         }
-        environmentPropertiesLocation = null;
+        // Set EPF location to NULL
+        environmentPropertiesFile = null;
+        // Create new EPF
         setEnvironmentProperties(new EnvironmentProperties());
     }
 
     public void saveEnvironment() {
-        if (environmentPropertiesLocation == null) {
+        // If environmentProperties has no location (IE is a new environmentProperties), use save as instead
+        if (environmentPropertiesFile == null) {
             saveEnvironmentAs();
-            if (environmentPropertiesLocation == null) {
-                return;
-            }
+            return;
         }
+
+        // Try to write the environmentProperties to its location
         ObjectOutputStream oos;
         try {
-            oos = new ObjectOutputStream(new FileOutputStream(environmentPropertiesLocation));
+            oos = new ObjectOutputStream(new FileOutputStream(environmentPropertiesFile));
             oos.writeObject(environmentProperties);
-            LOGGER.info("Writing environmentProperties with " + environmentProperties);
+            LOGGER.info("Writing EPF with " + environmentProperties);
             environmentProperties.saved();
             LOGGER.info("Saved: " + environmentProperties);
 
-            // Update last DRM file
-            Preferences p = Preferences.userRoot();
+            // Update latest EPF file and folder in Java preferences
             try {
-                p.put(LAST_EPF_FILE, environmentPropertiesLocation.getAbsolutePath());
-                p.put(LAST_EPF_FOLDER, environmentPropertiesLocation.getParent());
+                Preferences p = Preferences.userRoot();
+                if (p == null) {
+                    LOGGER.severe("Java preferences file is NULL");
+                } else {
+                    p.put(LAST_EPF_FILE, environmentPropertiesFile.getAbsolutePath());
+                    p.put(LAST_EPF_FOLDER, environmentPropertiesFile.getParent());
+                }
             } catch (AccessControlException e) {
-                LOGGER.severe("Failed to save preferences");
+                LOGGER.severe("Preferences.userRoot access control exception: " + e.toString());
             }
         } catch (IOException ex) {
-            ex.printStackTrace();
+            LOGGER.severe("Failed to write EPF file: " + ex.toString());
         }
     }
 
     public void saveEnvironmentAs() {
-        Preferences p = Preferences.userRoot();
-        String folder = p.get(LAST_EPF_FOLDER, "");
-        JFileChooser chooser = new JFileChooser(folder);
-        FileNameExtensionFilter filter = new FileNameExtensionFilter("Environment Properties files", "epf");
+        JFileChooser chooser = new JFileChooser();
+        // Try to set the chooser's directory to the last directory a EPF file was successfully loaded from
+        try {
+            Preferences p = Preferences.userRoot();
+            if (p == null) {
+                LOGGER.severe("Java preferences file is NULL");
+            } else {
+                String folderPath = p.get(LAST_EPF_FOLDER, "");
+                if (folderPath == null) {
+                    LOGGER.warning("Last EPF folder preferences entry was NULL");
+                } else {
+                    File currentFolder = new File(folderPath);
+                    if (!currentFolder.isDirectory()) {
+                        LOGGER.warning("Last EPF folder preferences entry is not a folder: " + currentFolder.getAbsolutePath());
+                    } else {
+                        chooser.setCurrentDirectory(currentFolder);
+                    }
+                }
+            }
+        } catch (AccessControlException e) {
+            LOGGER.severe("Preferences.userRoot access control exception: " + e.toString());
+        }
+        // Limit the chooser to .epf files
+        FileNameExtensionFilter filter = new FileNameExtensionFilter("Environment properties files", "epf");
         chooser.setFileFilter(filter);
         int ret = chooser.showSaveDialog(null);
         if (ret == JFileChooser.APPROVE_OPTION) {
+            // If file was manually named without EPF extension, add it
             if (chooser.getSelectedFile().getName().endsWith(".epf")) {
-                environmentPropertiesLocation = chooser.getSelectedFile();
+                environmentPropertiesFile = chooser.getSelectedFile();
             } else {
-                environmentPropertiesLocation = new File(chooser.getSelectedFile().getAbsolutePath() + ".epf");
+                environmentPropertiesFile = new File(chooser.getSelectedFile().getAbsolutePath() + ".epf");
             }
-            LOGGER.info("Saving as: " + environmentPropertiesLocation.toString());
+            // Save environmentProperties to file
+            LOGGER.info("Saving as: " + environmentPropertiesFile.toString());
             saveEnvironment();
         }
     }
 
-    public boolean openEnvironment() {
-        Preferences p = Preferences.userRoot();
-        String folder = p.get(LAST_EPF_FOLDER, "");
-        JFileChooser chooser = new JFileChooser(folder);
-        FileNameExtensionFilter filter = new FileNameExtensionFilter("Environment Properties files", "epf");
+    /**
+     * Attempts to load the last EPF file successfully opened as specified by
+     * the user's Java preferences
+     *
+     * @return Success of loading last used EPF file
+     */
+    public boolean openLatestEnvironment() {
+        // Try to load the last used EPF file
+        LOGGER.info("Load latest EPF");
+        try {
+            Preferences p = Preferences.userRoot();
+            if (p == null) {
+                LOGGER.severe("Java preferences file is NULL");
+                return false;
+            } else {
+                String lastEpfPath = p.get(LAST_EPF_FILE, null);
+                if (lastEpfPath == null) {
+                    LOGGER.warning("Last epf file preferences entry was NULL");
+                    return false;
+                }
+                File lastEpfFile = new File(lastEpfPath);
+                return openSpecifiedEnvironment(lastEpfFile);
+            }
+        } catch (AccessControlException e) {
+            LOGGER.severe("Preferences.userRoot access control exception: " + e.toString());
+            return false;
+        }
+    }
+
+    /**
+     * Prompts the user to specify a EPF file to attempt to load from the file
+     * browser
+     *
+     * @return Whether a EPF file was successfully chosen and loaded
+     */
+    public boolean openEnvironmentFromBrowser() {
+        JFileChooser chooser = new JFileChooser();
+        // Try to set the chooser's directory to the last directory a EPF file was successfully loaded from
+        try {
+            Preferences p = Preferences.userRoot();
+            if (p == null) {
+                LOGGER.severe("Java preferences file is NULL");
+            } else {
+                String folderPath = p.get(LAST_EPF_FOLDER, "");
+                if (folderPath == null) {
+                    LOGGER.warning("Last EPF folder preferences entry was NULL");
+                } else {
+                    File currentFolder = new File(folderPath);
+                    if (!currentFolder.isDirectory()) {
+                        LOGGER.warning("Last EPF folder preferences entry is not a folder: " + currentFolder.getAbsolutePath());
+                    } else {
+                        chooser.setCurrentDirectory(currentFolder);
+                    }
+                }
+            }
+        } catch (AccessControlException e) {
+            LOGGER.severe("Preferences.userRoot access control exception: " + e.toString());
+        }
+        // Limit the chooser to .epf files
+        FileNameExtensionFilter filter = new FileNameExtensionFilter("Environment properties files", "epf");
         chooser.setFileFilter(filter);
         int ret = chooser.showOpenDialog(null);
         if (ret == JFileChooser.APPROVE_OPTION) {
-            environmentPropertiesLocation = chooser.getSelectedFile();
-            return openEnvironment(environmentPropertiesLocation);
+            // Try to open the selected EPF file
+            File selectedEnvironmentFile = chooser.getSelectedFile();
+            return openSpecifiedEnvironment(selectedEnvironmentFile);
         }
         return false;
     }
 
-    public boolean openEnvironment(File location) {
+    public boolean openSpecifiedEnvironment(File location) {
         if (location == null) {
+            LOGGER.severe("Called openSpecifiedEnvironment with NULL file");
             return false;
         }
+        // Catch all exceptions
         try {
             LOGGER.info("Reading: " + location.toString());
             ObjectInputStream ois = new ObjectInputStream(new FileInputStream(location));
             EnvironmentProperties environmentPropertiesTemp = (EnvironmentProperties) ois.readObject();
 
-            if (environmentPropertiesTemp == null) {
-                return false;
-            } else {
-                environmentPropertiesLocation = location;
-                setEnvironmentProperties(environmentPropertiesTemp);
+            // Successfully loaded EPF file
+            environmentPropertiesFile = location;
+            setEnvironmentProperties(environmentPropertiesTemp);
+            // Update latest EPF file and folder in Java preferences
+            try {
                 Preferences p = Preferences.userRoot();
-                try {
+                if (p == null) {
+                    LOGGER.severe("Java preferences file is NULL");
+                } else {
                     p.put(LAST_EPF_FILE, location.getAbsolutePath());
                     p.put(LAST_EPF_FOLDER, location.getParent());
-                } catch (AccessControlException e) {
-                    LOGGER.severe("Failed to save preferences");
                 }
-                return true;
+            } catch (AccessControlException e) {
+                LOGGER.severe("Preferences.userRoot access control exception: " + e.toString());
             }
+            return true;
         } catch (FileNotFoundException ex) {
             LOGGER.severe("Exception in EPF open - EPF file not found");
         } catch (InvalidClassException ex) {
@@ -303,7 +528,7 @@ public class Mediator {
         } catch (SecurityException ex) {
             LOGGER.severe("Exception in EPF open - error in JDK SHA implementation");
         } catch (Exception ex) {
-            LOGGER.severe("Exception in EPF open: " + ex.getLocalizedMessage());
+            LOGGER.severe("Exception in EPF open: " + ex.toString());
         }
 
         return false;

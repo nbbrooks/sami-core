@@ -15,6 +15,7 @@ import sami.event.AbortMission;
 import sami.event.AbortMissionReceived;
 import sami.event.GeneratedEventListenerInt;
 import sami.event.GeneratedInputEventSubscription;
+import sami.event.GetAllProxyTokens;
 import sami.event.OutputEvent;
 import sami.event.ProxyAbortMissionReceived;
 import sami.event.RefreshTasks;
@@ -25,7 +26,10 @@ import sami.event.SendProxyAbortFutureMissions;
 import sami.event.StartTimer;
 import sami.event.TaskComplete;
 import sami.event.TaskStarted;
+import sami.event.TasksForProxyRequest;
+import sami.event.TasksForProxyResponse;
 import sami.event.TimerExpired;
+import sami.event.TokensReturned;
 import sami.mission.MissionPlanSpecification;
 import sami.mission.Token;
 import sami.proxy.ProxyInt;
@@ -180,6 +184,36 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
                     }
                 }
             }
+        } else if(oe instanceof GetAllProxyTokens) {
+            TokensReturned tr = new TokensReturned(oe.getId(), oe.getMissionId(), Engine.getInstance().getAllProxies());
+            for (GeneratedEventListenerInt listener : listeners) {
+                listener.eventGenerated(tr);
+            }
+        } else if (oe instanceof TasksForProxyRequest) {
+            if (oe.getMissionId() != null) {
+                PlanManager pm = Engine.getInstance().getPlanManager(oe.getMissionId());
+                if (pm != null) {
+                    ArrayList<Task> tasks = new ArrayList<Task>();
+                    for (Token token : tokens) {
+                        if (token.getProxy() != null) {
+                            ArrayList<Token> proxyTaskTokens = pm.getTaskTokensForProxy(token.getProxy());
+                            for (Token proxyTaskToken : proxyTaskTokens) {
+                                if (!tasks.contains(proxyTaskToken.getTask())) {
+                                    tasks.add(proxyTaskToken.getTask());
+                                }
+                            }
+                        }
+                    }
+                    TasksForProxyResponse response = new TasksForProxyResponse(oe.getId(), oe.getMissionId(), tasks);
+                    for (GeneratedEventListenerInt listener : listeners) {
+                        listener.eventGenerated(response);
+                    }
+                } else {
+                    LOGGER.severe("Couldn't find PM for TasksForProxyRequest with mission id [" + oe.getMissionId() + "]");
+                }
+            } else {
+                LOGGER.severe("TasksForProxyRequest had no mission id");
+            }
         }
     }
 
@@ -187,7 +221,8 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
     public boolean offer(GeneratedInputEventSubscription sub) {
         LOGGER.log(Level.FINE, "CoreEventHandler offered subscription: " + sub);
         if (sub.getSubscriptionClass() == AbortMissionReceived.class
-                || sub.getSubscriptionClass() == TimerExpired.class) {
+                || sub.getSubscriptionClass() == TimerExpired.class
+                || sub.getSubscriptionClass() == TokensReturned.class) {
             LOGGER.log(Level.FINE, "\tCoreEventHandler took subscription request: " + sub);
             if (!listeners.contains(sub.getListener())) {
                 LOGGER.log(Level.FINE, "\t\tCoreEventHandler adding listener: " + sub.getListener());
@@ -206,7 +241,8 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
     public boolean cancel(GeneratedInputEventSubscription sub) {
         LOGGER.log(Level.FINE, "CoreEventHandler asked to cancel subscription: " + sub);
         if ((sub.getSubscriptionClass() == AbortMissionReceived.class
-                || sub.getSubscriptionClass() == TimerExpired.class)
+                || sub.getSubscriptionClass() == TimerExpired.class
+                || sub.getSubscriptionClass() == TokensReturned.class)
                 && listeners.contains(sub.getListener())) {
             LOGGER.log(Level.FINE, "CoreEventHandler  canceling subscription: " + sub);
             if (listenerGCCount.get(sub.getListener()) == 1) {

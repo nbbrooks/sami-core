@@ -100,136 +100,99 @@ public class DomainConfig implements java.io.Serializable {
         this.taskTreeFilePath = taskListFilePath;
         this.uiListFilePath = uiListFilePath;
         complete = false;
-        reload();
+        loadCfgValues();
     }
 
-    public void reload() {
+    /**
+     * Try to load values from specified CFG files into their variables
+     */
+    public void loadCfgValues() {
         if (agentTreeFilePath != null) {
             File file = new File(agentTreeFilePath);
-            if (file != null) {
-                DefaultMutableTreeNode temp = parseTreeFile(file);
-                if (temp != null) {
-                    agentTree = temp;
-                }
-            } else {
-                LOGGER.warning("Could not open agent list file path: \"" + agentTreeFilePath + "\", using cached values");
+            DefaultMutableTreeNode temp = parseTreeFile(file);
+            if (temp != null) {
+                agentTree = temp;
             }
         } else {
             LOGGER.warning("Agent list file path is not set");
         }
         if (assetTreeFilePath != null) {
             File file = new File(assetTreeFilePath);
-            if (file != null) {
-                DefaultMutableTreeNode temp = parseTreeFile(file);
-                if (temp != null) {
-                    assetTree = temp;
-                }
-            } else {
-                LOGGER.warning("Could not open asset list file path: \"" + assetTreeFilePath + "\", using cached values");
+            DefaultMutableTreeNode temp = parseTreeFile(file);
+            if (temp != null) {
+                assetTree = temp;
             }
         } else {
             LOGGER.warning("Asset list file path is not set");
         }
         if (componentGeneratorListFilePath != null) {
             File file = new File(componentGeneratorListFilePath);
-            if (file != null) {
-                ArrayList<String> temp = parseListFile(file);
-                if (temp != null) {
-                    componentGeneratorList = temp;
-                }
-            } else {
-                LOGGER.warning("Could not open component generator list file path: \"" + componentGeneratorListFilePath + "\", using cached values");
+            ArrayList<String> temp = parseListFile(file);
+            if (temp != null) {
+                componentGeneratorList = temp;
             }
         } else {
             LOGGER.warning("Component generator file path is not set");
         }
         if (fromUiMessageGeneratorListFilePath != null) {
             File file = new File(fromUiMessageGeneratorListFilePath);
-            if (file != null) {
-                ArrayList<String> temp = parseListFile(file);
-                if (temp != null) {
-                    fromUiMessageGeneratorList = temp;
-                }
-            } else {
-                LOGGER.warning("Could not open component generator list file path: \"" + componentGeneratorListFilePath + "\", using cached values");
+            ArrayList<String> temp = parseListFile(file);
+            if (temp != null) {
+                fromUiMessageGeneratorList = temp;
             }
         } else {
             LOGGER.warning("Component generator file path is not set");
         }
         if (eventTreeFilePath != null) {
             File file = new File(eventTreeFilePath);
-            if (file != null) {
-                DefaultMutableTreeNode temp = parseTreeFile(file);
-                if (temp != null) {
-                    eventTree = temp;
-                }
-            } else {
-                LOGGER.warning("Could not open event list file path: \"" + eventTreeFilePath + "\", using cached values");
+            DefaultMutableTreeNode temp = parseTreeFile(file);
+            if (temp != null) {
+                eventTree = temp;
             }
         } else {
             LOGGER.warning("Event list file path is not set");
         }
         if (eventHandlerMappingFilePath != null) {
             File file = new File(eventHandlerMappingFilePath);
-            if (file != null) {
-                Hashtable<String, String> temp = parseMappingFile(file);
-                if (temp != null) {
-                    eventHandlerMapping = temp;
-                }
-            } else {
-                LOGGER.warning("Could not open event handler mapping file path: \"" + eventHandlerMappingFilePath + "\", using cached values");
+            Hashtable<String, String> temp = parseMappingFile(file);
+            if (temp != null) {
+                eventHandlerMapping = temp;
             }
         } else {
             LOGGER.warning("Event handler mapping file path is not set");
         }
         if (markupTreeFilePath != null) {
             File file = new File(markupTreeFilePath);
-            if (file != null) {
-                DefaultMutableTreeNode temp = parseTreeFile(file);
-                if (temp != null) {
-                    markupTree = temp;
-                }
-            } else {
-                LOGGER.warning("Could not open markup list file path: \"" + markupTreeFilePath + "\", using cached values");
+            DefaultMutableTreeNode temp = parseTreeFile(file);
+            if (temp != null) {
+                markupTree = temp;
             }
         } else {
             LOGGER.warning("Markup list file path is not set");
         }
         if (serverListFilePath != null) {
             File file = new File(serverListFilePath);
-            if (file != null) {
-                ArrayList<String> temp = parseListFile(file);
-                if (temp != null) {
-                    serverList = temp;
-                }
-            } else {
-                LOGGER.warning("Could not open server list file path: \"" + serverListFilePath + "\", using cached values");
+            ArrayList<String> temp = parseListFile(file);
+            if (temp != null) {
+                serverList = temp;
             }
         } else {
             LOGGER.warning("Server list file path is not set");
         }
         if (taskTreeFilePath != null) {
             File file = new File(taskTreeFilePath);
-            if (file != null) {
-                DefaultMutableTreeNode temp = parseTreeFile(file);
-                if (temp != null) {
-                    taskTree = temp;
-                }
-            } else {
-                LOGGER.warning("Could not open task list file path: \"" + taskTreeFilePath + "\", using cached values");
+            DefaultMutableTreeNode temp = parseTreeFile(file);
+            if (temp != null) {
+                taskTree = temp;
             }
         } else {
             LOGGER.warning("Task list file path is not set");
         }
         if (uiListFilePath != null) {
             File file = new File(uiListFilePath);
-            if (file != null) {
-                ArrayList<String> temp = parseListFile(file);
-                if (temp != null) {
-                    uiList = temp;
-                }
-            } else {
-                LOGGER.warning("Could not open ui list file path: \"" + uiListFilePath + "\", using cached values");
+            ArrayList<String> temp = parseListFile(file);
+            if (temp != null) {
+                uiList = temp;
             }
         } else {
             LOGGER.warning("Ui list file path is not set");
