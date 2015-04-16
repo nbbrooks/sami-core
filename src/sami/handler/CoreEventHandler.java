@@ -187,31 +187,6 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
             for (GeneratedEventListenerInt listener : listeners) {
                 listener.eventGenerated(tr);
             }
-        } else if (oe instanceof TasksForProxyRequest) {
-            if (oe.getMissionId() != null) {
-                PlanManager pm = Engine.getInstance().getPlanManager(oe.getMissionId());
-                if (pm != null) {
-                    ArrayList<Task> tasks = new ArrayList<Task>();
-                    for (Token token : tokens) {
-                        if (token.getProxy() != null) {
-                            ArrayList<Token> proxyTaskTokens = pm.getTaskTokensForProxy(token.getProxy());
-                            for (Token proxyTaskToken : proxyTaskTokens) {
-                                if (!tasks.contains(proxyTaskToken.getTask())) {
-                                    tasks.add(proxyTaskToken.getTask());
-                                }
-                            }
-                        }
-                    }
-                    TasksForProxyResponse response = new TasksForProxyResponse(oe.getId(), oe.getMissionId(), tasks);
-                    for (GeneratedEventListenerInt listener : listeners) {
-                        listener.eventGenerated(response);
-                    }
-                } else {
-                    LOGGER.severe("Couldn't find PM for TasksForProxyRequest with mission id [" + oe.getMissionId() + "]");
-                }
-            } else {
-                LOGGER.severe("TasksForProxyRequest had no mission id");
-            }
         }
     }
 
