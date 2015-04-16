@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InvalidClassException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.StreamCorruptedException;
 import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -178,6 +179,9 @@ public class Mediator {
             LOGGER.info("Saving as: " + projectFile.toString());
             saveProject();
         }
+        for (ProjectListenerInt listener : projectListeners) {
+            listener.projectUpdated();
+        }
     }
 
     /**
@@ -280,6 +284,8 @@ public class Mediator {
         } catch (FileNotFoundException ex) {
             LOGGER.severe("Exception in DRM open - DRM file not found");
         } catch (InvalidClassException ex) {
+            LOGGER.severe("Exception in DRM open - DRM version mismatch");
+        } catch (StreamCorruptedException ex) {
             LOGGER.severe("Exception in DRM open - DRM version mismatch");
         } catch (SecurityException ex) {
             LOGGER.severe("Exception in DRM open - error in JDK SHA implementation");
@@ -421,6 +427,9 @@ public class Mediator {
             // Save environmentProperties to file
             LOGGER.info("Saving as: " + environmentPropertiesFile.toString());
             saveEnvironment();
+        }
+        for (EnvironmentListenerInt listener : environmentListeners) {
+            listener.environmentUpdated();
         }
     }
 

@@ -242,9 +242,7 @@ public class Transition extends Vertex {
             inputEventStatus = new Hashtable<InputEvent, Boolean>();
             updateTag();
         } catch (IOException e) {
-            e.printStackTrace();
         } catch (ClassNotFoundException e) {
-            e.printStackTrace();
         }
     }
 }

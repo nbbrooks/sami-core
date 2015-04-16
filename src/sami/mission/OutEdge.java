@@ -91,9 +91,7 @@ public class OutEdge extends Edge {
             ois.defaultReadObject();
             updateTag();
         } catch (IOException ex) {
-            ex.printStackTrace();
         } catch (ClassNotFoundException ex) {
-            ex.printStackTrace();
         }
     }
 

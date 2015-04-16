@@ -353,9 +353,7 @@ public class Place extends Vertex {
             tokens = new ArrayList<Token>();
             updateTag();
         } catch (IOException e) {
-            e.printStackTrace();
         } catch (ClassNotFoundException e) {
-            e.printStackTrace();
         }
     }
 }

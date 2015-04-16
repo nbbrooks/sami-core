@@ -84,9 +84,7 @@ public class InEdge extends Edge {
             ois.defaultReadObject();
             updateTag();
         } catch (IOException ex) {
-            ex.printStackTrace();
         } catch (ClassNotFoundException ex) {
-            ex.printStackTrace();
         }
     }
 
