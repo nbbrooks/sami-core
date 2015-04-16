@@ -64,7 +64,7 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
         LOGGER.info("java.util.logging.config.file: " + System.getProperty("java.util.logging.config.file"));
         loadFiles();
         LOGGER.info("drm: " + Mediator.getInstance().getProjectFile().getAbsolutePath());
-        LOGGER.info("epf: " + Mediator.getInstance().getEnvironmentFile().getAbsolutePath());
+        LOGGER.info("epf: " + (Mediator.getInstance().getEnvironmentFile() != null ? Mediator.getInstance().getEnvironmentFile().getAbsolutePath() : "NULL"));
         LOGGER.info("dcf: " + DomainConfigManager.getInstance().getDomainConfigurationFile().getAbsolutePath());
         CoreHelper.copyLoadedDrmToDirectory(LOG_DIRECTORY);
         CoreHelper.copyLoadedEpfToDirectory(LOG_DIRECTORY);
@@ -270,11 +270,13 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
         missionViewersP = new javax.swing.JPanel();
         loadEpfB = new javax.swing.JButton();
         drmName = new javax.swing.JLabel();
+        loadDcfB = new javax.swing.JButton();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setTitle("Mission Monitor");
 
-        loadDrmB.setText("Load Project");
+        loadDrmB.setFont(new java.awt.Font("Lucida Grande", 0, 11)); // NOI18N
+        loadDrmB.setText("Load Project (DRM)");
         loadDrmB.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 loadDrmBActionPerformed(evt);
@@ -326,7 +328,8 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
 
         missionsScrollP.setViewportView(placeholderP);
 
-        loadEpfB.setText("Load Environment");
+        loadEpfB.setFont(new java.awt.Font("Lucida Grande", 0, 11)); // NOI18N
+        loadEpfB.setText("Load Environment (EPF)");
         loadEpfB.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 loadEpfBActionPerformed(evt);
@@ -334,6 +337,14 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
         });
 
         drmName.setText(" ");
+
+        loadDcfB.setFont(new java.awt.Font("Lucida Grande", 0, 11)); // NOI18N
+        loadDcfB.setText("Load Domain (DCF)");
+        loadDcfB.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                loadDcfBActionPerformed(evt);
+            }
+        });
 
         org.jdesktop.layout.GroupLayout layout = new org.jdesktop.layout.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
@@ -345,12 +356,13 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
                     .add(drmName, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                     .add(layout.createSequentialGroup()
                         .add(layout.createParallelGroup(org.jdesktop.layout.GroupLayout.LEADING, false)
-                            .add(planScrollP, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, 175, Short.MAX_VALUE)
+                            .add(planScrollP)
                             .add(runB, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                             .add(loadDrmB, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                            .add(loadEpfB, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                            .add(loadEpfB, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                            .add(loadDcfB, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
                         .addPreferredGap(org.jdesktop.layout.LayoutStyle.RELATED)
-                        .add(missionsScrollP)))
+                        .add(missionsScrollP, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, 814, Short.MAX_VALUE)))
                 .addContainerGap())
         );
         layout.setVerticalGroup(
@@ -359,7 +371,9 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
                 .add(drmName)
                 .addPreferredGap(org.jdesktop.layout.LayoutStyle.RELATED)
                 .add(layout.createParallelGroup(org.jdesktop.layout.GroupLayout.LEADING)
-                    .add(missionsScrollP, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, 458, Short.MAX_VALUE)
+                    .add(layout.createSequentialGroup()
+                        .add(missionsScrollP, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, 458, Short.MAX_VALUE)
+                        .addContainerGap())
                     .add(layout.createSequentialGroup()
                         .add(runB)
                         .add(5, 5, 5)
@@ -367,8 +381,9 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
                         .addPreferredGap(org.jdesktop.layout.LayoutStyle.RELATED)
                         .add(loadDrmB)
                         .addPreferredGap(org.jdesktop.layout.LayoutStyle.RELATED)
-                        .add(loadEpfB)))
-                .addContainerGap())
+                        .add(loadEpfB)
+                        .addPreferredGap(org.jdesktop.layout.LayoutStyle.RELATED)
+                        .add(loadDcfB))))
         );
 
         pack();
@@ -396,6 +411,14 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
             JOptionPane.showMessageDialog(null, "Failed to load environment");
         }
     }//GEN-LAST:event_loadEpfBActionPerformed
+
+    private void loadDcfBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_loadDcfBActionPerformed
+        boolean success = DomainConfigManager.getInstance().openDomainConfigurationFromBrowser();
+        CoreHelper.copyLoadedDcfToDirectory(LOG_DIRECTORY);
+        if (!success) {
+            JOptionPane.showMessageDialog(null, "Failed to load domain configuration");
+        }
+    }//GEN-LAST:event_loadDcfBActionPerformed
 
     public static void setUpLogging() {
         LOGGER.info("Log directory is " + LOG_DIRECTORY);
@@ -429,6 +452,7 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
     }
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JLabel drmName;
+    private javax.swing.JButton loadDcfB;
     private javax.swing.JButton loadDrmB;
     private javax.swing.JButton loadEpfB;
     private javax.swing.JPanel missionViewersP;
