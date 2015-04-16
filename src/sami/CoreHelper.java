@@ -28,7 +28,7 @@ public class CoreHelper {
     public static long getNewId() {
         return id++;
     }
-    
+
     public static void copyLoadedDcfToFile(File destination) {
         File loadedDcf = DomainConfigManager.getInstance().getDomainConfigurationFile();
         if (loadedDcf != null) {
@@ -103,8 +103,10 @@ public class CoreHelper {
             return;
         }
         File loadedEpf = Mediator.getInstance().getEnvironmentFile();
-        File copy = new File(directory.getAbsolutePath() + File.separator + loadedEpf.getName());
-        copyLoadedEpfToFile(copy);
+        if (loadedEpf != null) {
+            File copy = new File(directory.getAbsolutePath() + File.separator + loadedEpf.getName());
+            copyLoadedEpfToFile(copy);
+        }
     }
 
     public static String shorten(String full, int maxLength) {
