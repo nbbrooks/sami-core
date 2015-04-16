@@ -26,8 +26,6 @@ import sami.event.SendProxyAbortFutureMissions;
 import sami.event.StartTimer;
 import sami.event.TaskComplete;
 import sami.event.TaskStarted;
-import sami.event.TasksForProxyRequest;
-import sami.event.TasksForProxyResponse;
 import sami.event.TimerExpired;
 import sami.event.TokensReturned;
 import sami.mission.MissionPlanSpecification;

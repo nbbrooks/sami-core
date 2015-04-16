@@ -2,7 +2,6 @@ package sami.environment;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import javafx.scene.shape.Polyline;
 import sami.path.Location;
 
 /**
