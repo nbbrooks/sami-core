@@ -63,9 +63,9 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
         LOGGER.info("java.ext.dirs: " + System.getProperty("java.ext.dirs"));
         LOGGER.info("java.util.logging.config.file: " + System.getProperty("java.util.logging.config.file"));
         loadFiles();
-        LOGGER.info("drm: " + Mediator.getInstance().getProjectFile().getAbsolutePath());
+        LOGGER.info("drm: " + (Mediator.getInstance().getProjectFile() != null ? Mediator.getInstance().getProjectFile().getAbsolutePath() : "NULL"));
         LOGGER.info("epf: " + (Mediator.getInstance().getEnvironmentFile() != null ? Mediator.getInstance().getEnvironmentFile().getAbsolutePath() : "NULL"));
-        LOGGER.info("dcf: " + DomainConfigManager.getInstance().getDomainConfigurationFile().getAbsolutePath());
+        LOGGER.info("dcf: " + (DomainConfigManager.getInstance().getDomainConfigurationFile() != null ? DomainConfigManager.getInstance().getDomainConfigurationFile().getAbsolutePath() : "NULL"));
         CoreHelper.copyLoadedDrmToDirectory(LOG_DIRECTORY);
         CoreHelper.copyLoadedEpfToDirectory(LOG_DIRECTORY);
         CoreHelper.copyLoadedDcfToDirectory(LOG_DIRECTORY);

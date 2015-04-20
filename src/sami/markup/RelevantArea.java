@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import sami.markupOption.AreaOption;
 import sami.markupOption.PointOption;
+import sami.proxy.ProxyInt;
 
 /**
  *
@@ -19,13 +20,21 @@ public class RelevantArea extends Markup {
     public static final HashMap<Enum, String> enumValueToFieldName = new HashMap<Enum, String>();
     // Fields
     public AreaSelection areaSelection;
+    public ViewModification viewModification;
     public MapType mapType;
     public AreaOption areaOption;
     public PointOption pointOption;
+    // Fields not shown to developer
+    protected ArrayList<ProxyInt> relevantProxies;
 
     public enum AreaSelection {
 
-        AREA, CENTER_ON_ALL_PROXIES, CENTER_ON_RELEVANT_PROXIES, CENTER_ON_POINT
+        AREA, ALL_PROXIES, RELEVANT_PROXIES, POINT
+    };
+
+    public enum ViewModification {
+
+        EXPAND, REDUCE
     };
 
     public enum MapType {
@@ -35,15 +44,19 @@ public class RelevantArea extends Markup {
 
     static {
         enumFieldNames.add("areaSelection");
+        enumFieldNames.add("viewModification");
         enumFieldNames.add("mapType");
 
         enumNameToDescription.put("areaSelection", "What area to show?");
+        enumNameToDescription.put("viewModification", "How to modify existing (if applicable) map view?");
         enumNameToDescription.put("mapType", "What map type to use?");
 
         enumValueToFieldName.put(AreaSelection.AREA, "areaOption");
-        enumValueToFieldName.put(AreaSelection.CENTER_ON_ALL_PROXIES, null);
-        enumValueToFieldName.put(AreaSelection.CENTER_ON_POINT, "pointOption");
-        enumValueToFieldName.put(AreaSelection.CENTER_ON_RELEVANT_PROXIES, null);
+        enumValueToFieldName.put(AreaSelection.ALL_PROXIES, null);
+        enumValueToFieldName.put(AreaSelection.POINT, "pointOption");
+        enumValueToFieldName.put(AreaSelection.RELEVANT_PROXIES, null);
+        enumValueToFieldName.put(ViewModification.EXPAND, null);
+        enumValueToFieldName.put(ViewModification.REDUCE, null);
         enumValueToFieldName.put(MapType.POLITICAL, null);
         enumValueToFieldName.put(MapType.SATELLITE, null);
     }
@@ -53,6 +66,26 @@ public class RelevantArea extends Markup {
 
     @Override
     public RelevantArea copy() {
-        throw new UnsupportedOperationException("Not implemented yet.");
+        RelevantArea copy = new RelevantArea();
+        if (fieldNameToVariableName != null) {
+            copy.fieldNameToVariableName = (HashMap<String, String>) fieldNameToVariableName.clone();
+        }
+        copy.areaSelection = areaSelection;
+        copy.viewModification = viewModification;
+        copy.mapType = mapType;
+        copy.areaOption = areaOption;
+        copy.pointOption = pointOption;
+        if (relevantProxies != null) {
+            copy.relevantProxies = (ArrayList<ProxyInt>) relevantProxies.clone();
+        }
+        return copy;
+    }
+
+    public ArrayList<ProxyInt> getRelevantProxies() {
+        return relevantProxies;
+    }
+
+    public void setRelevantProxies(ArrayList<ProxyInt> relevantProxies) {
+        this.relevantProxies = relevantProxies;
     }
 }

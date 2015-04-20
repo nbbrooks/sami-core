@@ -2,28 +2,28 @@ package sami.markupOption;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import sami.map.ViewArea;
 import sami.markup.MarkupOption;
+import sami.path.Location;
 
 /**
  *
  * @author nbb
  */
-public class AreaOption extends MarkupOption {
+public class LocationOption extends MarkupOption {
 
     // List of enum fields for which an enum option should be selected
     public static final ArrayList<String> fieldNames = new ArrayList<String>();
     // Description for each enum field
     public static final HashMap<String, String> fieldNameToDescription = new HashMap<String, String>();
     // Fields
-    public ViewArea area;
+    public Location location;
 
     static {
-        fieldNames.add("area");
+        fieldNames.add("location");
 
-        fieldNameToDescription.put("area", "Area");
+        fieldNameToDescription.put("location", "Location");
     }
 
-    public AreaOption() {
+    public LocationOption() {
     }
 }

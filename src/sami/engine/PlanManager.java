@@ -23,6 +23,11 @@ import sami.event.RedefinedVariablesReceived;
 import sami.event.ReflectedEventSpecification;
 import sami.event.ReflectionHelper;
 import sami.handler.EventHandlerInt;
+import sami.markup.Description;
+import sami.markup.Description.ShowEventNameEnum;
+import sami.markup.Description.ShowVertexNameNum;
+import sami.markup.ReflectedMarkupSpecification;
+import sami.markupOption.TextOption;
 import sami.mission.InEdge;
 import sami.mission.InTokenRequirement;
 import sami.mission.MissionPlanSpecification;
@@ -166,7 +171,19 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                 Field missingField = ReflectionHelper.getField(eventSpecClass, fieldName);
                                 if (missingField != null) {
                                     missingCount++;
-                                    fieldDescriptions.put(missingField, "");
+                                    // Text to show above creation component
+                                    String description = "";
+                                    for (ReflectedMarkupSpecification markupSpec : eventSpec.getMarkupSpecs()) {
+                                        System.out.println(markupSpec.getClassName());
+                                        if (markupSpec.getClassName().equalsIgnoreCase(Description.class.getCanonicalName())) {
+                                            TextOption textOption = (TextOption) markupSpec.getFieldDefinitions().get("textOption");
+                                            description += textOption.text + " ";
+                                        }
+                                    }
+                                    String canonicalName = eventSpec.getClassName();
+                                    String simpleName = canonicalName.substring(canonicalName.lastIndexOf('.') + 1);
+                                    description += "(" + simpleName + ")";
+                                    fieldDescriptions.put(missingField, description);
                                 } else {
                                     LOGGER.severe("Could not find field \"" + fieldName + "\" in class " + eventSpecClass.getSimpleName() + " or any super class");
                                 }
@@ -182,7 +199,18 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                 Class eventSpecClass = Class.forName(eventSpec.getClassName());
                                 Field editableField = ReflectionHelper.getField(eventSpecClass, fieldName);
                                 if (editableField != null) {
-                                    fieldDescriptions.put(editableField, "");
+                                    // Text to show above creation component
+                                    String description = "";
+                                    for (ReflectedMarkupSpecification markupSpec : eventSpec.getMarkupSpecs()) {
+                                        if (markupSpec.getClassName().equalsIgnoreCase(Description.class.getCanonicalName())) {
+                                            TextOption textOption = (TextOption) markupSpec.getFieldDefinitions().get("textOption");
+                                            description += textOption.text + " ";
+                                        }
+                                    }
+                                    String canonicalName = eventSpec.getClassName();
+                                    String simpleName = canonicalName.substring(canonicalName.lastIndexOf('.') + 1);
+                                    description += "(" + simpleName + ")";
+                                    fieldDescriptions.put(editableField, description);
                                 } else {
                                     LOGGER.severe("Could not find field \"" + fieldName + "\" in class " + eventSpecClass.getSimpleName() + " or any super class");
                                 }

@@ -2,8 +2,8 @@ package sami.markupOption;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import sami.map.ViewPoint;
 import sami.markup.MarkupOption;
-import sami.path.Location;
 
 /**
  *
@@ -16,12 +16,12 @@ public class PointOption extends MarkupOption {
     // Description for each enum field
     public static final HashMap<String, String> fieldNameToDescription = new HashMap<String, String>();
     // Fields
-    public Location location;
+    public ViewPoint point;
 
     static {
-        fieldNames.add("location");
+        fieldNames.add("point");
 
-        fieldNameToDescription.put("location", "Location");
+        fieldNameToDescription.put("point", "point");
     }
 
     public PointOption() {

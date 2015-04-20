@@ -1,4 +1,4 @@
-package sami.area;
+package sami.map;
 
 import sami.path.Location;
 import java.io.Serializable;
@@ -9,14 +9,14 @@ import java.util.List;
  *
  * @author nbb
  */
-public class Area2D implements Serializable {
+public class ViewArea implements Serializable {
 
     protected List<Location> points = new ArrayList<Location>();
 
-    public Area2D() {
+    public ViewArea() {
     }
 
-    public Area2D(List<Location> points) {
+    public ViewArea(List<Location> points) {
         this.points = points;
     }
 
@@ -25,6 +25,6 @@ public class Area2D implements Serializable {
     }
 
     public String toString() {
-        return "Area2D [" + (points != null ? points.toString() : "null");
+        return "MapCorners [" + (points != null ? points.toString() : "null");
     }
 }

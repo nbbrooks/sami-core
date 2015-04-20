@@ -19,8 +19,9 @@ public class RelevantProxy extends Markup {
     // Fields
     public Proxies proxies;
     public ShowPaths showPaths;
-
-    ArrayList<ProxyInt> relevantProxies;
+//    // Fields not shown to developer
+    protected ArrayList<ProxyInt> relevantProxies;
+//    ArrayList<ProxyInt> relevantProxies;
 
     public enum Proxies {
 
@@ -33,16 +34,16 @@ public class RelevantProxy extends Markup {
     };
 
     static {
-        enumFieldNames.add("proxies");
+//        enumFieldNames.add("proxies");
         enumFieldNames.add("showPaths");
 
-        enumNameToDescription.put("proxies", "Which proxies are relevant?");
-        enumNameToDescription.put("showPaths", "Show proxies' paths?");
+//        enumNameToDescription.put("proxies", "Which proxies are relevant?");
+//        enumNameToDescription.put("showPaths", "Show proxies' paths?");
 
-        enumValueToFieldName.put(Proxies.ALL_PROXIES, null);
-        enumValueToFieldName.put(Proxies.RELEVANT_PROXIES, null);
-        enumValueToFieldName.put(ShowPaths.NO, null);
-        enumValueToFieldName.put(ShowPaths.YES, null);
+//        enumValueToFieldName.put(Proxies.ALL_PROXIES, null);
+//        enumValueToFieldName.put(Proxies.RELEVANT_PROXIES, null);
+//        enumValueToFieldName.put(ShowPaths.NO, null);
+//        enumValueToFieldName.put(ShowPaths.YES, null);
     }
 
     public RelevantProxy() {
@@ -54,7 +55,6 @@ public class RelevantProxy extends Markup {
         if (fieldNameToVariableName != null) {
             copy.fieldNameToVariableName = (HashMap<String, String>) fieldNameToVariableName.clone();
         }
-
         copy.proxies = proxies;
         copy.showPaths = showPaths;
         if (relevantProxies != null) {
