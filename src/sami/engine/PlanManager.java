@@ -13,6 +13,7 @@ import java.util.logging.Logger;
 import sami.event.AbortMission;
 import sami.event.AbortMissionReceived;
 import sami.event.CheckReturn;
+import sami.event.CompleteMissionReceived;
 import sami.event.GeneratedEventListenerInt;
 import sami.event.InputEvent;
 import sami.event.MissingParamsReceived;
@@ -23,9 +24,8 @@ import sami.event.RedefinedVariablesReceived;
 import sami.event.ReflectedEventSpecification;
 import sami.event.ReflectionHelper;
 import sami.handler.EventHandlerInt;
+import sami.logging.Recorder;
 import sami.markup.Description;
-import sami.markup.Description.ShowEventNameEnum;
-import sami.markup.Description.ShowVertexNameNum;
 import sami.markup.ReflectedMarkupSpecification;
 import sami.markupOption.TextOption;
 import sami.mission.InEdge;
@@ -82,6 +82,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     private final HashMap<MissionPlanSpecification, HashMap<Transition, CheckReturn>> clonedCrTable = new HashMap<MissionPlanSpecification, HashMap<Transition, CheckReturn>>();
     // Lookup used to reset CheckReturn templates and remove CheckReturn clones on neighboring transitions when a transition fires
     private final HashMap<Transition, HashMap<MissionPlanSpecification, CheckReturn>> allCrTable = new HashMap<Transition, HashMap<MissionPlanSpecification, CheckReturn>>();
+    private final ArrayList<Token> taskTokensPresent = new ArrayList<Token>();
     final MissionPlanSpecification mSpec;
     // The model being managed by this PlanManager
     private Place startPlace;
@@ -128,10 +129,10 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             LOGGER.fine("Missing/editable parameters in eventSpecs: " + editableEventSpecs);
 
             // Create vertices to get missing parameters
-            Place missingParamsPlace = new Place("Get Params", FunctionMode.Nominal);
-            Transition missingParamsTransition = new Transition("Got Params", FunctionMode.Nominal);
-            InEdge edge1 = new InEdge(missingParamsPlace, missingParamsTransition, FunctionMode.Nominal);
-            OutEdge edge2 = new OutEdge(missingParamsTransition, startPlace, FunctionMode.Nominal);
+            Place missingParamsPlace = new Place("Get Params", FunctionMode.Nominal, Mediator.getInstance().getProject().getAndIncLastElementId());
+            Transition missingParamsTransition = new Transition("Got Params", FunctionMode.Nominal, Mediator.getInstance().getProject().getAndIncLastElementId());
+            InEdge edge1 = new InEdge(missingParamsPlace, missingParamsTransition, FunctionMode.Nominal, Mediator.getInstance().getProject().getAndIncLastElementId());
+            OutEdge edge2 = new OutEdge(missingParamsTransition, startPlace, FunctionMode.Nominal, Mediator.getInstance().getProject().getAndIncLastElementId());
             // Add vetices to plan
             missingParamsPlace.addOutTransition(missingParamsTransition);
             missingParamsTransition.addInPlace(missingParamsPlace);
@@ -174,7 +175,6 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                                     // Text to show above creation component
                                     String description = "";
                                     for (ReflectedMarkupSpecification markupSpec : eventSpec.getMarkupSpecs()) {
-                                        System.out.println(markupSpec.getClassName());
                                         if (markupSpec.getClassName().equalsIgnoreCase(Description.class.getCanonicalName())) {
                                             TextOption textOption = (TextOption) markupSpec.getFieldDefinitions().get("textOption");
                                             description += textOption.text + " ";
@@ -252,27 +252,51 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
             // Add abort mission handling
             // Add transition
-            Transition abortTransition = new Transition("AbortMission", FunctionMode.Recovery);
+            Transition abortTransition = new Transition("AbortMission", FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
             AbortMissionReceived abortReceived = new AbortMissionReceived(missionId);
             abortTransition.addInputEvent(abortReceived);
             // Add end place with AbortMission
-            Place abortPlace = new Place("AbortMission", FunctionMode.Recovery);
+            Place abortPlace = new Place("AbortMission", FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
             abortPlace.setIsEnd(true);
             AbortMission abortMission = new AbortMission(missionId);
             abortPlace.addOutputEvent(abortMission);
             // Add edges
-            InEdge abortInEdge = new InEdge(missingParamsPlace, abortTransition, FunctionMode.Recovery);
+            InEdge abortInEdge = new InEdge(missingParamsPlace, abortTransition, FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
             abortInEdge.addTokenRequirement(new InTokenRequirement(TokenRequirement.MatchCriteria.None, null));
             abortTransition.addInEdge(abortInEdge);
             missingParamsPlace.addOutEdge(abortInEdge);
             abortTransition.addInPlace(missingParamsPlace);
             missingParamsPlace.addOutTransition(abortTransition);
-            OutEdge abortOutEdge = new OutEdge(abortTransition, abortPlace, FunctionMode.Recovery);
+            OutEdge abortOutEdge = new OutEdge(abortTransition, abortPlace, FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
             abortOutEdge.addTokenRequirement(new OutTokenRequirement(TokenRequirement.MatchCriteria.AnyToken, TokenRequirement.MatchQuantity.All, TokenRequirement.MatchAction.Take));
             abortTransition.addOutEdge(abortOutEdge);
             abortPlace.addInEdge(abortOutEdge);
             abortTransition.addOutPlace(abortPlace);
             abortPlace.addInTransition(abortTransition);
+
+            // Add complete mission handling
+            // Add transition
+            Transition completeTransition = new Transition("CompleteMission", FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
+            CompleteMissionReceived completeReceived = new CompleteMissionReceived(missionId);
+            completeTransition.addInputEvent(completeReceived);
+            // Add end place with CompleteMission
+            Place completePlace = new Place("CompleteMission", FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
+            completePlace.setIsEnd(true);
+//            CompleteMission completeMission = new CompleteMission(missionId);
+//            completePlace.addOutputEvent(completeMission);
+            // Add edges
+            InEdge completeInEdge = new InEdge(missingParamsPlace, completeTransition, FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
+            completeInEdge.addTokenRequirement(new InTokenRequirement(TokenRequirement.MatchCriteria.None, null));
+            completeTransition.addInEdge(completeInEdge);
+            missingParamsPlace.addOutEdge(completeInEdge);
+            completeTransition.addInPlace(missingParamsPlace);
+            missingParamsPlace.addOutTransition(completeTransition);
+            OutEdge completeOutEdge = new OutEdge(completeTransition, completePlace, FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
+            completeOutEdge.addTokenRequirement(new OutTokenRequirement(TokenRequirement.MatchCriteria.AnyToken, TokenRequirement.MatchQuantity.All, TokenRequirement.MatchAction.Take));
+            completeTransition.addOutEdge(completeOutEdge);
+            completePlace.addInEdge(completeOutEdge);
+            completeTransition.addOutPlace(completePlace);
+            completePlace.addInTransition(completeTransition);
         } else {
             LOGGER.info("No missing params, instantiating plan");
             if (!mSpec.isInstantiated()) {
@@ -1832,6 +1856,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 if (!stillActive) {
                     for (InputEvent inputEvent : transition.getInputEvents()) {
                         if (!activeInputEvents.contains(inputEvent)) {
+                            // From other plan?
                             LOGGER.warning("Tried to remove IE: " + inputEvent + " from activeInputEvents, but it is not a member");
                         }
                         // Unregister event
@@ -1843,6 +1868,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                             Transition t = inputEventToTransitionMap.remove(inputEvent);
                             LOGGER.log(Level.FINE, "\t Removed <" + inputEvent + ", " + t + "> from inputEventToTransitionMap");
                         } else {
+                            // From other plan?
                             LOGGER.warning("\t Tried to remove IE: " + inputEvent + " from inputEventToTransitionMap, but it is not a key");
                         }
                     }
@@ -1914,8 +1940,12 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             placesBeingEntered.add(place);
         }
 
-        // 2 - Add the new tokens to the place
+        // 2 - Add the new tokens to the place and record any task tokens that are entering the mission for the first time
         for (Token token : tokens) {
+            if (token.getType() == TokenType.Task
+                    && !taskTokensPresent.contains(token)) {
+                taskTokensPresent.add(token);
+            }
             place.addToken(token);
         }
 
@@ -2021,6 +2051,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
         // 6 - Tell listeners we have entered a place
         Engine.getInstance().enteredPlace(this, place);
+        Recorder.getInstance().recordPlanState(this);
 
         // 7 - It is now safe to execute transitions leading out of this place
         synchronized (placesBeingEntered) {
@@ -2045,17 +2076,18 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         if (place.isEnd()) {
             LOGGER.log(Level.FINE, "\tReached an end place: " + place);
             boolean end = true;
-            for (Vertex v : mSpec.getGraph().getVertices()) {
-                if (v instanceof Place) {
-                    Place checkPlace = (Place) v;
-                    if ((checkPlace.getFunctionMode() == FunctionMode.HiddenRecovery || checkPlace.getFunctionMode() == FunctionMode.Recovery)
-                            && checkPlace.getTokens().size() > 0
-                            && !checkPlace.isEnd()) {
-                        LOGGER.info("\t\tRecovery place has tokens in it! " + checkPlace);
-                        end = false;
-                    }
-                }
-            }
+            // Don't end mission if a non-end recovery place has a token in it
+//            for (Vertex v : mSpec.getGraph().getVertices()) {
+//                if (v instanceof Place) {
+//                    Place checkPlace = (Place) v;
+//                    if ((checkPlace.getFunctionMode() == FunctionMode.HiddenRecovery || checkPlace.getFunctionMode() == FunctionMode.Recovery)
+//                            && checkPlace.getTokens().size() > 0
+//                            && !checkPlace.isEnd()) {
+//                        LOGGER.info("\t\tRecovery place has tokens in it! " + checkPlace);
+//                        end = false;
+//                    }
+//                }
+//            }
             if (end) {
                 finishMission(place);
             }
@@ -2119,14 +2151,23 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
     @Override
     public void eventGenerated(InputEvent generatedEvent) {
+
+        Recorder.getInstance().eventGenerated(generatedEvent);
+
         boolean success = generatorEventQueue.offer(generatedEvent);
         if (!success) {
             LOGGER.severe("Failed to add generated input event " + generatedEvent + " to event queue (size " + generatorEventQueue.size() + ", remaining capacity " + generatorEventQueue.remainingCapacity() + ") of plan " + getPlanName());
         }
     }
 
+    /**
+     * An end condition for the plan was met
+     *
+     * @param endPlace
+     */
     public void finishMission(Place endPlace) {
         LOGGER.info("Finishing plan at end place [" + endPlace + "]");
+        // Signal sub-missions and listeners that the plan has been completed
         Engine.getInstance().done(this);
         // Unregister any IEs still active
         for (InputEvent ie : activeInputEvents) {
@@ -2141,8 +2182,11 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         activeInputEvents.clear();
     }
 
+    /**
+     * AbortMission OE received
+     */
     public void abortMission() {
-        // Get removed from Engine's plan manager listener list
+        // Signal sub-missions and listeners that the plan has been aborted
         Engine.getInstance().abort(this);
         // Unregister any IEs still active
         for (InputEvent ie : activeInputEvents) {
@@ -2182,7 +2226,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         ArrayList<InputEvent> matchingEvents = new ArrayList<InputEvent>();
 
         // 1 - Go through our list of parameter events waiting to be fulfilled by a generated event
-        for (InputEvent paramEvent : activeInputEvents) {
+        ArrayList<InputEvent> activeInputEventsClone = (ArrayList<InputEvent>) activeInputEvents.clone();
+        for (InputEvent paramEvent : activeInputEventsClone) {
             LOGGER.log(detailsLogLevel, "\tChecking for match between parameter " + paramEvent + " to generated " + generatedEvent);
 
             // 2 - Compare variables used by the generated event to find the param event(s) it fulfills
@@ -2556,7 +2601,6 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         if (updatedParamEvent.toString().contains("ProxyPoseUpdated")) {
             detailsLogLevel = Level.FINEST;
         }
-        LOGGER.log(Level.FINE, "@STAT Processing updated param event " + updatedParamEvent + " with UUID " + updatedParamEvent.getId() + " and relevant proxy " + updatedParamEvent.getRelevantProxyList());
 
         InputEvent generatorEvent = updatedParamEvent.getGeneratorEvent();
         if (!inputEventToTransitionMap.containsKey(updatedParamEvent)) {
@@ -2707,6 +2751,10 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 }
             }
         }
+
+        if (Recorder.ENABLED) {
+            Recorder.getInstance().writeInstantiatedIds(this);
+        }
     }
 
     public ArrayList<ProxyInt> getRelevantProxies(Transition transition) {
@@ -2820,6 +2868,16 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
     public Token getToken(TaskSpecification taskSpec) {
         return taskSpecToToken.get(taskSpec);
+    }
+
+    public ArrayList<Token> getTaskTokensForProxy(ProxyInt proxy) {
+        ArrayList<Token> responsibleTaskTokens = new ArrayList<Token>();
+        for (Token taskToken : taskTokensPresent) {
+            if (taskToken.getProxy() == proxy) {
+                responsibleTaskTokens.add(taskToken);
+            }
+        }
+        return responsibleTaskTokens;
     }
 
     public Token createToken(TaskSpecification tokenSpec) {

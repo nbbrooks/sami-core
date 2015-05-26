@@ -1,5 +1,7 @@
 package sami.mission;
 
+import java.awt.Shape;
+import java.awt.geom.Ellipse2D;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.logging.Logger;
@@ -21,9 +23,10 @@ public class MockupPlace extends Place {
     protected Hashtable<String, ArrayList<String>> mockupOutputEventMarkups = new Hashtable<String, ArrayList<String>>();
     protected ArrayList<String> mockupTokens = new ArrayList<String>();
     protected Hashtable<String, MockupSubMissionType> mockupSubMissionType = new Hashtable<String, MockupSubMissionType>();
+    protected transient boolean isHighlighted = false;
 
-    public MockupPlace(String name) {
-        super(name, FunctionMode.Mockup);
+    public MockupPlace(String name, long vertexId) {
+        super(name, FunctionMode.Mockup, vertexId);
     }
 
     public Hashtable<String, ArrayList<String>> getMockupOutputEventMarkups() {
@@ -54,13 +57,32 @@ public class MockupPlace extends Place {
     }
 
     @Override
+    public Shape getShape() {
+        int mult = 2;
+        if (subMissions == null || subMissions.isEmpty()) {
+            return new Ellipse2D.Double(-10 * mult, -10 * mult, 20 * mult, 20 * mult);
+        } else {
+            return new Ellipse2D.Double(-15 * mult, -15 * mult, 30 * mult, 30 * mult);
+        }
+    }
+
+    public boolean getIsHighlighted() {
+        return isHighlighted;
+    }
+
+    public void setIsHighlighted(boolean isHighlighted) {
+        this.isHighlighted = isHighlighted;
+    }
+
+    @Override
     public void updateTag() {
         tag = "<html>";
         shortTag = "<html>";
         // Name
         if (name != null && !name.equals("")) {
-            tag += "<font color=" + GuiConfig.LABEL_TEXT_COLOR + ">" + name + "</font><br>";
-            shortTag += "<font color=" + GuiConfig.LABEL_TEXT_COLOR + ">" + CoreHelper.shorten(name, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+            String nameTextColor = isHighlighted ? GuiConfig.SEL_LABEL_TEXT_COLOR : GuiConfig.LABEL_TEXT_COLOR;
+            tag += "<font color=" + nameTextColor + ">" + name + "</font><br>";
+            shortTag += "<font color=" + nameTextColor + ">" + CoreHelper.shorten(name, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
         }
         // Output events
         if (mockupOutputEventMarkups != null) {
@@ -111,7 +133,7 @@ public class MockupPlace extends Place {
 
     @Override
     public String toString() {
-        return "Place:" + name;
+        return "MockupPlace:" + name;
     }
 //    private void readObject(ObjectInputStream ois) {
 //        try {

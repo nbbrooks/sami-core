@@ -8,7 +8,7 @@ import java.util.UUID;
  *
  * @author nbb
  */
-public class AbortMissionReceived extends InputEvent {
+public class CompleteMissionReceived extends InputEvent {
 
     // List of fields for which a definition should be provided
     public static final ArrayList<String> fieldNames = new ArrayList<String>();
@@ -19,16 +19,16 @@ public class AbortMissionReceived extends InputEvent {
     // Description for each variable
     public static final HashMap<String, String> variableNameToDescription = new HashMap<String, String>();
 
-    public AbortMissionReceived() {
+    public CompleteMissionReceived() {
         id = UUID.randomUUID();
     }
 
-    public AbortMissionReceived(UUID missionId) {
+    public CompleteMissionReceived(UUID missionId) {
         this.missionId = missionId;
         id = UUID.randomUUID();
     }
 
     public String toString() {
-        return "AbortMissionReceived [" + missionId + "]";
+        return "CompleteMissionReceived [" + missionId + "]";
     }
 }

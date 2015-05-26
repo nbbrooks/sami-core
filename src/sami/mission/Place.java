@@ -34,8 +34,8 @@ public class Place extends Vertex {
     transient protected ArrayList<Token> tokens = new ArrayList<Token>();
     transient protected HashMap<MissionPlanSpecification, Boolean> subMissionStatus = new HashMap<MissionPlanSpecification, Boolean>();
 
-    public Place(String name, FunctionMode functionMode) {
-        super(name, functionMode);
+    public Place(String name, FunctionMode functionMode, long vertexId) {
+        super(name, functionMode, vertexId);
     }
 
     public void addInEdge(OutEdge edge) {

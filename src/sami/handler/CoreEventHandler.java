@@ -13,6 +13,7 @@ import sami.engine.Engine;
 import sami.engine.PlanManager;
 import sami.event.AbortMission;
 import sami.event.AbortMissionReceived;
+import sami.event.CompleteMission;
 import sami.event.GeneratedEventListenerInt;
 import sami.event.GeneratedInputEventSubscription;
 import sami.event.GetAllProxyTokens;
@@ -57,6 +58,12 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
                     token.getProxy().abortMission(oe.getMissionId());
                 }
             }
+        } else if (oe instanceof CompleteMission) {
+            for (Token token : tokens) {
+                if (token.getProxy() != null) {
+                    token.getProxy().completeMission(oe.getMissionId());
+                }
+            }
         } else if (oe instanceof SendProxyAbortAllMissions) {
             for (Token token : tokens) {
                 if (token.getProxy() != null) {
@@ -74,7 +81,8 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
                     // Send proxy abort mission for each mission
                     for (UUID missionId : missionIds) {
                         ProxyAbortMissionReceived pamr = new ProxyAbortMissionReceived(missionId, relevantProxies);
-                        for (GeneratedEventListenerInt listener : listeners) {
+                        ArrayList<GeneratedEventListenerInt> listenersCopy = (ArrayList<GeneratedEventListenerInt>) listeners.clone();
+                        for (GeneratedEventListenerInt listener : listenersCopy) {
                             listener.eventGenerated(pamr);
                         }
                     }
@@ -102,7 +110,8 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
                     // Send proxy abort mission for each mission
                     for (UUID missionId : missionIds) {
                         ProxyAbortMissionReceived pamr = new ProxyAbortMissionReceived(missionId, relevantProxies);
-                        for (GeneratedEventListenerInt listener : listeners) {
+                        ArrayList<GeneratedEventListenerInt> listenersCopy = (ArrayList<GeneratedEventListenerInt>) listeners.clone();
+                        for (GeneratedEventListenerInt listener : listenersCopy) {
                             listener.eventGenerated(pamr);
                         }
                     }
@@ -112,7 +121,8 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
             // We will move all tokens out of all places in the plan and be in an end Recovery place
             //  Do nothing (abort mission is handled by PlanManager)
             AbortMissionReceived amr = new AbortMissionReceived(oe.getMissionId());
-            for (GeneratedEventListenerInt listener : listeners) {
+            ArrayList<GeneratedEventListenerInt> listenersCopy = (ArrayList<GeneratedEventListenerInt>) listeners.clone();
+            for (GeneratedEventListenerInt listener : listenersCopy) {
                 listener.eventGenerated(amr);
             }
         } else if (oe instanceof StartTimer) {
@@ -121,7 +131,8 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
                 @Override
                 public void actionPerformed(ActionEvent ae) {
                     TimerExpired te = new TimerExpired(oe.getId(), oe.getMissionId());
-                    for (GeneratedEventListenerInt listener : listeners) {
+                    ArrayList<GeneratedEventListenerInt> listenersCopy = (ArrayList<GeneratedEventListenerInt>) listeners.clone();
+                    for (GeneratedEventListenerInt listener : listenersCopy) {
                         listener.eventGenerated(te);
                     }
                 }
@@ -136,7 +147,7 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
             Engine.getInstance().setVariableValue(returnVariableName, returnValue.getReturnValue(), pm);
             // Set in parent's scope
             PlanManager parentPm = Engine.getInstance().getParentPm(pm);
-            if(parentPm != null) {
+            if (parentPm != null) {
                 Engine.getInstance().setVariableValue(returnVariableName, returnValue.getReturnValue(), parentPm);
             } else {
                 LOGGER.warning("ReturnValue on event in mission with no parent mission.");
@@ -182,14 +193,22 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
                     }
                 }
             }
-        } else if(oe instanceof GetAllProxyTokens) {
+        } else if (oe instanceof GetAllProxyTokens) {
             TokensReturned tr = new TokensReturned(oe.getId(), oe.getMissionId(), Engine.getInstance().getAllProxies());
-            for (GeneratedEventListenerInt listener : listeners) {
+            ArrayList<GeneratedEventListenerInt> listenersCopy = (ArrayList<GeneratedEventListenerInt>) listeners.clone();
+            for (GeneratedEventListenerInt listener : listenersCopy) {
                 listener.eventGenerated(tr);
             }
         }
     }
 
+    /**
+     * Offer a plan's IE subscription to the handler Always keep plans
+     * registered to CoreEventHandler
+     *
+     * @param sub The newly created input event subscription
+     * @return If the handler accepts the subscription
+     */
     @Override
     public boolean offer(GeneratedInputEventSubscription sub) {
         LOGGER.log(Level.FINE, "CoreEventHandler offered subscription: " + sub);
@@ -201,15 +220,20 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
                 LOGGER.log(Level.FINE, "\t\tCoreEventHandler adding listener: " + sub.getListener());
                 listeners.add(sub.getListener());
                 listenerGCCount.put(sub.getListener(), 1);
-            } else {
-                LOGGER.log(Level.FINE, "\t\tCoreEventHandler incrementing listener: " + sub.getListener());
-                listenerGCCount.put(sub.getListener(), listenerGCCount.get(sub.getListener()) + 1);
             }
             return true;
         }
         return false;
     }
 
+    /**
+     * Cancel a plan's IE subscription Always keep plans registered to
+     * CoreEventHandler
+     *
+     * @param sub The subscription to cancel due to event completion or
+     * cancellation
+     * @return If the handler held and canceled this subscription
+     */
     @Override
     public boolean cancel(GeneratedInputEventSubscription sub) {
         LOGGER.log(Level.FINE, "CoreEventHandler asked to cancel subscription: " + sub);
@@ -217,17 +241,6 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
                 || sub.getSubscriptionClass() == TimerExpired.class
                 || sub.getSubscriptionClass() == TokensReturned.class)
                 && listeners.contains(sub.getListener())) {
-            LOGGER.log(Level.FINE, "CoreEventHandler  canceling subscription: " + sub);
-            if (listenerGCCount.get(sub.getListener()) == 1) {
-                // Remove listener
-                LOGGER.log(Level.FINE, "\tCoreEventHandler removing listener: " + sub.getListener());
-                listeners.remove(sub.getListener());
-                listenerGCCount.remove(sub.getListener());
-            } else {
-                // Decrement garbage colleciton count
-                LOGGER.log(Level.FINE, "\t\tCoreEventHandler decrementing listener: " + sub.getListener());
-                listenerGCCount.put(sub.getListener(), listenerGCCount.get(sub.getListener()) - 1);
-            }
             return true;
         }
         return false;

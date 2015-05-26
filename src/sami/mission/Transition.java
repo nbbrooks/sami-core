@@ -29,8 +29,8 @@ public class Transition extends Vertex {
     transient protected ArrayList<InputEvent> inputEvents = new ArrayList<InputEvent>();
     transient protected Hashtable<InputEvent, Boolean> inputEventStatus = new Hashtable<InputEvent, Boolean>();
 
-    public Transition(String name, FunctionMode functionMode) {
-        super(name, functionMode);
+    public Transition(String name, FunctionMode functionMode, long vertexId) {
+        super(name, functionMode, vertexId);
     }
 
     public void addInEdge(InEdge edge) {

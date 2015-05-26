@@ -22,10 +22,11 @@ public class InEdge extends Edge {
     protected Transition endTransition;
     protected ArrayList<InTokenRequirement> tokenRequirements = new ArrayList<InTokenRequirement>();
 
-    public InEdge(Place startPlace, Transition endTransition, FunctionMode functionMode) {
+    public InEdge(Place startPlace, Transition endTransition, FunctionMode functionMode, long edgeId) {
         this.startPlace = startPlace;
         this.endTransition = endTransition;
         this.functionMode = functionMode;
+        this.edgeId = edgeId;
         updateTag();
     }
 
@@ -43,6 +44,10 @@ public class InEdge extends Edge {
     public void clearTokenRequirements() {
         tokenRequirements.clear();
         updateTag();
+    }
+    
+    public long getEdgeId() {
+        return edgeId;
     }
 
     @Override

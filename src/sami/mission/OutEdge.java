@@ -22,10 +22,11 @@ public class OutEdge extends Edge {
     protected Transition startTransition;
     protected ArrayList<OutTokenRequirement> tokenRequirements = new ArrayList<OutTokenRequirement>();
 
-    public OutEdge(Transition startTransition, Place endPlace, FunctionMode functionMode) {
+    public OutEdge(Transition startTransition, Place endPlace, FunctionMode functionMode, long edgeId) {
         this.startTransition = startTransition;
         this.endPlace = endPlace;
         this.functionMode = functionMode;
+        this.edgeId = edgeId;
         updateTag();
     }
 
@@ -61,6 +62,10 @@ public class OutEdge extends Edge {
     public void clearTokenRequirements() {
         tokenRequirements.clear();
         updateTag();
+    }
+    
+    public long getEdgeId() {
+        return edgeId;
     }
 
     @Override

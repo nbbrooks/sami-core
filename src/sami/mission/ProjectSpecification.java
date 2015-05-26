@@ -31,6 +31,7 @@ public class ProjectSpecification implements java.io.Serializable {
     private DefaultMutableTreeNode missionTree = new DefaultMutableTreeNode("Plays");
     private ArrayList<TestCase> testCases = null;
     private HashMap<String, Object> globalVariables = new HashMap<String, Object>();
+    protected long lastElementId = 0;
     transient private ArrayList<MissionPlanSpecification> allMissionPlans = new ArrayList<MissionPlanSpecification>();
     transient private ArrayList<MissionPlanSpecification> rootMissionPlans = new ArrayList<MissionPlanSpecification>();
     transient private HashMap<MissionPlanSpecification, MissionPlanSpecification> childToParent = new HashMap<MissionPlanSpecification, MissionPlanSpecification>();
@@ -47,6 +48,14 @@ public class ProjectSpecification implements java.io.Serializable {
         rootMissionPlans.add(mSpec);
         needsSaving = true;
         return node;
+    }
+    
+    public long getLastElementId() {
+        return lastElementId;
+    }
+    
+    public long getAndIncLastElementId() {
+        return lastElementId++;
     }
 
     public DefaultMutableTreeNode addSubMissionPlan(MissionPlanSpecification childMSpec, MissionPlanSpecification parentMSpec) {
@@ -544,6 +553,20 @@ public class ProjectSpecification implements java.io.Serializable {
                         if (node.getChildAt(i) instanceof DefaultMutableTreeNode) {
                             addParentLookup(node, (DefaultMutableTreeNode) node.getChildAt(i));
                         }
+                    }
+                }
+            }
+            // Check if vertex IDs have not been assigned (old DRM version)
+            if(lastElementId == 0) {
+                lastElementId = 1;
+                for(MissionPlanSpecification mSpec : allMissionPlans) {
+                    for(Vertex vertex : mSpec.getGraph().getVertices()) {
+                        vertex.vertexId = lastElementId;
+                        lastElementId++;
+                    }
+                    for(Edge edge : mSpec.getGraph().getEdges()) {
+                        edge.edgeId = lastElementId;
+                        lastElementId++;
                     }
                 }
             }

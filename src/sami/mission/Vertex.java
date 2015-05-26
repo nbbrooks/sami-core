@@ -1,6 +1,7 @@
 package sami.mission;
 
 import java.util.ArrayList;
+import java.util.UUID;
 import sami.CoreHelper;
 import sami.event.ReflectedEventSpecification;
 import sami.gui.GuiConfig;
@@ -20,12 +21,15 @@ public abstract class Vertex implements java.io.Serializable {
     protected FunctionMode functionMode = null;
     protected GuiConfig.VisibilityMode visibilityMode = GuiConfig.VisibilityMode.Full;
     protected ArrayList<ReflectedEventSpecification> eventSpecs = new ArrayList<ReflectedEventSpecification>();
+    // Unique vertex ID
+    protected long vertexId;
     transient protected String tag = "", shortTag = "";
     transient protected boolean beingModified = false;
 
-    public Vertex(String name, FunctionMode functionMode) {
+    public Vertex(String name, FunctionMode functionMode, long vertexId) {
         this.name = name;
         this.functionMode = functionMode;
+        this.vertexId = vertexId;
         tag = name;
         shortTag = CoreHelper.shorten(name, GuiConfig.MAX_STRING_LENGTH);
     }
@@ -44,6 +48,10 @@ public abstract class Vertex implements java.io.Serializable {
 
     public void setVisibilityMode(GuiConfig.VisibilityMode visibilityMode) {
         this.visibilityMode = visibilityMode;
+    }
+    
+    public long getVertexId() {
+        return vertexId;
     }
 
     public String getName() {

@@ -17,10 +17,12 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import sami.engine.Mediator;
 import sami.event.Event;
 import sami.event.InputEvent;
 import sami.event.OutputEvent;
 import sami.event.ReflectedEventSpecification;
+import sami.markup.ReflectedMarkupSpecification;
 
 /**
  *
@@ -100,19 +102,19 @@ public class MissionPlanSpecification implements java.io.Serializable {
     }
 
     public Graph<Vertex, Edge> getGraph() {
-        if(graph == null) {
+        if (graph == null) {
             return null;
         }
         if (transientGraph == null) {
             // Copy the SparseMultigraph into a DirectedSparseGraph
             //  DirectedSparseGraph does not implement serialize correctly
             transientGraph = new DirectedSparseGraph<Vertex, Edge>();
-                for (Vertex o : graph.getVertices()) {
-                    transientGraph.addVertex(o);
-                }
-                for (Edge o : graph.getEdges()) {
-                    transientGraph.addEdge(o, o.getStart(), o.getEnd());
-                }
+            for (Vertex o : graph.getVertices()) {
+                transientGraph.addVertex(o);
+            }
+            for (Edge o : graph.getEdges()) {
+                transientGraph.addEdge(o, o.getStart(), o.getEnd());
+            }
         }
         return transientGraph;
     }
@@ -466,5 +468,85 @@ public class MissionPlanSpecification implements java.io.Serializable {
             LOGGER.severe("Class Not Found Exception in MissionPlanSpecification readObject");
             throw e;
         }
+    }
+
+    /**
+     * Changes each vertex/edge to a mockup vertex/edge, copying over text for
+     * each event/edge req
+     *
+     */
+    public void convertToMockup() {
+        Graph<Vertex, Edge> mockupGraph = new DirectedSparseGraph<Vertex, Edge>();
+        Map<Vertex, Point2D> mockupLocations = new Hashtable<Vertex, Point2D>();
+
+        Hashtable<Place, MockupPlace> placeLookup = new Hashtable<Place, MockupPlace>();
+        Hashtable<Transition, MockupTransition> transitionLookup = new Hashtable<Transition, MockupTransition>();
+
+        for (Vertex o : graph.getVertices()) {
+            if (o instanceof MockupPlace || o instanceof MockupTransition) {
+                mockupGraph.addVertex(o);
+                mockupLocations.put(o, locations.get(o));
+            } else if (o instanceof Place) {
+                Place p = (Place) o;
+                MockupPlace mp = new MockupPlace(p.getName(), Mediator.getInstance().getProject().getAndIncLastElementId());
+                placeLookup.put(p, mp);
+                mockupGraph.addVertex(mp);
+                mockupLocations.put(mp, locations.get(p));
+
+                Hashtable<String, ArrayList<String>> oeWithMarkup = new Hashtable<String, ArrayList<String>>();
+                for (ReflectedEventSpecification res : p.eventSpecs) {
+                    ArrayList<String> markupList = new ArrayList<String>();
+                    for (ReflectedMarkupSpecification rms : res.getMarkupSpecs()) {
+                        markupList.add(rms.getClassName().substring(rms.getClassName().lastIndexOf('.') + 1));
+                    }
+                    oeWithMarkup.put(res.getClassName().substring(res.getClassName().lastIndexOf('.') + 1), markupList);
+                }
+                mp.setMockupOutputEventMarkups(oeWithMarkup);
+            } else if (o instanceof Transition) {
+                Transition t = (Transition) o;
+                MockupTransition mt = new MockupTransition(t.getName(), Mediator.getInstance().getProject().getAndIncLastElementId());
+                transitionLookup.put(t, mt);
+                mockupGraph.addVertex(mt);
+                mockupLocations.put(mt, locations.get(t));
+
+                Hashtable<String, ArrayList<String>> ieWithMarkup = new Hashtable<String, ArrayList<String>>();
+                for (ReflectedEventSpecification res : t.eventSpecs) {
+                    ArrayList<String> markupList = new ArrayList<String>();
+                    for (ReflectedMarkupSpecification rms : res.getMarkupSpecs()) {
+                        markupList.add(rms.getClassName().substring(rms.getClassName().lastIndexOf('.') + 1));
+                    }
+                    ieWithMarkup.put(res.getClassName().substring(res.getClassName().lastIndexOf('.') + 1), markupList);
+                }
+                mt.setMockupInputEventMarkups(ieWithMarkup);
+            }
+        }
+        for (Edge o : graph.getEdges()) {
+            if (o instanceof MockupInEdge || o instanceof MockupOutEdge) {
+                mockupGraph.addEdge(o, o.getStart(), o.getEnd());
+            } else if (o instanceof InEdge) {
+                InEdge inEdge = (InEdge) o;
+                MockupInEdge mie = new MockupInEdge(placeLookup.get(inEdge.getStart()), transitionLookup.get(inEdge.getEnd()), Mediator.getInstance().getProject().getAndIncLastElementId());
+                mockupGraph.addEdge(mie, mie.getStart(), mie.getEnd());
+
+                ArrayList<String> reqList = new ArrayList<String>();
+                for (InTokenRequirement itr : inEdge.getTokenRequirements()) {
+                    reqList.add(itr.toString());
+                }
+                mie.setMockupTokenRequirements(reqList);
+            } else if (o instanceof OutEdge) {
+                OutEdge outEdge = (OutEdge) o;
+                MockupOutEdge moe = new MockupOutEdge(transitionLookup.get(outEdge.getStart()), placeLookup.get(outEdge.getEnd()), Mediator.getInstance().getProject().getAndIncLastElementId());
+                mockupGraph.addEdge(moe, moe.getStart(), moe.getEnd());
+
+                ArrayList<String> reqList = new ArrayList<String>();
+                for (OutTokenRequirement otr : outEdge.getTokenRequirements()) {
+                    reqList.add(otr.toString());
+                }
+                moe.setMockupTokenRequirements(reqList);
+            }
+        }
+
+        this.graph = mockupGraph;
+        this.locations = mockupLocations;
     }
 }

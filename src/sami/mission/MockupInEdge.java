@@ -13,9 +13,10 @@ public class MockupInEdge extends InEdge {
 
     static final long serialVersionUID = 0L;
     protected ArrayList<String> mockupTokenRequirements = new ArrayList<String>();
+    protected transient boolean isHighlighted = false;
 
-    public MockupInEdge(MockupPlace startPlace, MockupTransition endTransition) {
-        super(startPlace, endTransition, FunctionMode.Mockup);
+    public MockupInEdge(MockupPlace startPlace, MockupTransition endTransition, long vertexId) {
+        super(startPlace, endTransition, FunctionMode.Mockup, vertexId);
     }
 
     public ArrayList<String> getMockupTokenRequirements() {
@@ -25,6 +26,14 @@ public class MockupInEdge extends InEdge {
     public void setMockupTokenRequirements(ArrayList<String> mockupTokenRequirements) {
         this.mockupTokenRequirements = mockupTokenRequirements;
         updateTag();
+    }
+    
+    public boolean getIsHighlighted() {
+        return isHighlighted;
+    }
+    
+    public void setIsHighlighted(boolean isHighlighted) {
+        this.isHighlighted =  isHighlighted;
     }
 
     @Override
@@ -64,7 +73,7 @@ public class MockupInEdge extends InEdge {
 //    }
     @Override
     public String toString() {
-        String ret = "InEdge";
+        String ret = "MockupInEdge";
         if (startPlace.getName() != null && !startPlace.getName().equals("") && endTransition.getName() != null && !endTransition.getName().equals("")) {
             ret += ":" + startPlace.getName() + "\u21e8" + endTransition.getName();
         }

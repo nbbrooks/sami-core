@@ -65,4 +65,8 @@ public class LocalUiClientServer implements UiClientInt, UiServerInt {
             serverListener.FromUiMessage(m);
         }
     }
+    
+    public ArrayList<UiClientListenerInt> getUiClients() {
+        return (ArrayList<UiClientListenerInt>)cls.clone();
+    }
 }

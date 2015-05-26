@@ -19,11 +19,13 @@ import javax.swing.JLabel;
 import sami.allocation.ResourceAllocation;
 import sami.config.DomainConfigManager;
 import sami.event.AbortMissionReceived;
+import sami.event.CompleteMissionReceived;
 import sami.event.InputEvent;
 import sami.event.TaskReassigned;
 import sami.event.TaskReleased;
 import sami.event.TaskUnassigned;
 import sami.handler.EventHandlerInt;
+import sami.logging.Recorder;
 import sami.mission.MissionPlanSpecification;
 import sami.mission.Place;
 import sami.mission.Token;
@@ -282,6 +284,8 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         final PlanManager rootPm = setUpPlanManager(mSpec, tokens);
         pmToSubPms.put(rootPm, new ArrayList<PlanManager>());
 
+        Recorder.getInstance().spawnRootMission(mSpec, rootPm);
+
         (new Thread() {
             public void run() {
                 rootPm.start();
@@ -516,6 +520,11 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         }
     }
 
+    /**
+     * The plan has been finished and should be cleaned up
+     *
+     * @param planManager
+     */
     public void done(PlanManager planManager) {
         ArrayList<PlanManagerListenerInt> listenersCopy;
         synchronized (lock) {
@@ -527,15 +536,25 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         plans.remove(planManager);
         freePlanManagerColor(planManager);
 
-        // Now abort any sub-missions
+        // Do this in CoreEventHandler
+//        for(ProxyInt proxy : proxies) {
+//            proxy.completeMission(planManager.missionId);
+//        }
+        
+        // Now force completion of any sub-missions
         //  Only do immediate children, as this will recurse
         if (pmToSubPms.containsKey(planManager)) {
             for (PlanManager subPm : pmToSubPms.get(planManager)) {
-                subPm.eventGenerated(new AbortMissionReceived(subPm.missionId));
+                subPm.eventGenerated(new CompleteMissionReceived(subPm.missionId));
             }
         }
     }
 
+    /**
+     * The plan has been aborted and should be cleaned up
+     *
+     * @param planManager
+     */
     public void abort(PlanManager planManager) {
         ArrayList<PlanManagerListenerInt> listenersCopy;
         synchronized (lock) {

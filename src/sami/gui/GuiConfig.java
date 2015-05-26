@@ -30,7 +30,7 @@ public class GuiConfig {
     };
     // Shared
     public static final Color BACKGROUND_COLOR = new Color(255, 255, 255);
-//    public static final Font TEXT_FONT = new Font("Dialog", Font.PLAIN, 14);
+//    public static final Font TEXT_FONT = new Font("Dialog", Font.BOLD, 28);
     public static final Font TEXT_FONT = new Font("Dialog", Font.BOLD, 16);
     public static final int LABEL_OFFSET = 0;
 //    public static final int LABEL_OFFSET = 50; // interrupt plan
@@ -39,6 +39,7 @@ public class GuiConfig {
     public static final Color SEL_VERTEX_COLOR = new Color(160, 0, 160);
     public static final boolean DRAW_LABELS = true;
     public static final String LABEL_TEXT_COLOR = "rgb(88,108,255)";
+    public static final String SEL_LABEL_TEXT_COLOR = "rgb(160,0,160)";
     public static final boolean DRAW_MARKUPS = true;
     public static final String MARKUP_TEXT_COLOR = "rgb(200,40,200)";
     public static final Color BKGND_VERTEX_COLOR = new Color(0, 0, 0);
@@ -53,7 +54,7 @@ public class GuiConfig {
     public static final boolean DRAW_TOKENS = true;
     public static final String TOKEN_TEXT_COLOR = "rgb(160,0,160)";
     // Transition
-    public static final Color TRANSITION_COLOR = new Color(255, 255, 255);
+    public static final Color TRANSITION_COLOR = new Color(210, 210, 210);
     // Events
     public static final boolean DRAW_EVENTS = true;
     public static final String INPUT_EVENT_TEXT_COLOR_INACTIVE = "rgb(50,50,50)";
@@ -62,12 +63,13 @@ public class GuiConfig {
     public static final String OUTPUT_EVENT_TEXT_COLOR = "rgb(0,0,0)";
     // Edge
     public static final Color EDGE_COLOR = new Color(0, 0, 0);
+    public static final Color SEL_EDGE_COLOR = new Color(160, 0, 160);
     public static final boolean DRAW_TOKEN_REQS = true;
     public static final String TOKEN_REQ_TEXT_COLOR = "rgb(188,6,6)";
     public static final int MAX_STRING_LENGTH = 100;
     public static final Color INVIS_EDGE_COLOR = null;
     public static final Stroke NOMINAL_STROKE = new BasicStroke(1);
     public static final Stroke NOMINAL_STROKE_SEL = new BasicStroke(10);
-    public static final Stroke RECOVERY_STROKE =  new BasicStroke(1, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER, 10.0f, new float[]{10.0f, 10.0f}, 0.0f);
-    public static final Stroke RECOVERY_STROKE_SEL =  new BasicStroke(10, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER, 10.0f, new float[]{10.0f, 10.0f}, 0.0f);
+    public static final Stroke RECOVERY_STROKE = new BasicStroke(1, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER, 10.0f, new float[]{10.0f, 10.0f}, 0.0f);
+    public static final Stroke RECOVERY_STROKE_SEL = new BasicStroke(10, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER, 10.0f, new float[]{10.0f, 10.0f}, 0.0f);
 }

@@ -3,6 +3,7 @@ package sami.mission;
 import sami.gui.GuiConfig;
 import sami.mission.Vertex.FunctionMode;
 import java.util.ArrayList;
+import java.util.UUID;
 
 /**
  *
@@ -13,6 +14,8 @@ public abstract class Edge implements java.io.Serializable {
     static final long serialVersionUID = 5L;
     protected FunctionMode functionMode = null;
     protected GuiConfig.VisibilityMode visibilityMode = GuiConfig.VisibilityMode.Full;
+    // Unique vertex ID
+    protected long edgeId;
     transient String tag = "", shortTag = "";
 
     public abstract void updateTag();

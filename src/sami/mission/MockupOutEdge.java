@@ -13,9 +13,10 @@ public class MockupOutEdge extends OutEdge {
 
     static final long serialVersionUID = 0L;
     protected ArrayList<String> mockupTokenRequirements = new ArrayList<String>();
+    protected transient boolean isHighlighted = false;
 
-    public MockupOutEdge(MockupTransition startTransition, MockupPlace endPlace) {
-        super(startTransition, endPlace, FunctionMode.Mockup);
+    public MockupOutEdge(MockupTransition startTransition, MockupPlace endPlace, long vertexId) {
+        super(startTransition, endPlace, FunctionMode.Mockup, vertexId);
     }
 
     public ArrayList<String> getMockupTokenRequirements() {
@@ -25,6 +26,14 @@ public class MockupOutEdge extends OutEdge {
     public void setMockupTokenRequirements(ArrayList<String> mockupTokenRequirements) {
         this.mockupTokenRequirements = mockupTokenRequirements;
         updateTag();
+    }
+    
+    public boolean getIsHighlighted() {
+        return isHighlighted;
+    }
+    
+    public void setIsHighlighted(boolean isHighlighted) {
+        this.isHighlighted =  isHighlighted;
     }
 
     @Override
@@ -64,7 +73,7 @@ public class MockupOutEdge extends OutEdge {
 //    }
     @Override
     public String toString() {
-        String ret = "OutEdge";
+        String ret = "MockupOutEdge";
         if (startTransition.getName() != null && !startTransition.getName().equals("") && endPlace.getName() != null && !endPlace.getName().equals("")) {
             ret += ":" + startTransition.getName() + "\u21e8" + endPlace.getName();
         }

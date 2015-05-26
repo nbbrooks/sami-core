@@ -1,5 +1,7 @@
 package sami.mission;
 
+import java.awt.Rectangle;
+import java.awt.Shape;
 import sami.gui.GuiConfig;
 import java.util.ArrayList;
 import java.util.Hashtable;
@@ -20,9 +22,10 @@ public class MockupTransition extends Transition {
     static final long serialVersionUID = 0L;
     protected Hashtable<String, MockupIeStatus> mockupInputEventStatus = new Hashtable<String, MockupIeStatus>();
     protected Hashtable<String, ArrayList<String>> mockupInputEventMarkups = new Hashtable<String, ArrayList<String>>();
+    protected transient boolean isHighlighted = false;
 
-    public MockupTransition(String name) {
-        super(name, FunctionMode.Mockup);
+    public MockupTransition(String name, long vertexId) {
+        super(name, FunctionMode.Mockup, vertexId);
     }
 
     public Hashtable<String, MockupIeStatus> getMockupInputEventStatus() {
@@ -42,6 +45,20 @@ public class MockupTransition extends Transition {
         this.mockupInputEventMarkups = mockupInputEventMarkups;
         updateTag();
     }
+    
+    public boolean getIsHighlighted() {
+        return isHighlighted;
+    }
+    
+    public void setIsHighlighted(boolean isHighlighted) {
+        this.isHighlighted =  isHighlighted;
+    }
+
+    @Override
+    public Shape getShape() {
+        int mult = 2;
+        return new Rectangle(-10*mult, -10*mult, 20*mult, 20*mult);
+    }
 
     @Override
     public void updateTag() {
@@ -49,8 +66,9 @@ public class MockupTransition extends Transition {
         shortTag = "<html>";
         // Name
         if (name != null && !name.equals("")) {
-            tag += "<font color=" + GuiConfig.LABEL_TEXT_COLOR + ">" + name + "</font><br>";
-            shortTag += "<font color=" + GuiConfig.LABEL_TEXT_COLOR + ">" + CoreHelper.shorten(name, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
+            String nameTextColor = isHighlighted ? GuiConfig.SEL_LABEL_TEXT_COLOR : GuiConfig.LABEL_TEXT_COLOR;
+            tag += "<font color=" + nameTextColor + ">" + name + "</font><br>";
+            shortTag += "<font color=" + nameTextColor + ">" + CoreHelper.shorten(name, GuiConfig.MAX_STRING_LENGTH) + "</font><br>";
         }
         // Input events
         if (mockupInputEventStatus != null) {
@@ -84,7 +102,7 @@ public class MockupTransition extends Transition {
     }
 
     public String toString() {
-        return "Transition:" + name;
+        return "MockupTransition:" + name;
     }
 //    private void readObject(ObjectInputStream ois) {
 //        try {
