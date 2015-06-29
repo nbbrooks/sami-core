@@ -1,12 +1,10 @@
 package sami.variable;
 
-import java.io.Serializable;
-
 /**
  *
  * @author nbb
  */
-public class VariableName implements Serializable {
+public class VariableName implements java.io.Serializable {
 
     static final long serialVersionUID = 0L;
     public String variableName;

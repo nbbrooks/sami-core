@@ -25,6 +25,6 @@ public class ViewArea implements Serializable {
     }
 
     public String toString() {
-        return "MapCorners [" + (points != null ? points.toString() : "null");
+        return "ViewArea [" + (points != null ? points.toString() : "null");
     }
 }
