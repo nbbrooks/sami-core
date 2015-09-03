@@ -19,7 +19,7 @@ public class ResetPreferences {
             if (p == null) {
                 LOGGER.severe("Java preferences file is NULL");
             } else {
-                p.put("LAST_DRM_NAME", "/Users/nbb/Code/sami-release/sami-crw/config/crw.drm");
+                p.put("LAST_DRM_NAME", "");
                 p.put("LAST_DRM_FOLDER", "");
                 p.put("LAST_EPF_NAME", "");
                 p.put("LAST_EPF_FOLDER", "");

@@ -6,8 +6,8 @@ import java.util.HashMap;
 import java.util.UUID;
 
 /**
- * Used to indicate a proxy has started executing events for a new task
- * 
+ * Used to indicate a proxy should start executing events for the relevant task
+ *
  * @author nbb
  */
 public class TaskStarted extends InputEvent {

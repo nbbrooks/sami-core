@@ -219,6 +219,10 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
     public void planAborted(PlanManager planManager) {
     }
 
+    @Override
+    public void sharedSubPlanAtReturn(PlanManager planManager) {
+    }
+
     private void initTables() {
         for (Vertex vertex : mSpec.getGraph().getVertices()) {
             if (vertex instanceof Transition && vertex.getFunctionMode() == Vertex.FunctionMode.Recovery) {

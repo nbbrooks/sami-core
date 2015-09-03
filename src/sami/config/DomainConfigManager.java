@@ -138,7 +138,7 @@ public class DomainConfigManager {
             LOGGER.severe("Preferences.userRoot access control exception: " + e.toString());
         }
         // Limit the chooser to .dcf files
-        FileNameExtensionFilter filter = new FileNameExtensionFilter("DREAAM specification files", "dcf");
+        FileNameExtensionFilter filter = new FileNameExtensionFilter("Domain configuration files", "dcf");
         chooser.setFileFilter(filter);
         int ret = chooser.showSaveDialog(null);
         if (ret == JFileChooser.APPROVE_OPTION) {
@@ -214,7 +214,7 @@ public class DomainConfigManager {
             LOGGER.severe("Preferences.userRoot access control exception: " + e.toString());
         }
         // Limit the chooser to .dcf files
-        FileNameExtensionFilter filter = new FileNameExtensionFilter("DREAAM specification files", "dcf");
+        FileNameExtensionFilter filter = new FileNameExtensionFilter("Domain configuration files", "dcf");
         chooser.setFileFilter(filter);
         int ret = chooser.showOpenDialog(null);
         if (ret == JFileChooser.APPROVE_OPTION) {

@@ -523,12 +523,17 @@ public class MissionMonitor extends javax.swing.JFrame implements PlanManagerLis
         this.repaint();
     }
 
+    @Override
+    public void sharedSubPlanAtReturn(PlanManager planManager) {
+    }
+
     public void refreshMissionDisplay() {
         missionViewersP.removeAll();
         missionViewersP.setLayout(new GridBagLayout());
         int rowCount = 0;
         GridBagConstraints c = new GridBagConstraints();
-        for (MissionDisplay missionDisplay : missionDisplayList) {
+        ArrayList<MissionDisplay> missionDisplayListClone = (ArrayList<MissionDisplay>)(missionDisplayList.clone());
+        for (MissionDisplay missionDisplay : missionDisplayListClone) {
             c.gridx = 0;
             c.gridy = rowCount;
             c.weightx = 1;

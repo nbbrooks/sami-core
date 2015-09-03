@@ -72,9 +72,12 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     // Lookup table used during processing of generated and updated parameter input events
     private final HashMap<InputEvent, Transition> inputEventToTransitionMap = new HashMap<InputEvent, Transition>();
     // Lookup table used when submissions are completed
-    private final HashMap<PlanManager, Place> planManagerToPlace = new HashMap<PlanManager, Place>();
-    private final HashMap<Place, ArrayList<PlanManager>> placeToActivePlanManagers = new HashMap<Place, ArrayList<PlanManager>>();
+    private final HashMap<PlanManager, Place> smPlanManagerToPlace = new HashMap<PlanManager, Place>();
+    private final HashMap<Place, ArrayList<PlanManager>> placeToActiveSmPlanManagers = new HashMap<Place, ArrayList<PlanManager>>();
     private final HashMap<Place, ArrayList<Token>> placeToSMTokens = new HashMap<Place, ArrayList<Token>>();
+    private final HashMap<MissionPlanSpecification, PlanManager> sharedSubMSpecToInstance = new HashMap<MissionPlanSpecification, PlanManager>();
+    // If this is a shared sub-mission, is it a shared instance?
+    private final boolean isSharedSm;
     // Lookup for cloned blocking IEs
     private final HashMap<InputEvent, HashMap<ProxyInt, InputEvent>> clonedIeProxyTable = new HashMap<InputEvent, HashMap<ProxyInt, InputEvent>>();
     private final HashMap<InputEvent, HashMap<Task, InputEvent>> clonedIeTaskTable = new HashMap<InputEvent, HashMap<Task, InputEvent>>();
@@ -83,9 +86,14 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     // Lookup used to reset CheckReturn templates and remove CheckReturn clones on neighboring transitions when a transition fires
     private final HashMap<Transition, HashMap<MissionPlanSpecification, CheckReturn>> allCrTable = new HashMap<Transition, HashMap<MissionPlanSpecification, CheckReturn>>();
     private final ArrayList<Token> taskTokensPresent = new ArrayList<Token>();
-    final MissionPlanSpecification mSpec;
     // The model being managed by this PlanManager
-    private Place startPlace;
+    final MissionPlanSpecification mSpec;
+    // Need to keep track of developer defined start place for shared instance SMs
+    //  Don't want to have tokens continually entering plan at MissingParamsRequest
+    //  - drmStartPlace: The start place defined in the DRM file by the DREAAM developer
+    //  - missingParamsPlace: The start place created in finishSetup() if the mSpec was missing parameters
+    //  - startPlace: The start place (drmStartPlace or missingParamsPlace, depending on if the mSpec is missing parameters) used by this plan manager
+    private Place drmStartPlace, missingParamsStartPlace, startPlace;
     private final String planName;
     public final UUID missionId;
     // Lookup of OE UUID to Place, used by QueueFrame
@@ -98,12 +106,13 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     final Level EXE_T_LVL = Level.FINE;
     final Level PROCESS_E_LVL = Level.FINE;
 
-    public PlanManager(final MissionPlanSpecification mSpec, UUID missionId, String planName, ArrayList<Token> startingTokens) {
+    public PlanManager(final MissionPlanSpecification mSpec, UUID missionId, String planName, ArrayList<Token> startingTokens, boolean isSharedSm) {
         LOGGER.info("Creating PlanManager for mSpec " + mSpec + " with mission ID " + missionId + " and planName " + planName);
         this.mSpec = mSpec;
         this.missionId = missionId;
         this.planName = planName;
         this.startingTokens = startingTokens;
+        this.isSharedSm = isSharedSm;
     }
 
     public void finishSetup() {
@@ -113,7 +122,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         }
         setupDone = true;
 
-        startPlace = mSpec.getUninstantiatedStart();
+        drmStartPlace = mSpec.getUninstantiatedStart();
+        startPlace = drmStartPlace;
 
         // Create task tokens
         LOGGER.info("Creating task tokens for task specifications");
@@ -123,27 +133,96 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             this.startingTokens.add(taskToken);
         }
 
+        // Create any shared sub-missions
+        //  For shared SM, only one instance exists, we do not spawn individual ones during plan execution as tokens enter the place holding it
+        //  Instead, we put them in the start place of the single instance we create here
+        for (Vertex vertex : mSpec.getGraph().getVertices()) {
+            if (vertex instanceof Place) {
+                Place place = (Place) vertex;
+
+                if (place.getSubMissionToIsSharedInstance() != null) {
+                    //@todo this is just here for legacy DRM support
+                    for (MissionPlanSpecification subMSpecTemplate : place.getSubMissionToIsSharedInstance().keySet()) {
+                        if (place.getSubMissionToIsSharedInstance().get(subMSpecTemplate)) {
+                            LOGGER.fine("Creating shared SM instance in finishSetup()" + subMSpecTemplate);
+                            // This is a "shared" instance SM, create the singular instance
+                            PlanManager subMPlanManager = Engine.getInstance().spawnSubMission(subMSpecTemplate, this, new ArrayList<Token>(), true);
+                            // Update place lookup table with cloned mSpec so we know it is a shared SM
+                            place.getSubMissionToIsSharedInstance().put(subMPlanManager.getMSpec(), true);
+                            // Fill hashtable entry so we can access this shared plan when tokens enter the corresponding place during execution
+                            sharedSubMSpecToInstance.put(subMSpecTemplate, subMPlanManager);
+
+                            smPlanManagerToPlace.put(subMPlanManager, place);
+                            if (placeToActiveSmPlanManagers.containsKey(place)) {
+                                placeToActiveSmPlanManagers.get(place).add(subMPlanManager);
+                            } else {
+                                ArrayList<PlanManager> planManagers = new ArrayList<PlanManager>();
+                                planManagers.add(subMPlanManager);
+                                placeToActiveSmPlanManagers.put(place, planManagers);
+                            }
+                            // Update place's sub mission status
+                            place.addSubMission(subMPlanManager.getMSpec());
+                            // Apply task mapping
+                            if (place.getSubMissionToTaskMap().containsKey(subMSpecTemplate)) {
+                                HashMap<TaskSpecification, TaskSpecification> taskMap = place.getSubMissionToTaskMap().get(subMSpecTemplate);
+                                subMPlanManager.applyTaskMapping(taskMap, this);
+                            }
+
+                            HashMap<Transition, CheckReturn> hashmap = new HashMap<Transition, CheckReturn>();
+                            clonedCrTable.put(subMPlanManager.getMSpec(), hashmap);
+
+                            // Check if any outgoing transitions have a CheckReturn for this mission spec
+                            for (Transition transition : place.getOutTransitions()) {
+                                ArrayList<InputEvent> ieCopy = (ArrayList<InputEvent>) transition.getInputEvents().clone();
+                                for (InputEvent ie : ieCopy) {
+                                    if (ie instanceof CheckReturn
+                                            && ((CheckReturn) ie).getVariableName() == null
+                                            && ((CheckReturn) ie).getMSpec() == subMSpecTemplate) {
+                                        // Make a clone of the CheckReturn template for this instance of the sub-mission                           
+                                        CheckReturn template = (CheckReturn) ie;
+                                        CheckReturn clone = new CheckReturn(template, subMPlanManager.getMSpec(), subMPlanManager.getPlanName() + MissionPlanSpecification.RETURN_SUFFIX);
+                                        transition.addInputEvent(clone);
+                                        hashmap.put(transition, clone);
+
+                                        HashMap<MissionPlanSpecification, CheckReturn> table;
+                                        if (allCrTable.containsKey(transition)) {
+                                            table = allCrTable.get(transition);
+                                        } else {
+                                            table = new HashMap<MissionPlanSpecification, CheckReturn>();
+                                            allCrTable.put(transition, table);
+                                        }
+                                        table.put(subMPlanManager.getMSpec(), clone);
+                                    }
+                                }
+                            }
+                            Engine.getInstance().addListener(this);
+                        }
+                    }
+                }
+            }
+        }
+
         // If there are any parameters on the events that need to be filled in, request from the operator
         ArrayList<ReflectedEventSpecification> editableEventSpecs = mSpec.getEventSpecsRequestingParams();
         if (editableEventSpecs.size() > 0) {
             LOGGER.fine("Missing/editable parameters in eventSpecs: " + editableEventSpecs);
 
             // Create vertices to get missing parameters
-            Place missingParamsPlace = new Place("Get Params", FunctionMode.Nominal, Mediator.getInstance().getProject().getAndIncLastElementId());
+            missingParamsStartPlace = new Place("Get Params", FunctionMode.Nominal, Mediator.getInstance().getProject().getAndIncLastElementId());
             Transition missingParamsTransition = new Transition("Got Params", FunctionMode.Nominal, Mediator.getInstance().getProject().getAndIncLastElementId());
-            InEdge edge1 = new InEdge(missingParamsPlace, missingParamsTransition, FunctionMode.Nominal, Mediator.getInstance().getProject().getAndIncLastElementId());
+            InEdge edge1 = new InEdge(missingParamsStartPlace, missingParamsTransition, FunctionMode.Nominal, Mediator.getInstance().getProject().getAndIncLastElementId());
             OutEdge edge2 = new OutEdge(missingParamsTransition, startPlace, FunctionMode.Nominal, Mediator.getInstance().getProject().getAndIncLastElementId());
             // Add vetices to plan
-            missingParamsPlace.addOutTransition(missingParamsTransition);
-            missingParamsTransition.addInPlace(missingParamsPlace);
+            missingParamsStartPlace.addOutTransition(missingParamsTransition);
+            missingParamsTransition.addInPlace(missingParamsStartPlace);
             missingParamsTransition.addOutPlace(startPlace);
             edge1.addTokenRequirement(new InTokenRequirement(TokenRequirement.MatchCriteria.None, null));
             edge2.addTokenRequirement(new OutTokenRequirement(TokenRequirement.MatchCriteria.AnyToken, TokenRequirement.MatchQuantity.All, TokenRequirement.MatchAction.Take));
-            missingParamsPlace.addOutEdge(edge1);
+            missingParamsStartPlace.addOutEdge(edge1);
             missingParamsTransition.addInEdge(edge1);
             missingParamsTransition.addOutEdge(edge2);
             startPlace.addInEdge(edge2);
-            startPlace = missingParamsPlace;
+            startPlace = missingParamsStartPlace;
 
             // Make list of missing/editable parameter fields
             Hashtable<ReflectedEventSpecification, Hashtable<Field, String>> eventSpecToFieldDescriptions = new Hashtable<ReflectedEventSpecification, Hashtable<Field, String>>();
@@ -247,26 +326,27 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             request.setMissionId(missionId);
             response.setMissionId(missionId);
             response.setRelevantOutputEventId(request.getId());
-            missingParamsPlace.addOutputEvent(request);
+            missingParamsStartPlace.addOutputEvent(request);
             missingParamsTransition.addInputEvent(response);
 
             // Add abort mission handling
             // Add transition
-            Transition abortTransition = new Transition("AbortMission", FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
+            Transition abortTransition = new Transition("AbortMissionHelper", FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
             AbortMissionReceived abortReceived = new AbortMissionReceived(missionId);
             abortTransition.addInputEvent(abortReceived);
             // Add end place with AbortMission
-            Place abortPlace = new Place("AbortMission", FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
+            Place abortPlace = new Place("AbortMissionHelper", FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
             abortPlace.setIsEnd(true);
+            abortPlace.setIsSharedSmEnd(true);
             AbortMission abortMission = new AbortMission(missionId);
             abortPlace.addOutputEvent(abortMission);
             // Add edges
-            InEdge abortInEdge = new InEdge(missingParamsPlace, abortTransition, FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
+            InEdge abortInEdge = new InEdge(missingParamsStartPlace, abortTransition, FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
             abortInEdge.addTokenRequirement(new InTokenRequirement(TokenRequirement.MatchCriteria.None, null));
             abortTransition.addInEdge(abortInEdge);
-            missingParamsPlace.addOutEdge(abortInEdge);
-            abortTransition.addInPlace(missingParamsPlace);
-            missingParamsPlace.addOutTransition(abortTransition);
+            missingParamsStartPlace.addOutEdge(abortInEdge);
+            abortTransition.addInPlace(missingParamsStartPlace);
+            missingParamsStartPlace.addOutTransition(abortTransition);
             OutEdge abortOutEdge = new OutEdge(abortTransition, abortPlace, FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
             abortOutEdge.addTokenRequirement(new OutTokenRequirement(TokenRequirement.MatchCriteria.AnyToken, TokenRequirement.MatchQuantity.All, TokenRequirement.MatchAction.Take));
             abortTransition.addOutEdge(abortOutEdge);
@@ -276,21 +356,20 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
             // Add complete mission handling
             // Add transition
-            Transition completeTransition = new Transition("CompleteMission", FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
+            Transition completeTransition = new Transition("CompleteMissionHelper", FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
             CompleteMissionReceived completeReceived = new CompleteMissionReceived(missionId);
             completeTransition.addInputEvent(completeReceived);
             // Add end place with CompleteMission
-            Place completePlace = new Place("CompleteMission", FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
+            Place completePlace = new Place("CompleteMissionHelper", FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
             completePlace.setIsEnd(true);
-//            CompleteMission completeMission = new CompleteMission(missionId);
-//            completePlace.addOutputEvent(completeMission);
+            completePlace.setIsSharedSmEnd(true);
             // Add edges
-            InEdge completeInEdge = new InEdge(missingParamsPlace, completeTransition, FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
+            InEdge completeInEdge = new InEdge(missingParamsStartPlace, completeTransition, FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
             completeInEdge.addTokenRequirement(new InTokenRequirement(TokenRequirement.MatchCriteria.None, null));
             completeTransition.addInEdge(completeInEdge);
-            missingParamsPlace.addOutEdge(completeInEdge);
-            completeTransition.addInPlace(missingParamsPlace);
-            missingParamsPlace.addOutTransition(completeTransition);
+            missingParamsStartPlace.addOutEdge(completeInEdge);
+            completeTransition.addInPlace(missingParamsStartPlace);
+            missingParamsStartPlace.addOutTransition(completeTransition);
             OutEdge completeOutEdge = new OutEdge(completeTransition, completePlace, FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
             completeOutEdge.addTokenRequirement(new OutTokenRequirement(TokenRequirement.MatchCriteria.AnyToken, TokenRequirement.MatchQuantity.All, TokenRequirement.MatchAction.Take));
             completeTransition.addOutEdge(completeOutEdge);
@@ -358,12 +437,20 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             }
         }
 
-        LOGGER.log(Level.FINE, "Plan has finished starting");
+        LOGGER.log(Level.FINE, "Finished starting plan [" + getPlanName() + "]");
         Engine.getInstance().started(this);
     }
 
+    public void addTokensToStartPlace(ArrayList<Token> tokens) {
+        // Used for static sub-missions to move a set of tokens to the start place
+        // Can't blindly used startPlace - we may have changed it from what is specified in the DRM
+        //  in finishSetup() if there were missing parameters
+        enterPlace(drmStartPlace, tokens, true);
+    }
+
     private synchronized boolean checkTransition(Transition transition) {
-        LOGGER.log(CHECK_T_LVL, "Checking " + transition);
+        Level logLevel = CHECK_T_LVL;
+        LOGGER.log(logLevel, "Checking " + transition);
 
         boolean failure = false;
 
@@ -371,14 +458,14 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         // Check that each InputEvent has occurred
         ////
         ArrayList<InputEvent> inputEvents = transition.getInputEvents();
-        LOGGER.log(CHECK_T_LVL, "\tChecking for input events: " + inputEvents);
+        LOGGER.log(logLevel, "\tChecking for input events: " + inputEvents);
         for (InputEvent ie : inputEvents) {
             if (!transition.getInputEventStatus(ie)) {
-                LOGGER.log(CHECK_T_LVL, "\t\tInput event " + ie + " is not ready");
+                LOGGER.log(logLevel, "\t\tInput event " + ie + " is not ready");
                 failure = true;
                 break;
             } else {
-                LOGGER.log(CHECK_T_LVL, "\t\tInput event " + ie + " is ready");
+                LOGGER.log(logLevel, "\t\tInput event " + ie + " is ready");
             }
         }
 
@@ -394,22 +481,22 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 ////
                 // Check that if there is a sub-mission that it has completed
                 ////
-                boolean allSubMFinished = !placeToActivePlanManagers.containsKey(inPlace) || (placeToActivePlanManagers.containsKey(inPlace) && placeToActivePlanManagers.get(inPlace).isEmpty());
+                boolean allSubMFinished = !placeToActiveSmPlanManagers.containsKey(inPlace) || (placeToActiveSmPlanManagers.containsKey(inPlace) && placeToActiveSmPlanManagers.get(inPlace).isEmpty());
                 if (!allSubMFinished) {
-                    LOGGER.log(CHECK_T_LVL, "\tSub-missions " + placeToActivePlanManagers.get(inPlace) + " on " + inPlace + " are not yet complete");
+                    LOGGER.log(logLevel, "\tSub-missions " + placeToActiveSmPlanManagers.get(inPlace) + " on " + inPlace + " are not yet complete");
                     failure = true;
                     break check;
-                } else if (allSubMFinished && placeToActivePlanManagers.containsKey(inPlace)) {
-                    LOGGER.log(CHECK_T_LVL, "\tSub-missions on " + inPlace + " are complete");
+                } else if (allSubMFinished && placeToActiveSmPlanManagers.containsKey(inPlace)) {
+                    LOGGER.log(logLevel, "\tSub-missions on " + inPlace + " are complete");
                 }
 
                 ////
                 // Check edge requirements
                 ////
                 ArrayList<Token> placeTokens = (ArrayList<Token>) inPlace.getTokens();
-                LOGGER.log(CHECK_T_LVL, "\tChecking " + inEdge + " with in reqs [" + inEdge.getTokenRequirements() + "] against in " + inPlace + " with [" + placeTokens + "]");
+                LOGGER.log(logLevel, "\tChecking " + inEdge + " with in reqs [" + inEdge.getTokenRequirements() + "] against in " + inPlace + " with [" + placeTokens + "]");
                 for (TokenRequirement inReq : inEdge.getTokenRequirements()) {
-                    LOGGER.log(CHECK_T_LVL, "\t\tChecking in req: " + inReq + " and incoming place with tokens: " + placeTokens);
+                    LOGGER.log(logLevel, "\t\tChecking in req: " + inReq + " and incoming place with tokens: " + placeTokens);
                     if (inReq.getMatchQuantity() == TokenRequirement.MatchQuantity.Number && inReq.getQuantity() == 0) {
                         LOGGER.severe("\t\t\tMatch number quantity is zero, ignoring token requirement: " + inReq);
                         continue;
@@ -742,19 +829,19 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                             break;
                     }
                     if (failure) {
-                        LOGGER.log(CHECK_T_LVL, "\t\t\tFailed check");
+                        LOGGER.log(logLevel, "\t\t\tFailed check");
                         break check;
                     }
                 }
                 if (failure) {
                     LOGGER.severe("Logic error - I should not be here");
                 }
-                LOGGER.log(CHECK_T_LVL, "\t\tEdge requirements have been met");
+                LOGGER.log(logLevel, "\t\tEdge requirements have been met");
             }
         }
 
         if (!failure) {
-            LOGGER.log(CHECK_T_LVL, "\tTransition " + transition + " is ready!");
+            LOGGER.log(logLevel, "\tTransition " + transition + " is ready!");
             return true;
         }
         return false;
@@ -766,7 +853,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         synchronized (placesBeingEntered) {
             for (Place place : transition.getInPlaces()) {
                 if (placesBeingEntered.contains(place)) {
-                    LOGGER.log(EXE_T_LVL, "\tAborting executeTransition becaues an incoming place is still being entered: " + place);
+                    LOGGER.warning("\tAborting executeTransition becaues an incoming place is still being entered: " + place);
                     return;
                 }
             }
@@ -1801,6 +1888,22 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             }
         }
 
+        // Now, before the transitions actually execute, go through any shared SMs and mark them as incomplete
+        for (MissionPlanSpecification sharedMSpec : sharedSubMSpecToInstance.keySet()) {
+            PlanManager sharedPm = sharedSubMSpecToInstance.get(sharedMSpec);
+            if (smPlanManagerToPlace.containsKey(sharedPm)) {
+                Place sharedSmPlace = smPlanManagerToPlace.get(sharedPm);
+                if (transition.getInPlaces().contains(sharedSmPlace)) {
+                    // Update place's sub mission status
+                    sharedSmPlace.setSubMissionStatus(sharedMSpec, false);
+                    // Mark the SM as active again
+                    if (placeToActiveSmPlanManagers.containsKey(sharedSmPlace)) {
+                        placeToActiveSmPlanManagers.get(sharedSmPlace).add(sharedPm);
+                    }
+                }
+            }
+        }
+
         // Reset status of input events so if we loop back to this incoming place the input events must occur again for the transition to fire again
         transition.clearInputEventStatus();
         // Tell watchers thet we have updates
@@ -1990,6 +2093,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
         // 5 - Check for sub-missions and start them if required
         if (place.getSubMissionTemplates() != null && !place.getSubMissionTemplates().isEmpty()) {
+
+            checkForTransition = true;
+
             for (MissionPlanSpecification subMSpecTemplate : place.getSubMissionTemplates()) {
                 LOGGER.info("\tStarting submission " + subMSpecTemplate);
                 ArrayList<Token> subMissionTokens = new ArrayList<Token>();
@@ -2000,52 +2106,66 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                     subMissionTokens.add(token);
 //                    }
                 }
-                PlanManager subMPlanManager = Engine.getInstance().spawnSubMission(subMSpecTemplate, this, subMissionTokens);
-                planManagerToPlace.put(subMPlanManager, place);
-                if (placeToActivePlanManagers.containsKey(place)) {
-                    placeToActivePlanManagers.get(place).add(subMPlanManager);
+
+                // Check if SM spec is set as shared or individual instance
+                //  If shared, add the tokens to its start place
+                //  If individual, spanwn an instance iwth the tokens in its start place
+                PlanManager subMPlanManager;
+                if (sharedSubMSpecToInstance.containsKey(subMSpecTemplate)) {
+                    // This is a "shared" instance SM
+                    //  Get the instance which was spawned when this PM was instantiated, and add the tokens to its start place
+                    subMPlanManager = sharedSubMSpecToInstance.get(subMSpecTemplate);
+                    subMPlanManager.addTokensToStartPlace(subMissionTokens);
                 } else {
-                    ArrayList<PlanManager> planManagers = new ArrayList<PlanManager>();
-                    planManagers.add(subMPlanManager);
-                    placeToActivePlanManagers.put(place, planManagers);
-                }
-                // Update place's sub mission status
-                place.addSubMission(subMPlanManager.getMSpec());
-                // Apply task mapping
-                if (place.getSubMissionToTaskMap().containsKey(subMSpecTemplate)) {
-                    HashMap<TaskSpecification, TaskSpecification> taskMap = place.getSubMissionToTaskMap().get(subMSpecTemplate);
-                    subMPlanManager.applyTaskMapping(taskMap, this);
-                }
+                    // This is a "individual" instance SM
+                    //  Make the instance for this set of tokens
+                    subMPlanManager = Engine.getInstance().spawnSubMission(subMSpecTemplate, this, subMissionTokens, false);
+                    smPlanManagerToPlace.put(subMPlanManager, place);
+                    if (placeToActiveSmPlanManagers.containsKey(place)) {
+                        placeToActiveSmPlanManagers.get(place).add(subMPlanManager);
+                    } else {
+                        ArrayList<PlanManager> planManagers = new ArrayList<PlanManager>();
+                        planManagers.add(subMPlanManager);
+                        placeToActiveSmPlanManagers.put(place, planManagers);
+                    }
+                    // Update place's sub mission status
+                    place.addSubMission(subMPlanManager.getMSpec());
+                    // Apply task mapping
+                    if (place.getSubMissionToTaskMap().containsKey(subMSpecTemplate)) {
+                        HashMap<TaskSpecification, TaskSpecification> taskMap = place.getSubMissionToTaskMap().get(subMSpecTemplate);
+                        subMPlanManager.applyTaskMapping(taskMap, this);
+                    }
 
-                HashMap<Transition, CheckReturn> hashmap = new HashMap<Transition, CheckReturn>();
-                clonedCrTable.put(subMPlanManager.getMSpec(), hashmap);
+                    HashMap<Transition, CheckReturn> hashmap = new HashMap<Transition, CheckReturn>();
+                    clonedCrTable.put(subMPlanManager.getMSpec(), hashmap);
 
-                // Check if any outgoing transitions have a CheckReturn for this mission spec
-                for (Transition transition : place.getOutTransitions()) {
-                    ArrayList<InputEvent> ieCopy = (ArrayList<InputEvent>) transition.getInputEvents().clone();
-                    for (InputEvent ie : ieCopy) {
-                        if (ie instanceof CheckReturn
-                                && ((CheckReturn) ie).getVariableName() == null
-                                && ((CheckReturn) ie).getMSpec() == subMSpecTemplate) {
-                            // Make a clone of the CheckReturn template for this instance of the sub-mission                           
-                            CheckReturn template = (CheckReturn) ie;
-                            CheckReturn clone = new CheckReturn(template, subMPlanManager.getMSpec(), subMPlanManager.getPlanName() + MissionPlanSpecification.RETURN_SUFFIX);
-                            transition.addInputEvent(clone);
-                            hashmap.put(transition, clone);
+                    // Check if any outgoing transitions have a CheckReturn for this mission spec
+                    for (Transition transition : place.getOutTransitions()) {
+                        ArrayList<InputEvent> ieCopy = (ArrayList<InputEvent>) transition.getInputEvents().clone();
+                        for (InputEvent ie : ieCopy) {
+                            if (ie instanceof CheckReturn
+                                    && ((CheckReturn) ie).getVariableName() == null
+                                    && ((CheckReturn) ie).getMSpec() == subMSpecTemplate) {
+                                // Make a clone of the CheckReturn template for this instance of the sub-mission                           
+                                CheckReturn template = (CheckReturn) ie;
+                                CheckReturn clone = new CheckReturn(template, subMPlanManager.getMSpec(), subMPlanManager.getPlanName() + MissionPlanSpecification.RETURN_SUFFIX);
+                                transition.addInputEvent(clone);
+                                hashmap.put(transition, clone);
 
-                            HashMap<MissionPlanSpecification, CheckReturn> table;
-                            if (allCrTable.containsKey(transition)) {
-                                table = allCrTable.get(transition);
-                            } else {
-                                table = new HashMap<MissionPlanSpecification, CheckReturn>();
-                                allCrTable.put(transition, table);
+                                HashMap<MissionPlanSpecification, CheckReturn> table;
+                                if (allCrTable.containsKey(transition)) {
+                                    table = allCrTable.get(transition);
+                                } else {
+                                    table = new HashMap<MissionPlanSpecification, CheckReturn>();
+                                    allCrTable.put(transition, table);
+                                }
+                                table.put(subMPlanManager.getMSpec(), clone);
                             }
-                            table.put(subMPlanManager.getMSpec(), clone);
                         }
                     }
-                }
 
-                Engine.getInstance().addListener(this);
+                    Engine.getInstance().addListener(this);
+                }
             }
         }
 
@@ -2089,7 +2209,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 //                }
 //            }
             if (end) {
-                finishMission(place);
+                reachedEndPlace(place);
             }
         }
     }
@@ -2165,21 +2285,35 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
      *
      * @param endPlace
      */
-    public void finishMission(Place endPlace) {
-        LOGGER.info("Finishing plan at end place [" + endPlace + "]");
-        // Signal sub-missions and listeners that the plan has been completed
-        Engine.getInstance().done(this);
-        // Unregister any IEs still active
-        for (InputEvent ie : activeInputEvents) {
-            LOGGER.log(Level.FINE, "\tUnregistering active input event:" + ie);
-            ie.setActive(false);
-            inputEventToTransitionMap.get(ie).updateTag();
-            InputEventMapper.getInstance().unregisterEvent(ie);
-            if (inputEventToTransitionMap.containsKey(ie)) {
+    public void reachedEndPlace(Place endPlace) {
+        if (isSharedSm && !endPlace.isSharedSmEnd()) {
+            // This is a shared sub-mission "return place", don't terminate the PM
+            LOGGER.info("Shared sub-mission [" + getPlanName() + "] reached an end place [" + endPlace + "]");
+            // Signal parent mission that tokens entered an end place
+            Engine.getInstance().sharedSmReachedEnd(this);
+
+            // Now, after notifying all the plans, clear this end place of tokens
+            endPlace.removeAllTokens();
+        } else {
+            LOGGER.info("Finishing plan [" + getPlanName() + "] at end place [" + endPlace + "]");
+            // Unregister any IEs still active
+            for (InputEvent ie : activeInputEvents) {
+                LOGGER.log(Level.FINE, "\t Unregistering active input event:" + ie);
+                ie.setActive(false);
                 inputEventToTransitionMap.get(ie).updateTag();
+                InputEventMapper.getInstance().unregisterEvent(ie);
+                if (inputEventToTransitionMap.containsKey(ie)) {
+                    inputEventToTransitionMap.get(ie).updateTag();
+                }
             }
+            activeInputEvents.clear();
+            // Stop getting updates from other plans
+            //  Do this before we signal to the Engine we are done
+            //  Otherwise can get unintended behavior with planFinished signals from SMs that complete due to the below call to done()
+            Engine.getInstance().removeListener(this);
+            // Signal sub-missions and listeners that the plan has been completed
+            Engine.getInstance().done(this);
         }
-        activeInputEvents.clear();
     }
 
     /**
@@ -2202,12 +2336,17 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         // Put token in end place?
     }
 
+    public ArrayList<InputEvent> getActiveInputEventsClone() {
+        return (ArrayList<InputEvent>) (activeInputEvents.clone());
+    }
+
     public void processGeneratedEvent(InputEvent generatedEvent) {
         Level detailsLogLevel = PROCESS_E_LVL;
         if (generatedEvent.toString().contains("ProxyPoseUpdated")) {
             detailsLogLevel = Level.FINEST;
         }
 
+        // Check against mission ID
         LOGGER.log(detailsLogLevel, "Processing generated event " + generatedEvent + " with event UUID [" + generatedEvent.getId() + "], mission UUID [" + generatedEvent.getMissionId() + "], RP [" + generatedEvent.getRelevantProxyList() + "], RT [" + generatedEvent.getRelevantTaskList() + "]");
         if (generatedEvent.getMissionId() == null) {
             LOGGER.log(detailsLogLevel, "\tGenerated event has no mission UUID");
@@ -2737,21 +2876,23 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             Engine.getInstance().setVariableValue(variableName, variableToValue.get(variableName), this);
         }
 
-        // Special case for OperatorInterruptReceived
-        for (Vertex v : mSpec.getGraph().getVertices()) {
-            if (v instanceof Transition) {
-                Transition transition = (Transition) v;
-                for (InputEvent inputEvent : transition.getInputEvents()) {
-                    if (inputEvent instanceof OperatorInterruptReceived) {
-                        // Set a relevant OE UUID so each interrupt is distinct
-                        inputEvent.setRelevantOutputEventId(UUID.randomUUID());
-                        // Register here as OIR resides on transitions with no incoming place
-                        registerInputEvent(inputEvent, transition);
-                    }
-                }
-            }
-        }
-
+        // Old code that made transitions with an OperatorInterruptReceived always active, even if no incoming place
+        //  With this commented out, the transition needs an active, incoming place (consistent with Petri Net rules)
+//        // Special case for OperatorInterruptReceived
+//        for (Vertex v : mSpec.getGraph().getVertices()) {
+//            if (v instanceof Transition) {
+//                Transition transition = (Transition) v;
+//                for (InputEvent inputEvent : transition.getInputEvents()) {
+//                    if (inputEvent instanceof OperatorInterruptReceived) {
+//                        // Set a relevant OE UUID so each interrupt is distinct
+//                        inputEvent.setRelevantOutputEventId(UUID.randomUUID());
+//                        // Register here as OIR resides on transitions with no incoming place
+//                        registerInputEvent(inputEvent, transition);
+//                    }
+//                }
+//            }
+//        }
+        //@todo Find any shared instance sub-missions and start them now (with single generic token)
         if (Recorder.ENABLED) {
             Recorder.getInstance().writeInstantiatedIds(this);
         }
@@ -2934,13 +3075,14 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     }
 
     @Override
-    public void planFinished(PlanManager planManager) {
-        Place place = planManagerToPlace.get(planManager);
+    public void planFinished(PlanManager smPlanManager) {
+        // Check if the completed PM is a sub-plan linked to a place in a parent PM
+        Place place = smPlanManagerToPlace.get(smPlanManager);
         if (place != null) {
-            ArrayList<PlanManager> activePMs = placeToActivePlanManagers.get(place);
+            ArrayList<PlanManager> activePMs = placeToActiveSmPlanManagers.get(place);
             if (activePMs == null) {
                 LOGGER.severe("Sub-mission mapping for place " + place + " is null");
-            } else if (activePMs.contains(planManager)) {
+            } else if (activePMs.contains(smPlanManager)) {
                 // Record all tokens in the sub-mission's end state(s)
                 ArrayList<Token> sMTokens;
                 if (placeToSMTokens.containsKey(place)) {
@@ -2949,14 +3091,14 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                     sMTokens = new ArrayList<Token>();
                     placeToSMTokens.put(place, sMTokens);
                 }
-                sMTokens.addAll(planManager.getEndTokens());
+                sMTokens.addAll(smPlanManager.getEndTokens());
 
                 // Update place's sub mission status
-                place.setSubMissionStatus(planManager.getMSpec(), true);
+                place.setSubMissionStatus(smPlanManager.getMSpec(), true);
 
                 // Check if there are any CheckReturn instances linked to this SM mSpec instance
-                if (clonedCrTable.containsKey(planManager.getMSpec())) {
-                    HashMap<Transition, CheckReturn> lookup = clonedCrTable.get(planManager.getMSpec());
+                if (clonedCrTable.containsKey(smPlanManager.getMSpec())) {
+                    HashMap<Transition, CheckReturn> lookup = clonedCrTable.get(smPlanManager.getMSpec());
                     for (Transition checkTransition : lookup.keySet()) {
                         CheckReturn checkReturn = lookup.get(checkTransition);
                         if (checkReturn.getVariableName() != null) {
@@ -2973,19 +3115,20 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 }
 
                 // Stop listening to the sub-mission's plan manager
-                activePMs.remove(planManager);
+                activePMs.remove(smPlanManager);
 
                 if (activePMs.isEmpty()) {
-                    // All sub-missions are now complete, check if we should execute transition
+                    // If this is a shared/static instance, we can fire each time a set of tokens enters the end state - check if we should execute transition
+                    // If this is an individual instance and all sub-missions are now complete, check if we should execute transition
                     for (Transition transition : place.getOutTransitions()) {
                         boolean execute = checkTransition(transition);
                         if (execute) {
                             executeTransition(transition);
-                        };
+                        }
                     }
                 }
             } else {
-                LOGGER.severe("Sub-mission mapping for place: " + place + " did not contain plan manager: " + planManager.getPlanName());
+                LOGGER.severe("Sub-mission mapping for place: " + place + " did not contain plan manager: " + smPlanManager.getPlanName());
             }
         } else {
             // Root level mission
@@ -2994,6 +3137,71 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
     @Override
     public void planAborted(PlanManager planManager) {
+    }
+
+    @Override
+    public void sharedSubPlanAtReturn(PlanManager smPlanManager) {
+        // A shared instance SM has reached a non-terminal end place
+        //  If this is its PM, Pass the tokens that arrived in this place up to the parent PM
+        Place place = smPlanManagerToPlace.get(smPlanManager);
+        if (place != null) {
+            ArrayList<PlanManager> activePMs = placeToActiveSmPlanManagers.get(place);
+            if (activePMs == null) {
+                LOGGER.severe("Sub-mission mapping for place " + place + " is null");
+            } else if (activePMs.contains(smPlanManager)) {
+                // Record all tokens in the sub-mission's end state(s)
+                ArrayList<Token> sMTokens;
+                if (placeToSMTokens.containsKey(place)) {
+                    sMTokens = placeToSMTokens.get(place);
+                } else {
+                    sMTokens = new ArrayList<Token>();
+                    placeToSMTokens.put(place, sMTokens);
+                }
+                sMTokens.addAll(smPlanManager.getEndTokens());
+
+                // Update place's sub mission status
+                place.setSubMissionStatus(smPlanManager.getMSpec(), true);
+
+                // Check if there are any CheckReturn instances linked to this SM mSpec instance
+                if (clonedCrTable.containsKey(smPlanManager.getMSpec())) {
+                    HashMap<Transition, CheckReturn> lookup = clonedCrTable.get(smPlanManager.getMSpec());
+                    for (Transition checkTransition : lookup.keySet()) {
+                        CheckReturn checkReturn = lookup.get(checkTransition);
+                        if (checkReturn.getVariableName() != null) {
+                            if (!checkReturn.getVariableValue().equals(Engine.getInstance().getVariableValue(checkReturn.getVariableName(), this))) {
+                                // Return value did not match specified value - return without marking the CheckReturn as complete
+                                //  This transition will never execute
+                            } else {
+                                checkTransition.setInputEventStatus(checkReturn, true);
+                            }
+                        } else {
+                            LOGGER.severe("CheckReturn value was null: " + checkReturn);
+                        }
+                    }
+                }
+                if (!place.getSubMissionToIsSharedInstance().containsKey(smPlanManager.mSpec)) {
+                    LOGGER.severe("No entry in getSubMissionToInstanceMethod for sub-mission: " + smPlanManager.mSpec);
+                }
+
+                // Stop listening to the sub-mission's plan manager
+                activePMs.remove(smPlanManager);
+
+                if (activePMs.isEmpty()) {
+                    // If this is a shared/static instance, we can fire each time a set of tokens enters the end state - check if we should execute transition
+                    // If this is an individual instance and all sub-missions are now complete, check if we should execute transition
+                    for (Transition transition : place.getOutTransitions()) {
+                        boolean execute = checkTransition(transition);
+                        if (execute) {
+                            executeTransition(transition);
+                        };
+                    }
+                }
+            } else {
+                LOGGER.severe("Sub-mission mapping for place: " + place + " did not contain plan manager: " + smPlanManager.getPlanName());
+            }
+        } else {
+            // Root level mission
+        }
     }
 
     public ArrayList<Token> getEndTokens() {
@@ -3012,5 +3220,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
 
     public MissionPlanSpecification getMSpec() {
         return mSpec;
+    }
+
+    public boolean getIsSharedSm() {
+        return isSharedSm;
     }
 }

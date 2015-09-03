@@ -1,4 +1,3 @@
-
 package sami.event;
 
 import java.util.ArrayList;
@@ -27,7 +26,7 @@ public class ReturnValue extends OutputEvent {
     public ReturnValue() {
         id = UUID.randomUUID();
     }
-    
+
     public String getReturnValue() {
         return value;
     }

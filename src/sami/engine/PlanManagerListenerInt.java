@@ -27,4 +27,6 @@ public interface PlanManagerListenerInt {
     public void planFinished(PlanManager planManager);
 
     public void planAborted(PlanManager planManager);
+
+    public void sharedSubPlanAtReturn(PlanManager planManager);
 }

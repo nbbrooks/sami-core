@@ -3,6 +3,7 @@ package sami.mission;
 import edu.uci.ics.jung.algorithms.layout.AbstractLayout;
 import edu.uci.ics.jung.graph.DirectedSparseGraph;
 import edu.uci.ics.jung.graph.Graph;
+import edu.uci.ics.jung.graph.SparseMultigraph;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.io.ByteArrayInputStream;
@@ -13,6 +14,7 @@ import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Hashtable;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Level;
@@ -119,6 +121,22 @@ public class MissionPlanSpecification implements java.io.Serializable {
         return transientGraph;
     }
 
+    /**
+     * Updates our Graph and locations Hashtable from a Graph and Layout
+     *
+     * @param graph The new Graph object
+     * @param layout The Layout to update our locations with
+     */
+    public void setGraph(Graph<Vertex, Edge> graph, AbstractLayout layout) {
+        this.graph = graph;
+
+        locations = new Hashtable<Vertex, Point2D>();
+
+        for (Vertex v : graph.getVertices()) {
+            locations.put(v, layout.transform(v));
+        }
+    }
+
     public ArrayList<TaskSpecification> getTaskSpecList() {
         return taskSpecList;
     }
@@ -157,6 +175,22 @@ public class MissionPlanSpecification implements java.io.Serializable {
             }
         }
         return ret;
+    }
+
+    public ArrayList<MissionPlanSpecification> getSharedMSpecs() {
+        ArrayList<MissionPlanSpecification> sharedMSpecs = new ArrayList<MissionPlanSpecification>();
+        for (Vertex vertex : vertexToEventSpecListMap.keySet()) {
+            if (vertex instanceof Place) {
+                Place place = (Place) vertex;
+                for (MissionPlanSpecification mSpec : place.getSubMissionToIsSharedInstance().keySet()) {
+                    if (place.getSubMissionToIsSharedInstance().get(mSpec)) {
+                        // Shared mSpec, add to list to be spawned
+                        sharedMSpecs.add(mSpec);
+                    }
+                }
+            }
+        }
+        return sharedMSpecs;
     }
 
     /**
@@ -220,22 +254,6 @@ public class MissionPlanSpecification implements java.io.Serializable {
             }
         }
         isInstantiated = true;
-    }
-
-    /**
-     * Updates our Graph and locations Hashtable from a Graph and Layout
-     *
-     * @param graph The new Graph object
-     * @param layout The Layout to update our locations with
-     */
-    public void setGraph(Graph<Vertex, Edge> graph, AbstractLayout layout) {
-        this.graph = graph;
-
-        locations = new Hashtable<Vertex, Point2D>();
-
-        for (Vertex v : graph.getVertices()) {
-            locations.put(v, layout.transform(v));
-        }
     }
 
     public void clearEventSpecList(Vertex vertex) {
@@ -319,7 +337,7 @@ public class MissionPlanSpecification implements java.io.Serializable {
     }
 
     public void printGraph() {
-        LOGGER.info("Printing " + name);
+        System.out.println("Printing " + name);
         int placeCount = 0, transitionCount = 0;
         for (Vertex v : graph.getVertices()) {
             if (v instanceof Place) {
@@ -328,41 +346,51 @@ public class MissionPlanSpecification implements java.io.Serializable {
                 transitionCount++;
             }
         }
-        LOGGER.info("\t Places: " + placeCount);
+        System.out.println("\t Places: " + placeCount);
         for (Vertex v : graph.getVertices()) {
             if (v instanceof Place) {
                 Place p = (Place) v;
-                LOGGER.info("\t\t " + p.getTag());
+                System.out.println("\t\t " + p.getTag());
                 for (Transition t : p.getInTransitions()) {
-                    LOGGER.info("\t\t\t in t: " + t.getTag());
+                    System.out.println("\t\t\t in t: " + t.getTag());
                 }
                 for (Transition t : p.getOutTransitions()) {
-                    LOGGER.info("\t\t\t out t: " + t.getTag());
+                    System.out.println("\t\t\t out t: " + t.getTag());
                 }
                 for (Edge e : p.getInEdges()) {
-                    LOGGER.info("\t\t\t in e: " + e.getTag());
+                    System.out.println("\t\t\t in e: " + e.getTag());
                 }
                 for (Edge e : p.getOutEdges()) {
-                    LOGGER.info("\t\t\t out e: " + e.getTag());
+                    System.out.println("\t\t\t out e: " + e.getTag());
                 }
             }
         }
-        LOGGER.info("\t Transitions: " + transitionCount);
+        System.out.println("\t Transitions: " + transitionCount);
         for (Vertex v : graph.getVertices()) {
             if (v instanceof Transition) {
                 Transition t = (Transition) v;
-                LOGGER.info("\t\t " + ((Transition) v).getTag());
+                System.out.println("\t\t " + ((Transition) v).getTag());
                 for (Place p : t.getInPlaces()) {
-                    LOGGER.info("\t\t\t in p: " + p.getTag());
+                    System.out.println("\t\t\t in p: " + p.getTag());
                 }
                 for (Place p : t.getOutPlaces()) {
-                    LOGGER.info("\t\t\t out p: " + p.getTag());
+                    System.out.println("\t\t\t out p: " + p.getTag());
                 }
                 for (Edge e : t.getInEdges()) {
-                    LOGGER.info("\t\t\t in e: " + e.getTag());
+                    System.out.println("\t\t\t in e: " + e.getTag());
                 }
                 for (Edge e : t.getOutEdges()) {
-                    LOGGER.info("\t\t\t out e: " + e.getTag());
+                    System.out.println("\t\t\t out e: " + e.getTag());
+                }
+            }
+        }
+        System.out.println("\t Edges: " + graph.getEdges().size());
+        for (Edge e : graph.getEdges()) {
+            System.out.println("\t\t " + ((Edge) e).getTag());
+            System.out.println("\t\t\t start: " + e.getStart());
+            System.out.println("\t\t\t end: " + e.getEnd());
+        }
+    }
                 }
             }
         }

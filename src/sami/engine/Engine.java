@@ -163,11 +163,23 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         }
     }
 
+    public void removeListener(PlanManagerListenerInt planManagerListener) {
+        synchronized (lock) {
+            planManagerListeners.remove(planManagerListener);
+        }
+    }
+
     public void addListener(TaskAllocationListenerInt taskAllocationListener) {
         synchronized (lock) {
             if (!taskAllocationListeners.contains(taskAllocationListener)) {
                 taskAllocationListeners.add(taskAllocationListener);
             }
+        }
+    }
+
+    public void removeListener(TaskAllocationListenerInt taskAllocationListener) {
+        synchronized (lock) {
+            taskAllocationListeners.remove(taskAllocationListener);
         }
     }
 
@@ -246,12 +258,12 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         return c;
     }
 
-    private PlanManager setUpPlanManager(MissionPlanSpecification mSpec, final ArrayList<Token> startingTokens) {
+    private PlanManager setUpPlanManager(MissionPlanSpecification mSpec, final ArrayList<Token> startingTokens, boolean isSharedSm) {
         // PlanManager will add mission's task tokens to the starting tokens
         UUID missionId = UUID.randomUUID();
         String planInstanceName = getUniquePlanName(mSpec.getName());
         MissionPlanSpecification mSpecInstance = mSpec.deepClone();
-        final PlanManager pm = new PlanManager(mSpecInstance, missionId, planInstanceName, startingTokens);
+        final PlanManager pm = new PlanManager(mSpecInstance, missionId, planInstanceName, startingTokens, isSharedSm);
         plans.add(pm);
         // Create plan manager color
         getPlanManagerColor(pm);
@@ -281,9 +293,11 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
             tokens.add(proxyToken);
         }
         LOGGER.info("Spawning root mission from spec [" + mSpec + "]");
-        final PlanManager rootPm = setUpPlanManager(mSpec, tokens);
-        pmToSubPms.put(rootPm, new ArrayList<PlanManager>());
-
+        final PlanManager rootPm = setUpPlanManager(mSpec, tokens, false);
+        if (!pmToSubPms.containsKey(rootPm)) {
+            // Need this check because setUpPlanManager could create entry with a call to spawnSubMission for a shared SM
+            pmToSubPms.put(rootPm, new ArrayList<PlanManager>());
+        }
         Recorder.getInstance().spawnRootMission(mSpec, rootPm);
 
         (new Thread() {
@@ -295,12 +309,16 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         return rootPm;
     }
 
-    public PlanManager spawnSubMission(MissionPlanSpecification mSpec, PlanManager parentPm, final ArrayList<Token> parentMissionTokens) {
+    public PlanManager spawnSubMission(MissionPlanSpecification mSpec, PlanManager parentPm, final ArrayList<Token> parentMissionTokens, boolean isSharedSm) {
         LOGGER.info("Spawning child mission from spec [" + mSpec + "] with parent tokens [" + parentMissionTokens + "]");
-        final PlanManager subPm = setUpPlanManager(mSpec, parentMissionTokens);
+        final PlanManager subPm = setUpPlanManager(mSpec, parentMissionTokens, isSharedSm);
         subPmToParentPm.put(subPm, parentPm);
         if (pmToSubPms.containsKey(parentPm)) {
             pmToSubPms.get(parentPm).add(subPm);
+        } else {
+            ArrayList<PlanManager> subPms = new ArrayList<PlanManager>();
+            subPms.add(subPm);
+            pmToSubPms.put(parentPm, subPms);
         }
 
         (new Thread() {
@@ -545,8 +563,44 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         //  Only do immediate children, as this will recurse
         if (pmToSubPms.containsKey(planManager)) {
             for (PlanManager subPm : pmToSubPms.get(planManager)) {
-                subPm.eventGenerated(new CompleteMissionReceived(subPm.missionId));
+                // Check that sub PM has an active CompleteMissionReceived that will handle this
+                //  Shared SMs may not currently have any active places, so the IE will not trigger an transition
+                //  Non-shared SMs should have an active place which will trigger a transition, but check just in case
+                boolean found = false;
+                ArrayList<InputEvent> smActiveInputEvents = subPm.getActiveInputEventsClone();
+                for (InputEvent ie : smActiveInputEvents) {
+                    if (ie instanceof CompleteMissionReceived) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    // No active CompleteMissionReceived in the SM
+                    if (!subPm.getIsSharedSm()) {
+                        LOGGER.severe("Want to send CompleteMissionReceived to non-shared SM, but it has no active IE, manually ending SM");
+                    }
+                    // End this PM manually
+                    done(subPm);
+                } else {
+                    subPm.eventGenerated(new CompleteMissionReceived(subPm.missionId));
+                }
             }
+        }
+    }
+
+    /**
+     * The shared sub-plan has reached an "normal/return" place Tokens should be
+     * passed up to the parent mission, but the plan should not be cleaned up
+     *
+     * @param planManager
+     */
+    public void sharedSmReachedEnd(PlanManager planManager) {
+        ArrayList<PlanManagerListenerInt> listenersCopy;
+        synchronized (lock) {
+            listenersCopy = (ArrayList<PlanManagerListenerInt>) planManagerListeners.clone();
+        }
+        for (PlanManagerListenerInt listener : listenersCopy) {
+            listener.sharedSubPlanAtReturn(planManager);
         }
     }
 
@@ -570,7 +624,27 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         //  Only do immediate children, as this will recurse
         if (pmToSubPms.containsKey(planManager)) {
             for (PlanManager subPm : pmToSubPms.get(planManager)) {
-                subPm.eventGenerated(new AbortMissionReceived(subPm.missionId));
+                // Check that sub PM has an active AbortMissionReceived that will handle this
+                //  Shared SMs may not currently have any active places, so the IE will not trigger an transition
+                //  Non-shared SMs should have an active place which will trigger a transition, but check just in case
+                boolean found = false;
+                ArrayList<InputEvent> smActiveInputEvents = subPm.getActiveInputEventsClone();
+                for (InputEvent ie : smActiveInputEvents) {
+                    if (ie instanceof AbortMissionReceived) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    // No active AbortMissionReceived in the SM
+                    if (!subPm.getIsSharedSm()) {
+                        LOGGER.severe("Want to send AbortMissionReceived to non-shared SM, but it has no active IE, manually ending SM");
+                    }
+                    // Abort this PM manually
+                    abort(subPm);
+                } else {
+                    subPm.eventGenerated(new AbortMissionReceived(subPm.missionId));
+                }
             }
         }
     }

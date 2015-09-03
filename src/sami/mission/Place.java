@@ -21,13 +21,17 @@ public class Place extends Vertex {
 
     private static final Logger LOGGER = Logger.getLogger(Place.class.getName());
     static final long serialVersionUID = 7L;
-    protected boolean isStart, isEnd;
+    // For shared sub-missions:
+    //  isEnd: pass tokens up to parent PM, do not terminate SM
+    //  isSharedSmEnd: terminate SM
+    protected boolean isStart, isEnd, isSharedSmEnd;
     // In and out are switched here as the class naming convention is with respect to Transitions, not Places
     protected ArrayList<OutEdge> inEdges = new ArrayList<OutEdge>();
     protected ArrayList<InEdge> outEdges = new ArrayList<InEdge>();
     protected ArrayList<Transition> inTransitions = new ArrayList<Transition>();
     protected ArrayList<Transition> outTransitions = new ArrayList<Transition>();
     protected ArrayList<MissionPlanSpecification> subMissions = new ArrayList<MissionPlanSpecification>();
+    protected HashMap<MissionPlanSpecification, Boolean> subMissionToSharedInstance = new HashMap<MissionPlanSpecification, Boolean>();
     protected HashMap<MissionPlanSpecification, HashMap<TaskSpecification, TaskSpecification>> subMissionToTaskMap = new HashMap<MissionPlanSpecification, HashMap<TaskSpecification, TaskSpecification>>();
     transient protected boolean isActive = false;   // Whether this place has tokens and its output transition's input events are registered
     transient protected ArrayList<OutputEvent> outputEvents = new ArrayList<OutputEvent>();
@@ -64,7 +68,7 @@ public class Place extends Vertex {
 
     public void addInTransition(Transition t) {
         if (inTransitions.contains(t)) {
-            LOGGER.severe("Tried to add pre-existing inTransition: " + t);
+            LOGGER.warning("Tried to add pre-existing inTransition: " + t);
             return;
         }
         inTransitions.add(t);
@@ -72,7 +76,7 @@ public class Place extends Vertex {
 
     public void removeInTransition(Transition t) {
         if (!inTransitions.contains(t)) {
-            LOGGER.severe("Tried to remove non-existing inTransition: " + t);
+            LOGGER.warning("Tried to remove non-existing inTransition: " + t);
             return;
         }
         inTransitions.remove(t);
@@ -88,7 +92,7 @@ public class Place extends Vertex {
 
     public void addOutTransition(Transition t) {
         if (outTransitions.contains(t)) {
-            LOGGER.severe("Tried to add pre-existing outTransition: " + t);
+            LOGGER.warning("Tried to add pre-existing outTransition: " + t);
             return;
         }
         outTransitions.add(t);
@@ -96,7 +100,7 @@ public class Place extends Vertex {
 
     public void removeOutTransition(Transition t) {
         if (!outTransitions.contains(t)) {
-            LOGGER.severe("Tried to remove non-existing outTransition: " + t);
+            LOGGER.warning("Tried to remove non-existing outTransition: " + t);
             return;
         }
         outTransitions.remove(t);
@@ -116,6 +120,23 @@ public class Place extends Vertex {
 
     public void setIsEnd(boolean isEnd) {
         this.isEnd = isEnd;
+    }
+
+    /**
+     *
+     * @return If the shared SM should terminate when this place is entered
+     */
+    public boolean isSharedSmEnd() {
+        return isSharedSmEnd;
+    }
+
+    /**
+     *
+     * @param isSharedSmEnd If the shared SM should terminate when this place is
+     * entered
+     */
+    public void setIsSharedSmEnd(boolean isSharedSmEnd) {
+        this.isSharedSmEnd = isSharedSmEnd;
     }
 
     public boolean isStart() {
@@ -167,6 +188,15 @@ public class Place extends Vertex {
         updateTag();
     }
 
+    public HashMap<MissionPlanSpecification, Boolean> getSubMissionToIsSharedInstance() {
+        return subMissionToSharedInstance;
+    }
+
+    public void setSubMissionToIsSharedInstance(HashMap<MissionPlanSpecification, Boolean> subMissionToSharedInstance) {
+        this.subMissionToSharedInstance = subMissionToSharedInstance;
+        updateTag();
+    }
+
     public HashMap<MissionPlanSpecification, HashMap<TaskSpecification, TaskSpecification>> getSubMissionToTaskMap() {
         return subMissionToTaskMap;
     }
@@ -185,6 +215,13 @@ public class Place extends Vertex {
         boolean success = tokens.remove(token);
         updateTag();
         return success;
+    }
+
+    public int removeAllTokens() {
+        int numberRemoved = tokens.size();
+        tokens.clear();
+        updateTag();
+        return numberRemoved;
     }
 
     public ArrayList<Token> getTokens() {
@@ -281,11 +318,6 @@ public class Place extends Vertex {
         shortTag += "</html>";
     }
 
-    @Override
-    public String toString() {
-        return "Place:" + name;
-    }
-
     public void prepareForRemoval() {
         // Remove each edge
         ArrayList<OutEdge> inEdgesClone = (ArrayList<OutEdge>) inEdges.clone();
@@ -355,5 +387,10 @@ public class Place extends Vertex {
         } catch (IOException e) {
         } catch (ClassNotFoundException e) {
         }
+    }
+
+    @Override
+    public String toString() {
+        return "Place:" + name;
     }
 }

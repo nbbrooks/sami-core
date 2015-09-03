@@ -59,7 +59,7 @@ public class Transition extends Vertex {
 
     public void addInPlace(Place p) {
         if (inPlaces.contains(p)) {
-            LOGGER.severe("Tried to add pre-existing inPlace: " + p);
+            LOGGER.warning("Tried to add pre-existing inPlace: " + p);
             return;
         }
         inPlaces.add(p);
@@ -67,7 +67,7 @@ public class Transition extends Vertex {
 
     public void removeInPlace(Place p) {
         if (!inPlaces.contains(p)) {
-            LOGGER.severe("Tried to remove non-existing inPlace: " + p);
+            LOGGER.warning("Tried to remove non-existing inPlace: " + p);
             return;
         }
         inPlaces.remove(p);
@@ -83,7 +83,7 @@ public class Transition extends Vertex {
 
     public void addOutPlace(Place p) {
         if (outPlaces.contains(p)) {
-            LOGGER.severe("Tried to add pre-existing outPlace: " + p);
+            LOGGER.warning("Tried to add pre-existing outPlace: " + p);
             return;
         }
         outPlaces.add(p);
@@ -91,7 +91,7 @@ public class Transition extends Vertex {
 
     public void removeOutPlace(Place p) {
         if (!outPlaces.contains(p)) {
-            LOGGER.severe("Tried to remove non-existing outPlace: " + p);
+            LOGGER.warning("Tried to remove non-existing outPlace: " + p);
             return;
         }
         outPlaces.remove(p);
@@ -219,10 +219,6 @@ public class Transition extends Vertex {
         shortTag += "</html>";
     }
 
-    public String toString() {
-        return "Transition:" + name;
-    }
-
     public void prepareForRemoval() {
         // Remove each edge
         ArrayList<InEdge> inEdgesClone = (ArrayList<InEdge>) inEdges.clone();
@@ -244,5 +240,9 @@ public class Transition extends Vertex {
         } catch (IOException e) {
         } catch (ClassNotFoundException e) {
         }
+    }
+
+    public String toString() {
+        return "Transition:" + name + "(inPlace " + inPlaces.toString() + ")";
     }
 }

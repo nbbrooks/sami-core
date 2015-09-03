@@ -1,4 +1,3 @@
-
 package sami.event;
 
 import com.perc.mitpas.adi.mission.planning.task.Task;
@@ -7,8 +6,9 @@ import java.util.HashMap;
 import java.util.UUID;
 
 /**
- * Used to indicate that NO proxy is responsible for this task, as a task re-allocation could not find an assignment for it
- * 
+ * Used to indicate that NO proxy is responsible for this task, as a task
+ * re-allocation could not find an assignment for it
+ *
  * @author nbb
  */
 public class TaskUnassigned extends InputEvent {
