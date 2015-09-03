@@ -135,17 +135,11 @@ public class ReflectedEventSpecification implements java.io.Serializable {
     public boolean hasMissingParams(boolean atPlace) {
         try {
             Class eventClass = Class.forName(className);
-            Event event = (Event) eventClass.newInstance();
-            if (event.getFillAtPlace() && !atPlace) {
-                LOGGER.log(Level.FINE, "Tried to check for missing params for event " + eventClass.getSimpleName() + " at plan loading, but params are to be filled at place, returning false");
-                return false;
-            } else {
-                ArrayList<String> fieldNames = (ArrayList<String>) (eventClass.getField("fieldNames").get(null));
-                for (String fieldName : fieldNames) {
-                    if ((!fieldNameToValue.containsKey(fieldName) || fieldNameToValue.get(fieldName) == null)
-                            && (!fieldNameToReadVariable.containsKey(fieldName) || fieldNameToReadVariable.get(fieldName).equals(NONE))) {
-                        return true;
-                    }
+            ArrayList<String> fieldNames = (ArrayList<String>) (eventClass.getField("fieldNames").get(null));
+            for (String fieldName : fieldNames) {
+                if ((!fieldNameToValue.containsKey(fieldName) || fieldNameToValue.get(fieldName) == null)
+                        && (!fieldNameToReadVariable.containsKey(fieldName) || fieldNameToReadVariable.get(fieldName).equals(NONE))) {
+                    return true;
                 }
             }
         } catch (ClassNotFoundException ex) {
@@ -153,8 +147,6 @@ public class ReflectedEventSpecification implements java.io.Serializable {
         } catch (NoSuchFieldException ex) {
             ex.printStackTrace();
         } catch (IllegalAccessException ex) {
-            ex.printStackTrace();
-        } catch (InstantiationException ex) {
             ex.printStackTrace();
         }
         return false;
@@ -169,16 +161,10 @@ public class ReflectedEventSpecification implements java.io.Serializable {
     public boolean hasEditableParams(boolean atPlace) {
         try {
             Class eventClass = Class.forName(className);
-            Event event = (Event) eventClass.newInstance();
-            if (event.getFillAtPlace() && !atPlace) {
-                LOGGER.log(Level.FINE, "Tried to check for editable params for event " + event.getClass().getSimpleName() + " at plan loading, but params are to be filled at place, returning false");
-                return false;
-            } else {
-                ArrayList<String> fieldNames = (ArrayList<String>) (eventClass.getField("fieldNames").get(null));
-                for (String fieldName : fieldNames) {
-                    if (fieldNameToEditable.containsKey(fieldName) && fieldNameToEditable.get(fieldName).booleanValue()) {
-                        return true;
-                    }
+            ArrayList<String> fieldNames = (ArrayList<String>) (eventClass.getField("fieldNames").get(null));
+            for (String fieldName : fieldNames) {
+                if (fieldNameToEditable.containsKey(fieldName) && fieldNameToEditable.get(fieldName).booleanValue()) {
+                    return true;
                 }
             }
         } catch (ClassNotFoundException ex) {
@@ -187,15 +173,8 @@ public class ReflectedEventSpecification implements java.io.Serializable {
             ex.printStackTrace();
         } catch (IllegalAccessException ex) {
             ex.printStackTrace();
-        } catch (InstantiationException ex) {
-            ex.printStackTrace();
         }
         return false;
-    }
-
-
-    public String toString() {
-        return className.substring(className.lastIndexOf(".") + 1);
     }
 
     /**
@@ -272,5 +251,10 @@ public class ReflectedEventSpecification implements java.io.Serializable {
             markups.add(markupSpec.instantiate());
         }
         event.setMarkups(markups);
+    }
+
+    @Override
+    public String toString() {
+        return className.substring(className.lastIndexOf(".") + 1);
     }
 }

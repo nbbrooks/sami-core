@@ -8,7 +8,7 @@ import java.util.UUID;
  *
  * @author nbb
  */
-public abstract class SelectionMessage extends ToUiMessage {
+public class SelectionMessage extends ToUiMessage {
 
     final protected boolean allowMultiple;
     final protected boolean allowRejection;
@@ -43,6 +43,7 @@ public abstract class SelectionMessage extends ToUiMessage {
         return optionsList;
     }
 
+    @Override
     public String toString() {
         return "SelectionMessage [" + allowMultiple + ", " + allowRejection + ", " + showOptionsIndividually + ", " + optionsList + "]";
     }

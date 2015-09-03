@@ -34,7 +34,6 @@ public class OperatorInterruptReceived extends InputEvent {
         this.relevantOutputEventId = relevantOutputEventUuid;
         this.missionId = missionUuid;
         this.interruptName = interruptName;
-        // There should be no place preceding the transition containing the OperatorInterruptReceived
         //  Define a relevantOutputEventId so it can be used to distinguish between different OperatorInterruptReceived events within the same mission specification
         this.relevantOutputEventId = relevantOutputEventId;
         id = UUID.randomUUID();

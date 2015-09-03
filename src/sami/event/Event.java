@@ -50,11 +50,6 @@ public class Event {
         return false;
     }
 
-    public boolean getFillAtPlace() {
-        // Whether missing parameters for this event should be filled when the plan reaches the Place the event is on (true), or when the plan is loaded (false)
-        return false;
-    }
-
     public void addReadVariable(String variableName, Field field) {
         readVariableToField.put(variableName, field);
     }

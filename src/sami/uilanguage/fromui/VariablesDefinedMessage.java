@@ -10,7 +10,7 @@ import java.util.UUID;
 public class VariablesDefinedMessage extends CreationDoneMessage {
 
     public VariablesDefinedMessage(UUID relevantToUiMessageId, UUID relevantOutputEventId, UUID missionId, Hashtable<String, Object> variableToValue) {
-        super(relevantToUiMessageId, relevantOutputEventId, missionId, null, variableToValue);
+        super(relevantToUiMessageId, relevantOutputEventId, missionId, variableToValue, 0, 0);
     }
 
     public String toString() {
