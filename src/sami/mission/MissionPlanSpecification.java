@@ -391,16 +391,6 @@ public class MissionPlanSpecification implements java.io.Serializable {
             System.out.println("\t\t\t end: " + e.getEnd());
         }
     }
-                }
-            }
-        }
-        LOGGER.info("\t Edges: " + graph.getEdges().size());
-        for (Edge e : graph.getEdges()) {
-            LOGGER.info("\t\t " + ((Edge) e).getTag());
-            LOGGER.info("\t\t\t start: " + e.getStart());
-            LOGGER.info("\t\t\t end: " + e.getEnd());
-        }
-    }
 
     public void removePlace(Place place) {
         // First remove the place and its edges from mission spec data structures
