@@ -243,6 +243,6 @@ public class Transition extends Vertex {
     }
 
     public String toString() {
-        return "Transition:" + name + "(inPlace " + inPlaces.toString() + ")";
+        return "Transition:" + name;
     }
 }
