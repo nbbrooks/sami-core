@@ -9,7 +9,7 @@ import java.util.UUID;
  *
  * @author nbb
  */
-public class ProxyAbortMissionReceived extends InputEvent {
+public class ProxyCompleteMissionReceived extends InputEvent {
 
     // List of fields for which a definition should be provided
     public static final ArrayList<String> fieldNames = new ArrayList<String>();
@@ -20,11 +20,11 @@ public class ProxyAbortMissionReceived extends InputEvent {
     // Description for each variable
     public static final HashMap<String, String> variableNameToDescription = new HashMap<String, String>();
 
-    public ProxyAbortMissionReceived() {
+    public ProxyCompleteMissionReceived() {
         id = UUID.randomUUID();
     }
 
-    public ProxyAbortMissionReceived(UUID missionId, ArrayList<ProxyInt> relevantProxyList) {
+    public ProxyCompleteMissionReceived(UUID missionId, ArrayList<ProxyInt> relevantProxyList) {
         this.missionId = missionId;
         this.relevantProxyList = relevantProxyList;
         id = UUID.randomUUID();
@@ -32,6 +32,6 @@ public class ProxyAbortMissionReceived extends InputEvent {
 
     @Override
     public String toString() {
-        return "ProxyAbortMissionReceived [" + missionId + ", " + (relevantProxyList != null ? relevantProxyList.toString() : "null") + "]";
+        return "ProxyCompleteMissionReceived [" + missionId + ", " + (relevantProxyList != null ? relevantProxyList.toString() : "null") + "]";
     }
 }
