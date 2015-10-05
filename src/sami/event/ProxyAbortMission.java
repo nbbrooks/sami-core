@@ -34,6 +34,7 @@ public class ProxyAbortMission extends OutputEvent {
         id = UUID.randomUUID();
     }
 
+    @Override
     public String toString() {
         return "ProxyAbortMission [" + missionId + ", " + proxy + "]";
     }

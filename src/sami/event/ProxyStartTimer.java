@@ -33,6 +33,7 @@ public class ProxyStartTimer extends OutputEvent {
         id = UUID.randomUUID();
     }
 
+    @Override
     public String toString() {
         return "ProxyStartTimer [" + timerDuration + "]";
     }
