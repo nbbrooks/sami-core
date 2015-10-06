@@ -17,34 +17,128 @@ public class DreaamHelper {
     // Length of grid segment for "snapping" vertices
     public static final int GRID_LENGTH = 50;
 
+    /**
+     * Helps organize the graph visualization by snapping the point to a grid
+     * structure
+     *
+     * @param point The point to snap to the grid
+     * @return The snapped point
+     */
     public static Point snapToGrid(Point point) {
         Point gridPoint = new Point((int) (point.x / GRID_LENGTH + 0.5) * GRID_LENGTH, (int) (point.y / GRID_LENGTH + 0.5) * GRID_LENGTH);
         return gridPoint;
     }
-    
+
+    /**
+     * Helps organize the graph visualization by snapping the point to a grid
+     * structure
+     *
+     * @param point The point to snap to the grid
+     * @return The snapped point
+     */
     public static Point2D snapToGrid(Point2D point) {
         Point2D.Double gridPoint = new Point2D.Double((int) (point.getX() / GRID_LENGTH + 0.5) * GRID_LENGTH, (int) (point.getY() / GRID_LENGTH + 0.5) * GRID_LENGTH);
         return gridPoint;
     }
 
-    public static Point getVertexFreePoint(VisualizationViewer<Vertex, Edge> vv, double x, double y, double searchRadius) {
-        Point freePoint = new Point((int) x, (int) y);
-        while (getNearestVertex(vv, freePoint.getX(), freePoint.getY(), searchRadius) != null) {
-            freePoint.setLocation(freePoint.getX() - (2 * searchRadius + 1), freePoint.getY() - (2 * searchRadius + 1));
+    /**
+     * Get the nearest grid-snapped point in a particular direction(s) which has
+     * no vertex on it
+     *
+     * @param vv The graph visualization to search
+     * @param x The starting x position in the graph
+     * @param y The starting y position in the graph
+     * @param searchDirections The order and list of directions to search: [0,
+     * 7] representing N to NW
+     * @return A grid snapped point with no vertex on it
+     */
+    public static Point getVertexFreePoint(VisualizationViewer<Vertex, Edge> vv, double x, double y, int[] searchDirections) {
+        if (searchDirections == null) {
+            searchDirections = new int[]{0, 1, 2, 3, 4, 5, 6, 7};
         }
-        return freePoint;
+        // First snap the provided point to our grid
+        Point startGridPoint = snapToGrid(new Point((int) x, (int) y));
+        x = startGridPoint.x;
+        y = startGridPoint.y;
+        GraphElementAccessor<Vertex, Edge> pickSupport = vv.getPickSupport();
+
+        // Check to see if starting point is free
+        Vertex vertex = pickSupport.getVertex(vv.getGraphLayout(), x, y);
+        if (vertex == null || vertex.getVisibilityMode() == GuiConfig.VisibilityMode.None) {
+            return new Point((int) x, (int) y);
+        }
+        int multiplier = 1;
+        while (true) {
+            for (int curDirection = 0; curDirection < searchDirections.length; curDirection++) {
+                switch (curDirection) {
+                    case (0): // N
+                        vertex = pickSupport.getVertex(vv.getGraphLayout(), x, y - multiplier * GRID_LENGTH);
+                        break;
+                    case (1): // NE
+                        vertex = pickSupport.getVertex(vv.getGraphLayout(), x + multiplier * GRID_LENGTH, y - multiplier * GRID_LENGTH);
+                        break;
+                    case (2): // E
+                        vertex = pickSupport.getVertex(vv.getGraphLayout(), x + multiplier * GRID_LENGTH, y);
+                        break;
+                    case (3): // SE
+                        vertex = pickSupport.getVertex(vv.getGraphLayout(), x + multiplier * GRID_LENGTH, y + multiplier * GRID_LENGTH);
+                        break;
+                    case (4): // S
+                        vertex = pickSupport.getVertex(vv.getGraphLayout(), x, y + multiplier * GRID_LENGTH);
+                        break;
+                    case (5): // SW
+                        vertex = pickSupport.getVertex(vv.getGraphLayout(), x - multiplier * GRID_LENGTH, y + multiplier * GRID_LENGTH);
+                        break;
+                    case (6): // W
+                        vertex = pickSupport.getVertex(vv.getGraphLayout(), x - multiplier * GRID_LENGTH, y);
+                        break;
+                    case (7): // NW
+                        vertex = pickSupport.getVertex(vv.getGraphLayout(), x - multiplier * GRID_LENGTH, y - multiplier * GRID_LENGTH);
+                        break;
+                }
+                if (vertex == null || vertex.getVisibilityMode() == GuiConfig.VisibilityMode.None) {
+                    return new Point((int) x, (int) y);
+                }
+            }
+        }
     }
 
-    public static Vertex getNearestVertex(VisualizationViewer<Vertex, Edge> vv, double x, double y, double radius) {
-        return getNearestVertex(vv, x, y, radius, true);
+    /**
+     * Get the nearest grid-snapped point which has no vertex on it
+     *
+     * @param vv The graph visualization to search
+     * @param x The starting x position in the graph
+     * @param y The starting y position in the graph
+     * @return A grid snapped point with no vertex on it
+     */
+    public static Point getVertexFreePoint(VisualizationViewer<Vertex, Edge> vv, double x, double y) {
+        return getVertexFreePoint(vv, x, y, null);
     }
 
-    public static Vertex getNearestVertex(VisualizationViewer<Vertex, Edge> vv, double x, double y, double radius, boolean vertexVisible) {
+    /**
+     * Get the nearest vertex in a particular direction(s) to the provided
+     * location
+     *
+     * @param vv The graph visualization to search
+     * @param x The starting x position in the graph
+     * @param y The starting y position in the graph
+     * @param maxSearchDistance The maximum Manhattan distance to look for a
+     * vertex in
+     * @param vertexVisible Whether the vertex must be visible to the user
+     * (true) or could be a vertex hidden from the user (false)
+     * @param searchDirections The order and list of directions to search: [0,
+     * 7] representing N to NW
+     * @return The nearest vertex to the provided location
+     */
+    public static Vertex getNearestVertex(VisualizationViewer<Vertex, Edge> vv, double x, double y, double maxSearchDistance, boolean vertexVisible, int[] searchDirections) {
+        if (searchDirections == null) {
+            searchDirections = new int[]{0, 1, 2, 3, 4, 5, 6, 7};
+        }
         GraphElementAccessor<Vertex, Edge> pickSupport = vv.getPickSupport();
         Vertex vertex = pickSupport.getVertex(vv.getGraphLayout(), x, y);
-        for (int r = 1; r <= radius && vertex == null; r++) {
-            for (int dir = 0; dir < 8 && vertex == null; dir++) {
-                switch (dir) {
+        for (int r = 1; r <= maxSearchDistance && vertex == null; r++) {
+            for (int curDirection = 0; curDirection < searchDirections.length && vertex == null; curDirection++) {
+                switch (curDirection) {
                     case (0): // N
                         vertex = pickSupport.getVertex(vv.getGraphLayout(), x, y - r);
                         break;
@@ -78,16 +172,44 @@ public class DreaamHelper {
         return vertex;
     }
 
-    public static Edge getNearestEdge(VisualizationViewer<Vertex, Edge> vv, double x, double y, int radius) {
-        return getNearestEdge(vv, x, y, radius, true);
+    /**
+     * Get the nearest user-visible vertex to the provided location
+     *
+     * @param vv The graph visualization to search
+     * @param x The starting x position in the graph
+     * @param y The starting y position in the graph
+     * @param maxSearchDistance The maximum Manhattan distance to look for a
+     * vertex in
+     * @return The nearest vertex to the provided location
+     */
+    public static Vertex getNearestVertex(VisualizationViewer<Vertex, Edge> vv, double x, double y, double maxSearchDistance) {
+        return getNearestVertex(vv, x, y, maxSearchDistance, true, null);
     }
 
-    public static Edge getNearestEdge(VisualizationViewer<Vertex, Edge> vv, double x, double y, int radius, boolean edgeVisible) {
+    /**
+     * Get the nearest edge in a particular direction(s) to the provided
+     * location
+     *
+     * @param vv The graph visualization to search
+     * @param x The starting x position in the graph
+     * @param y The starting y position in the graph
+     * @param maxSearchDistance The maximum Manhattan distance to look for a
+     * edge in
+     * @param edgeVisible Whether the edge must be visible to the user (true) or
+     * could be a edge hidden from the user (false)
+     * @param searchDirections The order and list of directions to search: [0,
+     * 7] representing N to NW
+     * @return The nearest edge to the provided location
+     */
+    public static Edge getNearestEdge(VisualizationViewer<Vertex, Edge> vv, double x, double y, int maxSearchDistance, boolean edgeVisible, int[] searchDirections) {
+        if (searchDirections == null) {
+            searchDirections = new int[]{0, 1, 2, 3, 4, 5, 6, 7};
+        }
         GraphElementAccessor<Vertex, Edge> pickSupport = vv.getPickSupport();
         Edge edge = pickSupport.getEdge(vv.getGraphLayout(), x, y);
-        for (int r = 1; r <= radius && edge == null; r++) {
-            for (int dir = 0; dir < 8 && edge == null; dir++) {
-                switch (dir) {
+        for (int r = 1; r <= maxSearchDistance && edge == null; r++) {
+            for (int curDirection = 0; curDirection < searchDirections.length && edge == null; curDirection++) {
+                switch (curDirection) {
                     case (0): // N
                         edge = pickSupport.getEdge(vv.getGraphLayout(), x, y - r);
                         break;
@@ -119,5 +241,19 @@ public class DreaamHelper {
             }
         }
         return edge;
+    }
+
+    /**
+     * Get the nearest user-visible edge to the provided location
+     *
+     * @param vv The graph visualization to search
+     * @param x The starting x position in the graph
+     * @param y The starting y position in the graph
+     * @param maxSearchDistance The maximum Manhattan distance to look for a
+     * edge in
+     * @return The nearest edge to the provided location
+     */
+    public static Edge getNearestEdge(VisualizationViewer<Vertex, Edge> vv, double x, double y, int maxSearchDistance) {
+        return getNearestEdge(vv, x, y, maxSearchDistance, true, null);
     }
 }
