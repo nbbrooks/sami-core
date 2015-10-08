@@ -219,15 +219,15 @@ public class Transition extends Vertex {
         shortTag += "</html>";
     }
 
-    public void prepareForRemoval() {
-        // Remove each edge
+    public void removeReferences() {
+        // Remove any edges connected to this transition
         ArrayList<InEdge> inEdgesClone = (ArrayList<InEdge>) inEdges.clone();
         for (InEdge inEdge : inEdgesClone) {
-            inEdge.prepareForRemoval();
+            inEdge.removeReferences();
         }
         ArrayList<OutEdge> outEdgesClone = (ArrayList<OutEdge>) outEdges.clone();
         for (OutEdge outEdge : outEdgesClone) {
-            outEdge.prepareForRemoval();
+            outEdge.removeReferences();
         }
     }
 

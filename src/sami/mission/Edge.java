@@ -3,7 +3,6 @@ package sami.mission;
 import sami.gui.GuiConfig;
 import sami.mission.Vertex.FunctionMode;
 import java.util.ArrayList;
-import java.util.UUID;
 
 /**
  *
@@ -20,7 +19,7 @@ public abstract class Edge implements java.io.Serializable {
 
     public abstract void updateTag();
 
-    public abstract void prepareForRemoval();
+    public abstract void removeReferences();
 
     public abstract Vertex getStart();
 

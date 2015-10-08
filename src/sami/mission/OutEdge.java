@@ -27,6 +27,12 @@ public class OutEdge extends Edge {
         this.endPlace = endPlace;
         this.functionMode = functionMode;
         this.edgeId = edgeId;
+        // Add place and transition's references to each other
+        startTransition.addOutPlace(endPlace);
+        endPlace.addInTransition(startTransition);
+        // Add references to this edge in the vertices
+        startTransition.addOutEdge(this);
+        endPlace.addInEdge(this);
         updateTag();
     }
 
@@ -63,7 +69,7 @@ public class OutEdge extends Edge {
         tokenRequirements.clear();
         updateTag();
     }
-    
+
     public long getEdgeId() {
         return edgeId;
     }
@@ -84,10 +90,13 @@ public class OutEdge extends Edge {
         }
     }
 
-    public void prepareForRemoval() {
+    @Override
+    public void removeReferences() {
+        // Remove place and transition's references to each other
         startTransition.removeOutPlace(endPlace);
-        startTransition.removeOutEdge(this);
         endPlace.removeInTransition(startTransition);
+        // Remove references to this edge in the vertices
+        startTransition.removeOutEdge(this);
         endPlace.removeInEdge(this);
     }
 

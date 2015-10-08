@@ -4,6 +4,7 @@ import edu.uci.ics.jung.algorithms.layout.AbstractLayout;
 import edu.uci.ics.jung.graph.DirectedSparseGraph;
 import edu.uci.ics.jung.graph.Graph;
 import edu.uci.ics.jung.graph.SparseMultigraph;
+import java.awt.Point;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.io.ByteArrayInputStream;
@@ -14,7 +15,6 @@ import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Hashtable;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Level;
@@ -34,13 +34,21 @@ public class MissionPlanSpecification implements java.io.Serializable {
 
     private static final Logger LOGGER = Logger.getLogger(MissionPlanSpecification.class.getName());
     static final long serialVersionUID = 2L;
-    private AffineTransform layoutTransform = null;
-    private AffineTransform viewTransform = null;
+    private AffineTransform layoutTransform = new AffineTransform();
+    private AffineTransform viewTransform = new AffineTransform();
     // List of tasks created in the spec by the developer
     private ArrayList<TaskSpecification> taskSpecList = new ArrayList<TaskSpecification>();
-    private Graph<Vertex, Edge> graph = null;
-    transient private Graph<Vertex, Edge> transientGraph = null;
+    // We want graph to be a DirectedSparseGraph so we render the arrows on the edges
+    //  However, DirectedSparseGraph can not be serialized because one of its fields does not have a no-arg constructor
+    //  Our SparseMultigraph can be serialized though
+    //  We write all changes to both graphs, but create DirectedSparseGraph from the SparseMultigraph when we read in the mSpec
+    private Graph<Vertex, Edge> graph = graph = new SparseMultigraph<Vertex, Edge>();
+    transient private DirectedSparseGraph<Vertex, Edge> transientGraph = null;
     private Map<Vertex, ArrayList<ReflectedEventSpecification>> vertexToEventSpecListMap = new HashMap<Vertex, ArrayList<ReflectedEventSpecification>>();
+    // [x, y] coordinates of the places and transitions
+    //  We don't serialize the VisualizationViewer's AbstractLayout
+    //  Instead we store the coordinate lookup in locations
+    //  We write all changes to locations and the layout, but write the values from locations into layout each time we load the mSpec into TaskModelEditor
     private Map<Vertex, Point2D> locations = null;
     private String name = "Anonymous";
     transient private boolean isInstantiated = false;
@@ -48,6 +56,8 @@ public class MissionPlanSpecification implements java.io.Serializable {
 
     public MissionPlanSpecification(String name) {
         this.name = name;
+        transientGraph = new DirectedSparseGraph<Vertex, Edge>();
+        locations = new Hashtable<Vertex, Point2D>();
     }
 
     public MissionPlanSpecification getSubmissionInstance(MissionPlanSpecification parentSpec, String namePrefix, String variablePrefix, HashMap<String, Object> globalVariables) {
@@ -103,13 +113,18 @@ public class MissionPlanSpecification implements java.io.Serializable {
         }
     }
 
-    public Graph<Vertex, Edge> getGraph() {
+    /**
+     *
+     * @return The transient DirectedSparseGraph copy of the existing
+     * serializable graph
+     */
+    public Graph<Vertex, Edge> getTransientGraph() {
         if (graph == null) {
             return null;
         }
-        if (transientGraph == null) {
+        if (transientGraph == null && graph != null) {
             // Copy the SparseMultigraph into a DirectedSparseGraph
-            //  DirectedSparseGraph does not implement serialize correctly
+            //  DirectedSparseGraph can not be serialized - one of its fields does not have a no-arg constructor
             transientGraph = new DirectedSparseGraph<Vertex, Edge>();
             for (Vertex o : graph.getVertices()) {
                 transientGraph.addVertex(o);
@@ -122,19 +137,11 @@ public class MissionPlanSpecification implements java.io.Serializable {
     }
 
     /**
-     * Updates our Graph and locations Hashtable from a Graph and Layout
      *
-     * @param graph The new Graph object
-     * @param layout The Layout to update our locations with
+     * @return The serializable SparseMultigraph
      */
-    public void setGraph(Graph<Vertex, Edge> graph, AbstractLayout layout) {
-        this.graph = graph;
-
-        locations = new Hashtable<Vertex, Point2D>();
-
-        for (Vertex v : graph.getVertices()) {
-            locations.put(v, layout.transform(v));
-        }
+    public Graph<Vertex, Edge> getSerializableGraph() {
+        return graph;
     }
 
     public ArrayList<TaskSpecification> getTaskSpecList() {
@@ -302,7 +309,7 @@ public class MissionPlanSpecification implements java.io.Serializable {
      *
      * @param layout The Layout object to be updated
      */
-    public void updateLayout(AbstractLayout<Vertex, Edge> layout) {
+    public void copyLocationsToLayout(AbstractLayout<Vertex, Edge> layout) {
         for (Vertex v : locations.keySet()) {
             if (locations.get(v) != null) {
                 layout.setLocation(v, locations.get(v));
@@ -392,42 +399,73 @@ public class MissionPlanSpecification implements java.io.Serializable {
         }
     }
 
+    public void addPlace(Place place, Point point) {
+        graph.addVertex(place);
+        transientGraph.addVertex(place);
+        locations.put(place, point);
+    }
+
     public void removePlace(Place place) {
-        // First remove the place and its edges from mission spec data structures
+        // First remove the place and its edges from the graphs
         for (Edge inEdge : place.getInEdges()) {
             graph.removeEdge(inEdge);
+            transientGraph.removeEdge(inEdge);
         }
         for (Edge outEdge : place.getOutEdges()) {
             graph.removeEdge(outEdge);
+            transientGraph.removeEdge(outEdge);
         }
         removeEventSpecList(place);
         graph.removeVertex(place);
+        transientGraph.removeVertex(place);
+        locations.remove(place);
 
-        // Now remove the place and edge data structures
-        place.prepareForRemoval();
+        // Now we can remove the affected edges and references to this place
+        place.removeReferences();
+    }
+
+    public void addTransition(Transition transition, Point point) {
+        graph.addVertex(transition);
+        transientGraph.addVertex(transition);
+        locations.put(transition, point);
     }
 
     public void removeTransition(Transition transition) {
-        // First remove the transition and its edges from mission spec data structures
+        // First remove the transition and its edges from the graph
         for (InEdge inEdge : transition.getInEdges()) {
             graph.removeEdge(inEdge);
+            transientGraph.removeEdge(inEdge);
         }
         for (OutEdge outEdge : transition.getOutEdges()) {
             graph.removeEdge(outEdge);
+            transientGraph.removeEdge(outEdge);
         }
         removeEventSpecList(transition);
         graph.removeVertex(transition);
+        transientGraph.removeVertex(transition);
+        locations.remove(transition);
 
-        // Now remove the transition and edge data structures
-        transition.prepareForRemoval();
+        // Now we can remove the affected edges and references to this transition
+        transition.removeReferences();
+    }
+
+    public void addEdge(InEdge e, Place startPlace, Transition endTransition) {
+        graph.addEdge(e, startPlace, endTransition);
+        transientGraph.addEdge(e, startPlace, endTransition);
+    }
+
+    public void addEdge(OutEdge e, Transition startTransition, Place endPlace) {
+        graph.addEdge(e, startTransition, endPlace);
+        transientGraph.addEdge(e, startTransition, endPlace);
     }
 
     public void removeEdge(Edge edge) {
-        // First remove the edge from mission spec data structures
+        // First remove the edge from the graph
         graph.removeEdge(edge);
+        transientGraph.removeEdge(edge);
 
-        // Now remove the transition and edge data structures
-        edge.prepareForRemoval();
+        // Now we can remove the references to this edge
+        edge.removeReferences();
     }
 
     public void updateTags() {

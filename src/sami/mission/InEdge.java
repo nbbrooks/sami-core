@@ -27,6 +27,12 @@ public class InEdge extends Edge {
         this.endTransition = endTransition;
         this.functionMode = functionMode;
         this.edgeId = edgeId;
+        // Add place and transition's references to each other
+        startPlace.addOutTransition(endTransition);
+        endTransition.addInPlace(startPlace);
+        // Add references to this edge in the vertices
+        startPlace.addOutEdge(this);
+        endTransition.addInEdge(this);
         updateTag();
     }
 
@@ -45,7 +51,7 @@ public class InEdge extends Edge {
         tokenRequirements.clear();
         updateTag();
     }
-    
+
     public long getEdgeId() {
         return edgeId;
     }
@@ -67,10 +73,12 @@ public class InEdge extends Edge {
     }
 
     @Override
-    public void prepareForRemoval() {
+    public void removeReferences() {
+        // Remove place and transition's references to each other
         startPlace.removeOutTransition(endTransition);
-        startPlace.removeOutEdge(this);
         endTransition.removeInPlace(startPlace);
+        // Remove references to this edge in the vertices
+        startPlace.removeOutEdge(this);
         endTransition.removeInEdge(this);
     }
 

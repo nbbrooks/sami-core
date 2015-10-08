@@ -18,7 +18,6 @@ import sami.event.GeneratedEventListenerInt;
 import sami.event.InputEvent;
 import sami.event.MissingParamsReceived;
 import sami.event.MissingParamsRequest;
-import sami.event.OperatorInterruptReceived;
 import sami.event.OutputEvent;
 import sami.event.RedefinedVariablesReceived;
 import sami.event.ReflectedEventSpecification;
@@ -136,7 +135,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         // Create any shared sub-missions
         //  For shared SM, only one instance exists, we do not spawn individual ones during plan execution as tokens enter the place holding it
         //  Instead, we put them in the start place of the single instance we create here
-        for (Vertex vertex : mSpec.getGraph().getVertices()) {
+        for (Vertex vertex : mSpec.getTransientGraph().getVertices()) {
             if (vertex instanceof Place) {
                 Place place = (Place) vertex;
 
@@ -211,17 +210,9 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             missingParamsStartPlace = new Place("Get Params", FunctionMode.Nominal, Mediator.getInstance().getProject().getAndIncLastElementId());
             Transition missingParamsTransition = new Transition("Got Params", FunctionMode.Nominal, Mediator.getInstance().getProject().getAndIncLastElementId());
             InEdge edge1 = new InEdge(missingParamsStartPlace, missingParamsTransition, FunctionMode.Nominal, Mediator.getInstance().getProject().getAndIncLastElementId());
-            OutEdge edge2 = new OutEdge(missingParamsTransition, startPlace, FunctionMode.Nominal, Mediator.getInstance().getProject().getAndIncLastElementId());
-            // Add vetices to plan
-            missingParamsStartPlace.addOutTransition(missingParamsTransition);
-            missingParamsTransition.addInPlace(missingParamsStartPlace);
-            missingParamsTransition.addOutPlace(startPlace);
             edge1.addTokenRequirement(new InTokenRequirement(TokenRequirement.MatchCriteria.None, null));
+            OutEdge edge2 = new OutEdge(missingParamsTransition, startPlace, FunctionMode.Nominal, Mediator.getInstance().getProject().getAndIncLastElementId());
             edge2.addTokenRequirement(new OutTokenRequirement(TokenRequirement.MatchCriteria.AnyToken, TokenRequirement.MatchQuantity.All, TokenRequirement.MatchAction.Take));
-            missingParamsStartPlace.addOutEdge(edge1);
-            missingParamsTransition.addInEdge(edge1);
-            missingParamsTransition.addOutEdge(edge2);
-            startPlace.addInEdge(edge2);
             startPlace = missingParamsStartPlace;
 
             // Make list of missing/editable parameter fields
@@ -322,11 +313,11 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             // Create events to get missing parameters
             //@todo Modify constructors?
             MissingParamsRequest request = new MissingParamsRequest(missionId, eventSpecToFieldDescriptions);
-            MissingParamsReceived response = new MissingParamsReceived();
             request.setMissionId(missionId);
+            missingParamsStartPlace.addOutputEvent(request);
+            MissingParamsReceived response = new MissingParamsReceived();
             response.setMissionId(missionId);
             response.setRelevantOutputEventId(request.getId());
-            missingParamsStartPlace.addOutputEvent(request);
             missingParamsTransition.addInputEvent(response);
 
             // Add abort mission handling
@@ -343,16 +334,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             // Add edges
             InEdge abortInEdge = new InEdge(missingParamsStartPlace, abortTransition, FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
             abortInEdge.addTokenRequirement(new InTokenRequirement(TokenRequirement.MatchCriteria.None, null));
-            abortTransition.addInEdge(abortInEdge);
-            missingParamsStartPlace.addOutEdge(abortInEdge);
-            abortTransition.addInPlace(missingParamsStartPlace);
-            missingParamsStartPlace.addOutTransition(abortTransition);
             OutEdge abortOutEdge = new OutEdge(abortTransition, abortPlace, FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
             abortOutEdge.addTokenRequirement(new OutTokenRequirement(TokenRequirement.MatchCriteria.AnyToken, TokenRequirement.MatchQuantity.All, TokenRequirement.MatchAction.Take));
-            abortTransition.addOutEdge(abortOutEdge);
-            abortPlace.addInEdge(abortOutEdge);
-            abortTransition.addOutPlace(abortPlace);
-            abortPlace.addInTransition(abortTransition);
 
             // Add complete mission handling
             // Add transition
@@ -366,16 +349,8 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             // Add edges
             InEdge completeInEdge = new InEdge(missingParamsStartPlace, completeTransition, FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
             completeInEdge.addTokenRequirement(new InTokenRequirement(TokenRequirement.MatchCriteria.None, null));
-            completeTransition.addInEdge(completeInEdge);
-            missingParamsStartPlace.addOutEdge(completeInEdge);
-            completeTransition.addInPlace(missingParamsStartPlace);
-            missingParamsStartPlace.addOutTransition(completeTransition);
             OutEdge completeOutEdge = new OutEdge(completeTransition, completePlace, FunctionMode.Recovery, Mediator.getInstance().getProject().getAndIncLastElementId());
             completeOutEdge.addTokenRequirement(new OutTokenRequirement(TokenRequirement.MatchCriteria.AnyToken, TokenRequirement.MatchQuantity.All, TokenRequirement.MatchAction.Take));
-            completeTransition.addOutEdge(completeOutEdge);
-            completePlace.addInEdge(completeOutEdge);
-            completeTransition.addOutPlace(completePlace);
-            completePlace.addInTransition(completeTransition);
         } else {
             LOGGER.info("No missing params, instantiating plan");
             if (!mSpec.isInstantiated()) {
@@ -2008,7 +1983,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         Token taskToken = getToken(task);
         // Find places with task token
         ArrayList<Place> places = new ArrayList<Place>();
-        for (Vertex v : mSpec.getGraph().getVertices()) {
+        for (Vertex v : mSpec.getTransientGraph().getVertices()) {
             if (v instanceof Place) {
                 Place place = (Place) v;
                 if (place.getTokens().contains(taskToken)) {
@@ -3207,7 +3182,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     public ArrayList<Token> getEndTokens() {
         // Get all tokens in an end place
         ArrayList<Token> endTokens = new ArrayList<Token>();
-        for (Vertex v : mSpec.getGraph().getVertices()) {
+        for (Vertex v : mSpec.getTransientGraph().getVertices()) {
             if (v instanceof Place) {
                 Place place = (Place) v;
                 if (place.isEnd()) {

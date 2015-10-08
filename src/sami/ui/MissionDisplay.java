@@ -224,7 +224,7 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
     }
 
     private void initTables() {
-        for (Vertex vertex : mSpec.getGraph().getVertices()) {
+        for (Vertex vertex : mSpec.getTransientGraph().getVertices()) {
             if (vertex instanceof Transition && vertex.getFunctionMode() == Vertex.FunctionMode.Recovery) {
                 // Check if any incoming places have nominal function mode
                 Transition t = (Transition) vertex;
@@ -582,9 +582,9 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
 
     private void loadGraph() {
         // Apply vertice locations
-        graph = mSpec.getGraph();
+        graph = mSpec.getTransientGraph();
         layout.setGraph(graph);
-        mSpec.updateLayout(layout);
+        mSpec.copyLocationsToLayout(layout);
 
         initGraphVisibility();
         snapViewToVisible();
