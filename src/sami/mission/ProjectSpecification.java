@@ -90,7 +90,7 @@ public class ProjectSpecification implements java.io.Serializable {
     public void removeMissionPlanNode(DefaultMutableTreeNode missionNode) {
         // First remove any subplans
         MissionPlanSpecification mSpec = nodeToMSpec.get(missionNode);
-        for (Vertex v : mSpec.getGraph().getVertices()) {
+        for (Vertex v : mSpec.getTransientGraph().getVertices()) {
             if (v instanceof Place && ((Place) v).getSubMissionTemplates() != null) {
                 for (MissionPlanSpecification subMSpec : ((Place) v).getSubMissionTemplates()) {
                     DefaultMutableTreeNode subMNode = mSpecToNode.get(subMSpec);
@@ -201,8 +201,8 @@ public class ProjectSpecification implements java.io.Serializable {
 
         // Add variables in current PM, if one exists
         if (mSpec != null) {
-            if (mSpec.getGraph() != null && mSpec.getGraph().getEdges() != null) {
-                for (Vertex v : mSpec.getGraph().getVertices()) {
+            if (mSpec.getTransientGraph() != null && mSpec.getTransientGraph().getEdges() != null) {
+                for (Vertex v : mSpec.getTransientGraph().getVertices()) {
                     if (mSpec.getEventSpecList(v) != null) {
                         for (ReflectedEventSpecification eventSpec : mSpec.getEventSpecList(v)) {
                             HashMap<String, String> writeVariables = eventSpec.getWriteVariables();
@@ -226,8 +226,8 @@ public class ProjectSpecification implements java.io.Serializable {
 
         // Add all  mission variables
         for (MissionPlanSpecification mSpec : allMissionPlans) {
-            if (mSpec.getGraph() != null && mSpec.getGraph().getEdges() != null) {
-                for (Vertex v : mSpec.getGraph().getVertices()) {
+            if (mSpec.getTransientGraph() != null && mSpec.getTransientGraph().getEdges() != null) {
+                for (Vertex v : mSpec.getTransientGraph().getVertices()) {
                     if (mSpec.getEventSpecList(v) != null) {
                         for (ReflectedEventSpecification eventSpec : mSpec.getEventSpecList(v)) {
                             HashMap<String, String> writeVariables = eventSpec.getWriteVariables();
@@ -260,8 +260,8 @@ public class ProjectSpecification implements java.io.Serializable {
             return variableNames;
         }
 
-        if (mSpec.getGraph() != null && mSpec.getGraph().getEdges() != null) {
-            for (Vertex v : mSpec.getGraph().getVertices()) {
+        if (mSpec.getTransientGraph() != null && mSpec.getTransientGraph().getEdges() != null) {
+            for (Vertex v : mSpec.getTransientGraph().getVertices()) {
                 if (mSpec.getEventSpecList(v) != null) {
                     for (ReflectedEventSpecification eventSpec : mSpec.getEventSpecList(v)) {
                         try {
@@ -488,7 +488,7 @@ public class ProjectSpecification implements java.io.Serializable {
             if (node instanceof MissionPlanSpecification) {
                 MissionPlanSpecification missionSpec = (MissionPlanSpecification) node;
                 System.out.println("missionSpec " + missionSpec.getName());
-                for (Vertex v : missionSpec.getGraph().getVertices()) {
+                for (Vertex v : missionSpec.getTransientGraph().getVertices()) {
                     System.out.println("\tvertex " + v.getTag());
                     if (missionSpec.getEventSpecList(v) == null) {
                         System.out.println("\t\tNULL");
@@ -560,11 +560,11 @@ public class ProjectSpecification implements java.io.Serializable {
             if(lastElementId == 0) {
                 lastElementId = 1;
                 for(MissionPlanSpecification mSpec : allMissionPlans) {
-                    for(Vertex vertex : mSpec.getGraph().getVertices()) {
+                    for(Vertex vertex : mSpec.getTransientGraph().getVertices()) {
                         vertex.vertexId = lastElementId;
                         lastElementId++;
                     }
-                    for(Edge edge : mSpec.getGraph().getEdges()) {
+                    for(Edge edge : mSpec.getTransientGraph().getEdges()) {
                         edge.edgeId = lastElementId;
                         lastElementId++;
                     }
