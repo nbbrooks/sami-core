@@ -318,15 +318,15 @@ public class Place extends Vertex {
         shortTag += "</html>";
     }
 
-    public void removeReferences() {
-        // Remove any edges connected to this place
+    public void prepareForRemoval() {
+        // Remove each edge
         ArrayList<OutEdge> inEdgesClone = (ArrayList<OutEdge>) inEdges.clone();
         for (OutEdge inEdge : inEdgesClone) {
-            inEdge.removeReferences();
+            inEdge.prepareForRemoval();
         }
         ArrayList<InEdge> outEdgesClone = (ArrayList<InEdge>) outEdges.clone();
         for (InEdge outEdge : outEdgesClone) {
-            outEdge.removeReferences();
+            outEdge.prepareForRemoval();
         }
     }
 

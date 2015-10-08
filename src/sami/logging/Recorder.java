@@ -110,7 +110,7 @@ public class Recorder {
             return;
         }
         // Special case for OperatorInterruptReceived
-        for (Vertex v : pm.getMSpec().getTransientGraph().getVertices()) {
+        for (Vertex v : pm.getMSpec().getGraph().getVertices()) {
             if (v instanceof Place) {
                 Place place = (Place) v;
                 String idString = place.getVertexId() + "";
@@ -144,7 +144,7 @@ public class Recorder {
             return;
         }
         String printString = "";
-        for (Vertex v : pm.getMSpec().getTransientGraph().getVertices()) {
+        for (Vertex v : pm.getMSpec().getGraph().getVertices()) {
             printString += v.getVertexId() + "\t" + v.getVisibilityMode() + "\t" + "[" + v.getShortTag() + "]" + "\t";
         }
         try {

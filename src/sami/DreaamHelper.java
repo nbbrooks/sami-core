@@ -62,59 +62,42 @@ public class DreaamHelper {
         y = startGridPoint.y;
         GraphElementAccessor<Vertex, Edge> pickSupport = vv.getPickSupport();
 
-        System.out.println("called getVertexFreePoint with " + startGridPoint);
-
         // Check to see if starting point is free
         Vertex vertex = pickSupport.getVertex(vv.getGraphLayout(), x, y);
-        System.out.println("\tchecking " + x + ", " + y + ": " + vertex);
-//        if (vertex != null) {
-//            System.out.println("vertex.getVisibilityMode() " + vertex.getVisibilityMode());
-//        }
         if (vertex == null || vertex.getVisibilityMode() == GuiConfig.VisibilityMode.None) {
             return new Point((int) x, (int) y);
         }
         int multiplier = 1;
-        double newX = 0, newY = 0;
         while (true) {
             for (int curDirection = 0; curDirection < searchDirections.length; curDirection++) {
                 switch (curDirection) {
                     case (0): // N
-                        newX = x;
-                        newY = y - multiplier * GRID_LENGTH;
+                        vertex = pickSupport.getVertex(vv.getGraphLayout(), x, y - multiplier * GRID_LENGTH);
                         break;
                     case (1): // NE
-                        newX = x + multiplier * GRID_LENGTH;
-                        newY = y - multiplier * GRID_LENGTH;
+                        vertex = pickSupport.getVertex(vv.getGraphLayout(), x + multiplier * GRID_LENGTH, y - multiplier * GRID_LENGTH);
                         break;
                     case (2): // E
-                        newX = x + multiplier * GRID_LENGTH;
-                        newY = y;
+                        vertex = pickSupport.getVertex(vv.getGraphLayout(), x + multiplier * GRID_LENGTH, y);
                         break;
                     case (3): // SE
-                        newX = x + multiplier * GRID_LENGTH;
-                        newY = y + multiplier * GRID_LENGTH;
+                        vertex = pickSupport.getVertex(vv.getGraphLayout(), x + multiplier * GRID_LENGTH, y + multiplier * GRID_LENGTH);
                         break;
                     case (4): // S
-                        newX = x;
-                        newY = y + multiplier * GRID_LENGTH;
+                        vertex = pickSupport.getVertex(vv.getGraphLayout(), x, y + multiplier * GRID_LENGTH);
                         break;
                     case (5): // SW
-                        newX = x - multiplier * GRID_LENGTH;
-                        newY = y + multiplier * GRID_LENGTH;
+                        vertex = pickSupport.getVertex(vv.getGraphLayout(), x - multiplier * GRID_LENGTH, y + multiplier * GRID_LENGTH);
                         break;
                     case (6): // W
-                        newX = x - multiplier * GRID_LENGTH;
-                        newY = y;
+                        vertex = pickSupport.getVertex(vv.getGraphLayout(), x - multiplier * GRID_LENGTH, y);
                         break;
                     case (7): // NW
-                        newX = x - multiplier * GRID_LENGTH;
-                        newY = y - multiplier * GRID_LENGTH;
+                        vertex = pickSupport.getVertex(vv.getGraphLayout(), x - multiplier * GRID_LENGTH, y - multiplier * GRID_LENGTH);
                         break;
                 }
-                vertex = pickSupport.getVertex(vv.getGraphLayout(), newX, newY);
-                System.out.println("\tchecking " + newX + ", " + newY + ": " + vertex);
                 if (vertex == null || vertex.getVisibilityMode() == GuiConfig.VisibilityMode.None) {
-                    return new Point((int) newX, (int) newY);
+                    return new Point((int) x, (int) y);
                 }
             }
         }

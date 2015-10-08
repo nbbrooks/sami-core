@@ -84,13 +84,10 @@ public class OutEdge extends Edge {
         }
     }
 
-    @Override
-    public void removeReferences() {
-        // Remove place and transition's references to each other
+    public void prepareForRemoval() {
         startTransition.removeOutPlace(endPlace);
-        endPlace.removeInTransition(startTransition);
-        // Remove references to this edge in the vertices
         startTransition.removeOutEdge(this);
+        endPlace.removeInTransition(startTransition);
         endPlace.removeInEdge(this);
     }
 

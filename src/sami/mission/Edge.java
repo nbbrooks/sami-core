@@ -20,7 +20,7 @@ public abstract class Edge implements java.io.Serializable {
 
     public abstract void updateTag();
 
-    public abstract void removeReferences();
+    public abstract void prepareForRemoval();
 
     public abstract Vertex getStart();
 

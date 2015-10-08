@@ -136,7 +136,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         // Create any shared sub-missions
         //  For shared SM, only one instance exists, we do not spawn individual ones during plan execution as tokens enter the place holding it
         //  Instead, we put them in the start place of the single instance we create here
-        for (Vertex vertex : mSpec.getTransientGraph().getVertices()) {
+        for (Vertex vertex : mSpec.getGraph().getVertices()) {
             if (vertex instanceof Place) {
                 Place place = (Place) vertex;
 
@@ -2008,7 +2008,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         Token taskToken = getToken(task);
         // Find places with task token
         ArrayList<Place> places = new ArrayList<Place>();
-        for (Vertex v : mSpec.getTransientGraph().getVertices()) {
+        for (Vertex v : mSpec.getGraph().getVertices()) {
             if (v instanceof Place) {
                 Place place = (Place) v;
                 if (place.getTokens().contains(taskToken)) {
@@ -3207,7 +3207,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
     public ArrayList<Token> getEndTokens() {
         // Get all tokens in an end place
         ArrayList<Token> endTokens = new ArrayList<Token>();
-        for (Vertex v : mSpec.getTransientGraph().getVertices()) {
+        for (Vertex v : mSpec.getGraph().getVertices()) {
             if (v instanceof Place) {
                 Place place = (Place) v;
                 if (place.isEnd()) {

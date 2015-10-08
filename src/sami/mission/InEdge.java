@@ -67,12 +67,10 @@ public class InEdge extends Edge {
     }
 
     @Override
-    public void removeReferences() {
-        // Remove place and transition's references to each other
+    public void prepareForRemoval() {
         startPlace.removeOutTransition(endTransition);
-        endTransition.removeInPlace(startPlace);
-        // Remove references to this edge in the vertices
         startPlace.removeOutEdge(this);
+        endTransition.removeInPlace(startPlace);
         endTransition.removeInEdge(this);
     }
 
