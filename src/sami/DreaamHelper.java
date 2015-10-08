@@ -70,7 +70,7 @@ public class DreaamHelper {
         double newX = 0, newY = 0;
         while (true) {
             for (int curDirection = 0; curDirection < searchDirections.length; curDirection++) {
-                switch (curDirection) {
+                switch (searchDirections[curDirection]) {
                     case (0): // N
                         newX = x;
                         newY = y - multiplier * GRID_LENGTH;
@@ -109,6 +109,7 @@ public class DreaamHelper {
                     return new Point((int) newX, (int) newY);
                 }
             }
+            multiplier++;
         }
     }
 
@@ -147,7 +148,7 @@ public class DreaamHelper {
         Vertex vertex = pickSupport.getVertex(vv.getGraphLayout(), x, y);
         for (int r = 1; r <= maxSearchDistance && vertex == null; r++) {
             for (int curDirection = 0; curDirection < searchDirections.length && vertex == null; curDirection++) {
-                switch (curDirection) {
+                switch (searchDirections[curDirection]) {
                     case (0): // N
                         vertex = pickSupport.getVertex(vv.getGraphLayout(), x, y - r);
                         break;

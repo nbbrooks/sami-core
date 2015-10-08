@@ -1,9 +1,11 @@
 package sami.mission;
 
 import edu.uci.ics.jung.algorithms.layout.AbstractLayout;
+import edu.uci.ics.jung.algorithms.layout.StaticLayout;
 import edu.uci.ics.jung.graph.DirectedSparseGraph;
 import edu.uci.ics.jung.graph.Graph;
 import edu.uci.ics.jung.graph.SparseMultigraph;
+import java.awt.Dimension;
 import java.awt.Point;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
@@ -50,6 +52,7 @@ public class MissionPlanSpecification implements java.io.Serializable {
     //  Instead we store the coordinate lookup in locations
     //  We write all changes to locations and the layout, but write the values from locations into layout each time we load the mSpec into TaskModelEditor
     private Map<Vertex, Point2D> locations = null;
+    private transient AbstractLayout<Vertex, Edge> layout = null;
     private String name = "Anonymous";
     transient private boolean isInstantiated = false;
     public static final String RETURN_SUFFIX = ".return";
@@ -58,6 +61,7 @@ public class MissionPlanSpecification implements java.io.Serializable {
         this.name = name;
         transientGraph = new DirectedSparseGraph<Vertex, Edge>();
         locations = new Hashtable<Vertex, Point2D>();
+        layout = new StaticLayout<Vertex, Edge>(transientGraph, new Dimension(600, 600));
     }
 
     public MissionPlanSpecification getSubmissionInstance(MissionPlanSpecification parentSpec, String namePrefix, String variablePrefix, HashMap<String, Object> globalVariables) {
@@ -334,6 +338,25 @@ public class MissionPlanSpecification implements java.io.Serializable {
         return locations;
     }
 
+    public AbstractLayout<Vertex, Edge> getLayout() {
+        if (layout == null) {
+            layout = new StaticLayout<Vertex, Edge>(getTransientGraph(), new Dimension(600, 600));
+            if (locations != null) {
+                for (Vertex v : locations.keySet()) {
+                    if (locations.get(v) != null) {
+                        layout.setLocation(v, locations.get(v));
+                    }
+                }
+            }
+        }
+        return layout;
+    }
+
+    public void updateVertexLocation(Vertex v, Point2D point) {
+        locations.put(v, point);
+        layout.setLocation(v, point);
+    }
+
     public void updateAllTags() {
         for (Vertex vertex : graph.getVertices()) {
             vertex.updateTag();
@@ -403,6 +426,7 @@ public class MissionPlanSpecification implements java.io.Serializable {
         graph.addVertex(place);
         transientGraph.addVertex(place);
         locations.put(place, point);
+        layout.setLocation(place, point);
     }
 
     public void removePlace(Place place) {
@@ -428,6 +452,7 @@ public class MissionPlanSpecification implements java.io.Serializable {
         graph.addVertex(transition);
         transientGraph.addVertex(transition);
         locations.put(transition, point);
+        layout.setLocation(transition, point);
     }
 
     public void removeTransition(Transition transition) {
@@ -502,27 +527,6 @@ public class MissionPlanSpecification implements java.io.Serializable {
             return null;
         } catch (ClassNotFoundException e) {
             return null;
-        }
-    }
-
-    private void writeObject(ObjectOutputStream os) {
-        try {
-            os.defaultWriteObject();
-        } catch (IOException ex) {
-            Logger.getLogger(ReflectedEventSpecification.class.getName()).log(Level.SEVERE, null, ex);
-            ex.printStackTrace();
-        }
-    }
-
-    private void readObject(ObjectInputStream ois) throws IOException, ClassNotFoundException {
-        try {
-            ois.defaultReadObject();
-        } catch (IOException e) {
-            LOGGER.severe("IO Exception in MissionPlanSpecification readObject");
-            throw e;
-        } catch (ClassNotFoundException e) {
-            LOGGER.severe("Class Not Found Exception in MissionPlanSpecification readObject");
-            throw e;
         }
     }
 
@@ -604,5 +608,31 @@ public class MissionPlanSpecification implements java.io.Serializable {
 
         this.graph = mockupGraph;
         this.locations = mockupLocations;
+    }
+
+    private void writeObject(ObjectOutputStream os) {
+        try {
+            os.defaultWriteObject();
+
+        } catch (IOException ex) {
+            Logger.getLogger(ReflectedEventSpecification.class
+                    .getName()).log(Level.SEVERE, null, ex);
+            ex.printStackTrace();
+        }
+    }
+
+    private void readObject(ObjectInputStream ois) throws IOException, ClassNotFoundException {
+        try {
+            ois.defaultReadObject();
+            // Populate transient fields
+            getTransientGraph();
+            getLayout();
+        } catch (IOException e) {
+            LOGGER.severe("IO Exception in MissionPlanSpecification readObject");
+            throw e;
+        } catch (ClassNotFoundException e) {
+            LOGGER.severe("Class Not Found Exception in MissionPlanSpecification readObject");
+            throw e;
+        }
     }
 }
