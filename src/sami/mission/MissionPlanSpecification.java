@@ -357,9 +357,111 @@ public class MissionPlanSpecification implements java.io.Serializable {
         layout.setLocation(v, point);
     }
 
-    public void updateAllTags() {
+    /**
+     * An earlier version of some Helper agents were not correctly
+     * deleting/adding graph connections. This looks through the vertex and
+     * edges in each Place/Transition/InEdge/OutEdge and removes the ones that
+     * don't exit in the graph structure.
+     */
+    public void fixGraph() {
+        ArrayList<Transition> removeT = new ArrayList<Transition>();
+        ArrayList<Place> removeP = new ArrayList<Place>();
+        ArrayList<InEdge> removeIe = new ArrayList<InEdge>();
+        ArrayList<OutEdge> removeOe = new ArrayList<OutEdge>();
         for (Vertex vertex : graph.getVertices()) {
-            vertex.updateTag();
+            if (vertex instanceof Place) {
+                Place p = (Place) vertex;
+
+                removeT.clear();
+                for (Transition t : p.getInTransitions()) {
+                    if (!graph.containsVertex(t)) {
+                        removeT.add(t);
+                    }
+                }
+                for (Transition t : removeT) {
+                    LOGGER.info("fixGraph() removing " + t);
+                    p.removeInTransition(t);
+                }
+
+                removeT.clear();
+                for (Transition t : p.getOutTransitions()) {
+                    if (!graph.containsVertex(t)) {
+                        removeT.add(t);
+                    }
+                }
+                for (Transition t : removeT) {
+                    LOGGER.info("fixGraph() removing " + t);
+                    p.removeOutTransition(t);
+                }
+
+                removeIe.clear();
+                for (InEdge e : p.getOutEdges()) {
+                    if (!graph.containsEdge(e)) {
+                        removeIe.add(e);
+                    }
+                }
+                for (InEdge e : removeIe) {
+                    LOGGER.info("fixGraph() removing " + e);
+                    p.removeOutEdge(e);
+                }
+
+                removeOe.clear();
+                for (OutEdge e : p.getInEdges()) {
+                    if (!graph.containsEdge(e)) {
+                        removeOe.add(e);
+                    }
+                }
+                for (OutEdge e : removeOe) {
+                    LOGGER.info("fixGraph() removing " + e);
+                    p.removeInEdge(e);
+                }
+            } else if (vertex instanceof Transition) {
+                Transition t = (Transition) vertex;
+
+                removeP.clear();
+                for (Place p : t.getInPlaces()) {
+                    if (!graph.containsVertex(p)) {
+                        removeP.add(p);
+                    }
+                }
+                for (Place p : removeP) {
+                    LOGGER.info("fixGraph() removing " + p);
+                    t.removeInPlace(p);
+                }
+
+                removeP.clear();
+                for (Place p : t.getOutPlaces()) {
+                    if (!graph.containsVertex(p)) {
+                        removeP.add(p);
+                    }
+                }
+                for (Place p : removeP) {
+                    LOGGER.info("fixGraph() removing " + p);
+                    t.removeOutPlace(p);
+                }
+
+                removeIe.clear();
+                for (InEdge e : t.getInEdges()) {
+                    if (!graph.containsEdge(e)) {
+                        removeIe.add(e);
+                    }
+                }
+                for (InEdge e : removeIe) {
+                    LOGGER.info("fixGraph() removing " + t);
+                    t.removeInEdge(e);
+                }
+
+                removeOe.clear();
+                for (OutEdge e : t.getOutEdges()) {
+                    if (!graph.containsEdge(e)) {
+                        removeOe.add(e);
+                    }
+                }
+                for (OutEdge e : removeOe) {
+                    LOGGER.info("fixGraph() removing " + t);
+                    t.removeOutEdge(e);
+                }
+            }
         }
         for (Edge edge : graph.getEdges()) {
             edge.updateTag();
