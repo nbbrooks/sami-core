@@ -44,7 +44,7 @@ public class MissionPlanSpecification implements java.io.Serializable {
     //  However, DirectedSparseGraph can not be serialized because one of its fields does not have a no-arg constructor
     //  Our SparseMultigraph can be serialized though
     //  We write all changes to both graphs, but create DirectedSparseGraph from the SparseMultigraph when we read in the mSpec
-    private Graph<Vertex, Edge> graph = graph = new SparseMultigraph<Vertex, Edge>();
+    private Graph<Vertex, Edge> graph = new SparseMultigraph<Vertex, Edge>();
     transient private DirectedSparseGraph<Vertex, Edge> transientGraph = null;
     private Map<Vertex, ArrayList<ReflectedEventSpecification>> vertexToEventSpecListMap = new HashMap<Vertex, ArrayList<ReflectedEventSpecification>>();
     // [x, y] coordinates of the places and transitions

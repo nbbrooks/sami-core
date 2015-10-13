@@ -21,6 +21,7 @@ public class InEdge extends Edge {
     protected Place startPlace;
     protected Transition endTransition;
     protected ArrayList<InTokenRequirement> tokenRequirements = new ArrayList<InTokenRequirement>();
+    protected ArrayList<InTokenRequirement> lockedTokenRequirements = new ArrayList<InTokenRequirement>();
 
     public InEdge(Place startPlace, Transition endTransition, FunctionMode functionMode, long edgeId) {
         this.startPlace = startPlace;
@@ -41,14 +42,28 @@ public class InEdge extends Edge {
         updateTag();
     }
 
+    public void addTokenRequirement(InTokenRequirement requirement, boolean locked) {
+        tokenRequirements.add(requirement);
+        if (locked) {
+            lockedTokenRequirements.add(requirement);
+        }
+        updateTag();
+    }
+
     @Override
     public ArrayList<InTokenRequirement> getTokenRequirements() {
         return tokenRequirements;
     }
 
     @Override
+    public ArrayList<InTokenRequirement> getLockedTokenRequirements() {
+        return lockedTokenRequirements;
+    }
+
+    @Override
     public void clearTokenRequirements() {
         tokenRequirements.clear();
+        lockedTokenRequirements.clear();
         updateTag();
     }
 

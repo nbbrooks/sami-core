@@ -21,6 +21,7 @@ public class OutEdge extends Edge {
     protected Place endPlace;
     protected Transition startTransition;
     protected ArrayList<OutTokenRequirement> tokenRequirements = new ArrayList<OutTokenRequirement>();
+    protected ArrayList<OutTokenRequirement> lockedTokenRequirements = new ArrayList<OutTokenRequirement>();
 
     public OutEdge(Transition startTransition, Place endPlace, FunctionMode functionMode, long edgeId) {
         this.startTransition = startTransition;
@@ -59,14 +60,28 @@ public class OutEdge extends Edge {
         updateTag();
     }
 
+    public void addTokenRequirement(OutTokenRequirement requirement, boolean locked) {
+        tokenRequirements.add(requirement);
+        if (locked) {
+            lockedTokenRequirements.add(requirement);
+        }
+        updateTag();
+    }
+
     @Override
     public ArrayList<OutTokenRequirement> getTokenRequirements() {
         return tokenRequirements;
     }
 
     @Override
+    public ArrayList<OutTokenRequirement> getLockedTokenRequirements() {
+        return lockedTokenRequirements;
+    }
+
+    @Override
     public void clearTokenRequirements() {
         tokenRequirements.clear();
+        lockedTokenRequirements.clear();
         updateTag();
     }
 
