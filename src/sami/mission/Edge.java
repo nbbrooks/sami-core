@@ -27,6 +27,8 @@ public abstract class Edge implements java.io.Serializable {
 
     public abstract ArrayList<? extends TokenRequirement> getTokenRequirements();
 
+    public abstract ArrayList<? extends TokenRequirement> getLockedTokenRequirements();
+
     public abstract void clearTokenRequirements();
 
     public FunctionMode getFunctionMode() {

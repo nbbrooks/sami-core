@@ -21,6 +21,7 @@ public abstract class Vertex implements java.io.Serializable {
     protected FunctionMode functionMode = null;
     protected GuiConfig.VisibilityMode visibilityMode = GuiConfig.VisibilityMode.Full;
     protected ArrayList<ReflectedEventSpecification> eventSpecs = new ArrayList<ReflectedEventSpecification>();
+    protected ArrayList<ReflectedEventSpecification> lockedEventSpecs = new ArrayList<ReflectedEventSpecification>();
     // Unique vertex ID
     protected long vertexId;
     transient protected String tag = "", shortTag = "";
@@ -49,7 +50,7 @@ public abstract class Vertex implements java.io.Serializable {
     public void setVisibilityMode(GuiConfig.VisibilityMode visibilityMode) {
         this.visibilityMode = visibilityMode;
     }
-    
+
     public long getVertexId() {
         return vertexId;
     }
@@ -87,6 +88,14 @@ public abstract class Vertex implements java.io.Serializable {
 
     public void addEventSpec(ReflectedEventSpecification eventSpec) {
         eventSpecs.add(eventSpec);
+        updateTag();
+    }
+
+    public void addEventSpec(ReflectedEventSpecification eventSpec, boolean locked) {
+        eventSpecs.add(eventSpec);
+        if (locked) {
+            lockedEventSpecs.add(eventSpec);
+        }
         updateTag();
     }
 
