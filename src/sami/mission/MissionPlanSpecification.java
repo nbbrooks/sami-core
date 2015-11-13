@@ -308,19 +308,6 @@ public class MissionPlanSpecification implements java.io.Serializable {
         return layoutTransform;
     }
 
-    /**
-     * Updates a passed in Layout based on our Vertex locations object
-     *
-     * @param layout The Layout object to be updated
-     */
-    public void copyLocationsToLayout(AbstractLayout<Vertex, Edge> layout) {
-        for (Vertex v : locations.keySet()) {
-            if (locations.get(v) != null) {
-                layout.setLocation(v, locations.get(v));
-            }
-        }
-    }
-
     public String getName() {
         return name;
     }

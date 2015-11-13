@@ -18,6 +18,7 @@ import sami.event.GeneratedEventListenerInt;
 import sami.event.InputEvent;
 import sami.event.MissingParamsReceived;
 import sami.event.MissingParamsRequest;
+import sami.event.OperatorInterruptReceived;
 import sami.event.OutputEvent;
 import sami.event.RedefinedVariablesReceived;
 import sami.event.ReflectedEventSpecification;
@@ -1898,6 +1899,18 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 }
             }
         }
+        ////
+        // Also check outgoing transitions from this transitions incoming places (in case we now meet an "no" or "less than" requirement)
+        ////
+        for (Place inPlace : transition.getInPlaces()) {
+            for (Transition t2 : inPlace.getOutTransitions()) {
+                LOGGER.log(EXE_T_LVL, "\t\tDone executing checking " + t2);
+                boolean execute2 = (t2 != transition) && !transitionsToExecute.contains(t2) && checkTransition(t2);
+                if (execute2) {
+                    transitionsToExecute.add(t2);
+                }
+            }
+        }
         for (Transition t2 : transitionsToExecute) {
             executeTransition(t2);
         }
@@ -2358,17 +2371,19 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             if (generatedEvent.getRelevantOutputEventId() != null) {
                 match = false;
                 if (paramEvent.getRelevantOutputEventId() != null) {
-                    // Special case for OperatorInterruptReceived
+                        LOGGER.log(detailsLogLevel, "\t\tparamEvent has relevant OE UUID: " + paramEvent.getRelevantOutputEventId());
                     //  We set a relevant OE UUID the OIR during its instantiation so each interrupt is distinct
                     if (paramEvent.getRelevantOutputEventId().equals(generatedEvent.getRelevantOutputEventId())) {
                         LOGGER.log(detailsLogLevel, "\t\tMatching success on relevant OE UUID: " + paramEvent.getId() + " found in paramEvent");
                         match = true;
                     }
                 } else {
+                    LOGGER.log(detailsLogLevel, "\t\tparamEvent has NULL relevant OE UUID");
                     Transition transition = inputEventToTransitionMap.get(paramEvent);
                     ArrayList<Place> inPlaces = transition.getInPlaces();
                     for (Place inPlace : inPlaces) {
                         for (OutputEvent oe : inPlace.getOutputEvents()) {
+                                LOGGER.log(detailsLogLevel, "\t\t\tcomparing " + oe.getId() + " and " + generatedEvent.getRelevantOutputEventId());
                             if (oe.getId().equals(generatedEvent.getRelevantOutputEventId())) {
                                 LOGGER.log(detailsLogLevel, "\t\tMatching success on relevant OE UUID: " + oe.getId() + " found on incoming Place: " + inPlace);
                                 match = true;
@@ -2387,6 +2402,21 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             } else {
                 LOGGER.log(detailsLogLevel, "\t\tMatching success on UUID - no UUID to match against");
             }
+            
+            // Special case for OperatorInterruptReceived
+            if (generatedEvent instanceof OperatorInterruptReceived && paramEvent instanceof OperatorInterruptReceived) {
+                match = ((OperatorInterruptReceived) generatedEvent).getInterruptName().equals(((OperatorInterruptReceived) paramEvent).getInterruptName());
+                if(match) {
+                    LOGGER.log(detailsLogLevel, "\t\tMatching success on OperatorInterruptReceived interrupt name: " +
+                            ((OperatorInterruptReceived) generatedEvent).getInterruptName());
+                } else {
+                    LOGGER.log(detailsLogLevel, "\t\tMatching failure on OperatorInterruptReceived interrupt name: " 
+                            + ((OperatorInterruptReceived) generatedEvent).getInterruptName() + " v " 
+                            + ((OperatorInterruptReceived) paramEvent).getInterruptName());
+                    continue;
+                }
+            }
+
             // 2c - If defined, this was some sort of proxy triggered event
             //  Have a Proxy or Task token for each relevant proxy?
             //  Record the param event that matches this generator event

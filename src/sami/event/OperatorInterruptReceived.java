@@ -18,6 +18,7 @@ public class OperatorInterruptReceived extends InputEvent {
     public static final ArrayList<String> variableNames = new ArrayList<String>();
     // Description for each variable
     public static final HashMap<String, String> variableNameToDescription = new HashMap<String, String>();
+    protected UUID correspondingOirEventId;
     // Fields
     public String interruptName;
 
@@ -28,19 +29,24 @@ public class OperatorInterruptReceived extends InputEvent {
     }
 
     public OperatorInterruptReceived() {
+        id = UUID.randomUUID();
     }
 
-    public OperatorInterruptReceived(UUID relevantOutputEventUuid, UUID missionUuid, UUID relevantOutputEventId, String interruptName) {
+    public OperatorInterruptReceived(UUID relevantOutputEventUuid, UUID missionUuid, UUID correspondingOirEventId, String interruptName) {
         this.relevantOutputEventId = relevantOutputEventUuid;
         this.missionId = missionUuid;
         this.interruptName = interruptName;
-        //  Define a relevantOutputEventId so it can be used to distinguish between different OperatorInterruptReceived events within the same mission specification
-        this.relevantOutputEventId = relevantOutputEventId;
+        //  Define a correspondingOirEventId so it can be used to distinguish between different OperatorInterruptReceived events within the same mission specification
+        this.correspondingOirEventId = correspondingOirEventId;
         id = UUID.randomUUID();
     }
 
     public String getInterruptName() {
         return interruptName;
+    }
+
+    public UUID getOirId() {
+        return correspondingOirEventId;
     }
 
     public String toString() {

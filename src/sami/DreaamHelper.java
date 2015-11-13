@@ -46,8 +46,8 @@ public class DreaamHelper {
      * no vertex on it
      *
      * @param vv The graph visualization to search
-     * @param x The starting x position in the graph
-     * @param y The starting y position in the graph
+     * @param x The starting x position in mouse space
+     * @param y The starting y position in mouse space
      * @param searchDirections The order and list of directions to search: [0,
      * 7] representing N to NW
      * @return A grid snapped point with no vertex on it
@@ -117,8 +117,8 @@ public class DreaamHelper {
      * Get the nearest grid-snapped point which has no vertex on it
      *
      * @param vv The graph visualization to search
-     * @param x The starting x position in the graph
-     * @param y The starting y position in the graph
+     * @param x The starting x position in mouse space
+     * @param y The starting y position in mouse space
      * @return A grid snapped point with no vertex on it
      */
     public static Point getVertexFreePoint(VisualizationViewer<Vertex, Edge> vv, double x, double y) {
@@ -130,8 +130,8 @@ public class DreaamHelper {
      * location
      *
      * @param vv The graph visualization to search
-     * @param x The starting x position in the graph
-     * @param y The starting y position in the graph
+     * @param x The starting x position in mouse space
+     * @param y The starting y position in mouse space
      * @param maxSearchDistance The maximum Manhattan distance to look for a
      * vertex in
      * @param vertexVisible Whether the vertex must be visible to the user
@@ -186,8 +186,8 @@ public class DreaamHelper {
      * Get the nearest user-visible vertex to the provided location
      *
      * @param vv The graph visualization to search
-     * @param x The starting x position in the graph
-     * @param y The starting y position in the graph
+     * @param x The starting x position in mouse space
+     * @param y The starting y position in mouse space
      * @param maxSearchDistance The maximum Manhattan distance to look for a
      * vertex in
      * @return The nearest vertex to the provided location
@@ -201,8 +201,8 @@ public class DreaamHelper {
      * location
      *
      * @param vv The graph visualization to search
-     * @param x The starting x position in the graph
-     * @param y The starting y position in the graph
+     * @param x The starting x position in mouse space
+     * @param y The starting y position in mouse space
      * @param maxSearchDistance The maximum Manhattan distance to look for a
      * edge in
      * @param edgeVisible Whether the edge must be visible to the user (true) or
@@ -257,8 +257,8 @@ public class DreaamHelper {
      * Get the nearest user-visible edge to the provided location
      *
      * @param vv The graph visualization to search
-     * @param x The starting x position in the graph
-     * @param y The starting y position in the graph
+     * @param x The starting x position in mouse space
+     * @param y The starting y position in mouse space
      * @param maxSearchDistance The maximum Manhattan distance to look for a
      * edge in
      * @return The nearest edge to the provided location

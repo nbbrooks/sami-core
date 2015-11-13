@@ -583,8 +583,9 @@ public class MissionDisplay extends JPanel implements PlanManagerListenerInt {
     private void loadGraph() {
         // Apply vertice locations
         graph = mSpec.getTransientGraph();
+        layout = mSpec.getLayout();
         layout.setGraph(graph);
-        mSpec.copyLocationsToLayout(layout);
+        vv.getModel().setGraphLayout(layout);
 
         initGraphVisibility();
         snapViewToVisible();

@@ -383,6 +383,7 @@ public class Place extends Vertex {
             ois.defaultReadObject();
             outputEvents = new ArrayList<OutputEvent>();
             tokens = new ArrayList<Token>();
+            subMissionStatus = new HashMap<MissionPlanSpecification, Boolean>();    
             updateTag();
         } catch (IOException e) {
         } catch (ClassNotFoundException e) {

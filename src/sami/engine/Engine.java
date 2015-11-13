@@ -554,10 +554,11 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         plans.remove(planManager);
         freePlanManagerColor(planManager);
 
+        //@todo add CompleteMission events so we can comment this out again
         // Do this in CoreEventHandler
-//        for(ProxyInt proxy : proxies) {
-//            proxy.completeMission(planManager.missionId);
-//        }
+        for(ProxyInt proxy : proxies) {
+            proxy.completeMission(planManager.missionId);
+        }
         
         // Now force completion of any sub-missions
         //  Only do immediate children, as this will recurse

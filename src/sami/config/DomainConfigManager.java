@@ -19,9 +19,9 @@ public class DomainConfigManager {
 
     private static final Logger LOGGER = Logger.getLogger(DomainConfigManager.class.getName());
 
-    public static final String LAST_DCF_FILE = "LAST_DREAAM_DCF_NAME";
-    public static final String LAST_DCF_FOLDER = "LAST_DREAAM_DCF_FOLDER";
-    public static final String LAST_CFG_FOLDER = "LAST_DREAAM_CFG_FOLDER";
+    public static final String LAST_DCF_FILE = "LAST_DREAAM_DCF_NAME_CRW";
+    public static final String LAST_DCF_FOLDER = "LAST_DREAAM_DCF_FOLDER_CRW";
+    public static final String LAST_CFG_FOLDER = "LAST_DREAAM_CFG_FOLDER_CRW";
     private static volatile DomainConfigManager instance = null;
     private DomainConfig domainConfig = null;
     private File domainConfigFile = null;

@@ -30,10 +30,10 @@ public class Mediator {
 
     private static final Logger LOGGER = Logger.getLogger(Mediator.class.getName());
 
-    public static final String LAST_DRM_FILE = "LAST_DRM_NAME";
-    public static final String LAST_DRM_FOLDER = "LAST_DRM_FOLDER";
-    public static final String LAST_EPF_FILE = "LAST_EPF_NAME";
-    public static final String LAST_EPF_FOLDER = "LAST_EPF_FOLDER";
+    public static final String LAST_DRM_FILE = "LAST_DRM_NAME_CRW";
+    public static final String LAST_DRM_FOLDER = "LAST_DRM_FOLDER_CRW";
+    public static final String LAST_EPF_FILE = "LAST_EPF_NAME_CRW";
+    public static final String LAST_EPF_FOLDER = "LAST_EPF_FOLDER_CRW";
 
     // Environment related items
     private ProjectSpecification project = null;
