@@ -25,72 +25,7 @@
       <Group type="103" groupAlignment="0" attributes="0">
           <Group type="102" alignment="1" attributes="0">
               <EmptySpace max="32767" attributes="0"/>
-              <Group type="103" groupAlignment="1" max="-2" attributes="0">
-                  <Group type="102" attributes="0">
-                      <Group type="103" groupAlignment="0" attributes="0">
-                          <Component id="messageTF" min="-2" pref="399" max="-2" attributes="0"/>
-                          <Component id="messageL" alignment="0" min="-2" max="-2" attributes="0"/>
-                      </Group>
-                      <EmptySpace max="32767" attributes="0"/>
-                      <Component id="messageB" min="-2" pref="93" max="-2" attributes="0"/>
-                  </Group>
-                  <Component id="descriptionL" alignment="0" min="-2" max="-2" attributes="0"/>
-                  <Group type="102" alignment="0" attributes="0">
-                      <Group type="103" groupAlignment="0" attributes="0">
-                          <Component id="agentL" min="-2" max="-2" attributes="0"/>
-                          <Component id="agentTF" min="-2" pref="399" max="-2" attributes="0"/>
-                      </Group>
-                      <EmptySpace max="-2" attributes="0"/>
-                      <Component id="agentB" max="32767" attributes="0"/>
-                  </Group>
-                  <Group type="102" alignment="0" attributes="0">
-                      <Group type="103" groupAlignment="0" attributes="0">
-                          <Component id="assetTF" alignment="0" min="-2" pref="399" max="-2" attributes="0"/>
-                          <Component id="assetL" alignment="0" min="-2" max="-2" attributes="0"/>
-                      </Group>
-                      <EmptySpace max="-2" attributes="0"/>
-                      <Component id="assetB" max="32767" attributes="0"/>
-                  </Group>
-                  <Group type="102" alignment="0" attributes="0">
-                      <Group type="103" groupAlignment="0" attributes="0">
-                          <Component id="componentL" alignment="0" min="-2" max="-2" attributes="0"/>
-                          <Component id="componentTF" alignment="0" min="-2" pref="399" max="-2" attributes="0"/>
-                      </Group>
-                      <EmptySpace max="-2" attributes="0"/>
-                      <Component id="componentB" max="32767" attributes="0"/>
-                  </Group>
-                  <Group type="102" alignment="0" attributes="0">
-                      <Group type="103" groupAlignment="0" attributes="0">
-                          <Component id="eventL" alignment="0" min="-2" max="-2" attributes="0"/>
-                          <Component id="eventTF" alignment="0" min="-2" pref="399" max="-2" attributes="0"/>
-                      </Group>
-                      <EmptySpace max="-2" attributes="0"/>
-                      <Component id="eventB" max="32767" attributes="0"/>
-                  </Group>
-                  <Group type="102" alignment="0" attributes="0">
-                      <Group type="103" groupAlignment="0" attributes="0">
-                          <Component id="handlerL" alignment="0" min="-2" max="-2" attributes="0"/>
-                          <Component id="handlerTF" alignment="0" min="-2" pref="399" max="-2" attributes="0"/>
-                      </Group>
-                      <EmptySpace max="-2" attributes="0"/>
-                      <Component id="handlerB" max="32767" attributes="0"/>
-                  </Group>
-                  <Group type="102" alignment="0" attributes="0">
-                      <Group type="103" groupAlignment="0" attributes="0">
-                          <Component id="markupL" alignment="0" min="-2" max="-2" attributes="0"/>
-                          <Component id="markupTF" alignment="0" min="-2" pref="399" max="-2" attributes="0"/>
-                      </Group>
-                      <EmptySpace max="-2" attributes="0"/>
-                      <Component id="markupB" max="32767" attributes="0"/>
-                  </Group>
-                  <Group type="102" alignment="0" attributes="0">
-                      <Group type="103" groupAlignment="0" attributes="0">
-                          <Component id="serverL" min="-2" max="-2" attributes="0"/>
-                          <Component id="serverTF" min="-2" pref="399" max="-2" attributes="0"/>
-                      </Group>
-                      <EmptySpace max="-2" attributes="0"/>
-                      <Component id="serverB" max="32767" attributes="0"/>
-                  </Group>
+              <Group type="103" groupAlignment="0" max="-2" attributes="0">
                   <Group type="102" alignment="0" attributes="0">
                       <Component id="nameL" min="-2" max="-2" attributes="0"/>
                       <EmptySpace max="-2" attributes="0"/>
@@ -98,30 +33,88 @@
                   </Group>
                   <Component id="jScrollPane1" alignment="0" max="32767" attributes="0"/>
                   <Group type="102" alignment="0" attributes="0">
-                      <Group type="103" groupAlignment="0" attributes="0">
-                          <Group type="103" alignment="0" groupAlignment="1" max="-2" attributes="0">
-                              <Component id="taskTF" alignment="0" pref="399" max="32767" attributes="0"/>
-                              <Component id="uiL" alignment="0" min="-2" max="-2" attributes="0"/>
-                              <Component id="uiTF" alignment="0" max="32767" attributes="0"/>
-                          </Group>
-                          <Component id="taskL" alignment="0" min="-2" max="-2" attributes="0"/>
-                          <Group type="102" alignment="0" attributes="0">
-                              <Component id="openB" min="-2" max="-2" attributes="0"/>
-                              <EmptySpace max="-2" attributes="0"/>
-                              <Component id="saveB" min="-2" pref="81" max="-2" attributes="0"/>
-                              <EmptySpace max="-2" attributes="0"/>
-                              <Component id="saveAsB" min="-2" max="-2" attributes="0"/>
-                          </Group>
+                      <Group type="103" groupAlignment="0" max="-2" attributes="0">
+                          <Component id="componentTF" pref="678" max="32767" attributes="0"/>
+                          <Component id="messageTF" max="32767" attributes="0"/>
                       </Group>
                       <EmptySpace min="-2" pref="6" max="-2" attributes="0"/>
                       <Group type="103" groupAlignment="0" attributes="0">
+                          <Component id="componentB" min="-2" pref="93" max="-2" attributes="0"/>
+                          <Component id="messageB" min="-2" pref="93" max="-2" attributes="0"/>
+                      </Group>
+                  </Group>
+                  <Group type="102" alignment="0" attributes="0">
+                      <Group type="103" groupAlignment="0" max="-2" attributes="0">
+                          <Component id="agentTF" pref="678" max="32767" attributes="0"/>
+                          <Component id="assetTF" max="32767" attributes="0"/>
+                      </Group>
+                      <EmptySpace max="-2" attributes="0"/>
+                      <Group type="103" groupAlignment="0" attributes="0">
+                          <Component id="assetB" alignment="0" min="-2" pref="93" max="-2" attributes="0"/>
+                          <Component id="agentB" alignment="1" min="-2" pref="93" max="-2" attributes="0"/>
+                      </Group>
+                  </Group>
+                  <Group type="102" alignment="1" attributes="0">
+                      <Group type="103" groupAlignment="0" attributes="0">
+                          <Group type="103" groupAlignment="0" attributes="0">
+                              <Group type="102" attributes="0">
+                                  <Group type="103" groupAlignment="1" attributes="0">
+                                      <Component id="handlerTF" alignment="0" max="32767" attributes="0"/>
+                                      <Component id="eventTF" max="32767" attributes="0"/>
+                                  </Group>
+                                  <EmptySpace min="-2" pref="6" max="-2" attributes="0"/>
+                              </Group>
+                              <Group type="102" alignment="1" attributes="0">
+                                  <Group type="103" groupAlignment="1" attributes="0">
+                                      <Component id="serverTF" alignment="0" max="32767" attributes="0"/>
+                                      <Component id="markupTF" max="32767" attributes="0"/>
+                                  </Group>
+                                  <EmptySpace max="-2" attributes="0"/>
+                              </Group>
+                              <Group type="102" alignment="1" attributes="0">
+                                  <Group type="103" groupAlignment="1" attributes="0">
+                                      <Component id="uiTF" alignment="0" max="32767" attributes="0"/>
+                                      <Component id="taskTF" max="32767" attributes="0"/>
+                                  </Group>
+                                  <EmptySpace max="-2" attributes="0"/>
+                              </Group>
+                          </Group>
+                          <Group type="102" alignment="0" attributes="0">
+                              <Group type="103" groupAlignment="0" attributes="0">
+                                  <Component id="descriptionL" alignment="0" min="-2" max="-2" attributes="0"/>
+                                  <Component id="agentL" alignment="0" min="-2" max="-2" attributes="0"/>
+                                  <Component id="assetL" alignment="0" min="-2" max="-2" attributes="0"/>
+                                  <Component id="messageL" alignment="0" min="-2" max="-2" attributes="0"/>
+                                  <Component id="componentL" alignment="0" min="-2" max="-2" attributes="0"/>
+                                  <Group type="102" attributes="0">
+                                      <Component id="openB" min="-2" max="-2" attributes="0"/>
+                                      <EmptySpace max="-2" attributes="0"/>
+                                      <Component id="saveB" min="-2" pref="81" max="-2" attributes="0"/>
+                                      <EmptySpace max="-2" attributes="0"/>
+                                      <Component id="saveAsB" min="-2" max="-2" attributes="0"/>
+                                  </Group>
+                                  <Component id="uiL" alignment="0" min="-2" max="-2" attributes="0"/>
+                                  <Component id="eventL" alignment="0" min="-2" max="-2" attributes="0"/>
+                                  <Component id="handlerL" alignment="0" min="-2" max="-2" attributes="0"/>
+                                  <Component id="markupL" alignment="0" min="-2" max="-2" attributes="0"/>
+                                  <Component id="serverL" alignment="0" min="-2" max="-2" attributes="0"/>
+                                  <Component id="taskL" alignment="0" min="-2" max="-2" attributes="0"/>
+                              </Group>
+                              <EmptySpace min="-2" pref="422" max="-2" attributes="0"/>
+                          </Group>
+                      </Group>
+                      <Group type="103" groupAlignment="0" max="-2" attributes="0">
                           <Component id="completeB" max="32767" attributes="0"/>
-                          <Component id="taskB" max="32767" attributes="0"/>
+                          <Component id="taskB" alignment="0" pref="93" max="32767" attributes="0"/>
+                          <Component id="serverB" alignment="0" max="32767" attributes="0"/>
+                          <Component id="markupB" max="32767" attributes="0"/>
                           <Component id="uiB" max="32767" attributes="0"/>
+                          <Component id="handlerB" alignment="0" max="32767" attributes="0"/>
+                          <Component id="eventB" alignment="0" max="32767" attributes="0"/>
                       </Group>
                   </Group>
               </Group>
-              <EmptySpace min="-2" pref="158" max="-2" attributes="0"/>
+              <EmptySpace min="-2" pref="12" max="-2" attributes="0"/>
           </Group>
       </Group>
     </DimensionLayout>
@@ -136,103 +129,102 @@
               <EmptySpace max="-2" attributes="0"/>
               <Component id="descriptionL" min="-2" max="-2" attributes="0"/>
               <EmptySpace max="-2" attributes="0"/>
-              <Component id="jScrollPane1" min="-2" max="-2" attributes="0"/>
-              <EmptySpace max="-2" attributes="0"/>
               <Group type="103" groupAlignment="1" attributes="0">
                   <Group type="102" attributes="0">
-                      <Component id="agentL" min="-2" max="-2" attributes="0"/>
+                      <Component id="jScrollPane1" min="-2" pref="48" max="-2" attributes="0"/>
                       <EmptySpace max="-2" attributes="0"/>
-                      <Component id="agentTF" min="-2" max="-2" attributes="0"/>
-                  </Group>
-                  <Component id="agentB" min="-2" pref="54" max="-2" attributes="0"/>
-              </Group>
-              <EmptySpace min="-2" pref="10" max="-2" attributes="0"/>
-              <Group type="103" groupAlignment="0" attributes="0">
-                  <Group type="102" attributes="0">
-                      <Component id="assetL" min="-2" max="-2" attributes="0"/>
+                      <Group type="103" groupAlignment="1" attributes="0">
+                          <Group type="102" attributes="0">
+                              <Component id="agentL" min="-2" max="-2" attributes="0"/>
+                              <EmptySpace max="-2" attributes="0"/>
+                              <Component id="agentTF" min="-2" max="-2" attributes="0"/>
+                          </Group>
+                          <Component id="agentB" min="-2" pref="48" max="-2" attributes="0"/>
+                      </Group>
                       <EmptySpace max="-2" attributes="0"/>
-                      <Component id="assetTF" min="-2" max="-2" attributes="0"/>
-                  </Group>
-                  <Component id="assetB" min="-2" pref="50" max="-2" attributes="0"/>
-              </Group>
-              <EmptySpace min="-2" pref="10" max="-2" attributes="0"/>
-              <Group type="103" groupAlignment="1" max="-2" attributes="0">
-                  <Group type="102" attributes="0">
-                      <Component id="componentL" min="-2" max="-2" attributes="0"/>
+                      <Group type="103" groupAlignment="1" attributes="0">
+                          <Group type="102" attributes="0">
+                              <Component id="assetL" min="-2" max="-2" attributes="0"/>
+                              <EmptySpace max="-2" attributes="0"/>
+                              <Component id="assetTF" min="-2" max="-2" attributes="0"/>
+                              <EmptySpace max="-2" attributes="0"/>
+                              <Component id="componentL" min="-2" max="-2" attributes="0"/>
+                              <EmptySpace max="-2" attributes="0"/>
+                              <Component id="componentTF" min="-2" max="-2" attributes="0"/>
+                          </Group>
+                          <Group type="102" attributes="0">
+                              <Component id="assetB" min="-2" pref="50" max="-2" attributes="0"/>
+                              <EmptySpace max="-2" attributes="0"/>
+                              <Component id="componentB" min="-2" pref="50" max="-2" attributes="0"/>
+                          </Group>
+                      </Group>
                       <EmptySpace max="-2" attributes="0"/>
-                      <Component id="componentTF" min="-2" max="-2" attributes="0"/>
-                  </Group>
-                  <Component id="componentB" max="32767" attributes="0"/>
-              </Group>
-              <EmptySpace max="-2" attributes="0"/>
-              <Group type="103" groupAlignment="0" attributes="0">
-                  <Group type="102" attributes="0">
-                      <Component id="messageL" min="-2" max="-2" attributes="0"/>
+                      <Group type="103" groupAlignment="1" attributes="0">
+                          <Group type="102" attributes="0">
+                              <Component id="messageL" min="-2" max="-2" attributes="0"/>
+                              <EmptySpace max="-2" attributes="0"/>
+                              <Component id="messageTF" min="-2" max="-2" attributes="0"/>
+                          </Group>
+                          <Component id="messageB" min="-2" pref="52" max="-2" attributes="0"/>
+                      </Group>
                       <EmptySpace max="-2" attributes="0"/>
-                      <Component id="messageTF" min="-2" max="-2" attributes="0"/>
-                  </Group>
-                  <Component id="messageB" min="-2" pref="52" max="-2" attributes="0"/>
-              </Group>
-              <EmptySpace max="-2" attributes="0"/>
-              <Group type="103" groupAlignment="0" max="-2" attributes="0">
-                  <Group type="102" attributes="0">
-                      <Component id="eventL" min="-2" max="-2" attributes="0"/>
+                      <Group type="103" groupAlignment="1" attributes="0">
+                          <Group type="102" attributes="0">
+                              <Component id="eventL" min="-2" max="-2" attributes="0"/>
+                              <EmptySpace max="-2" attributes="0"/>
+                              <Component id="eventTF" min="-2" max="-2" attributes="0"/>
+                          </Group>
+                          <Component id="eventB" min="-2" pref="50" max="-2" attributes="0"/>
+                      </Group>
                       <EmptySpace max="-2" attributes="0"/>
-                      <Component id="eventTF" min="-2" max="-2" attributes="0"/>
-                  </Group>
-                  <Component id="eventB" max="32767" attributes="0"/>
-              </Group>
-              <EmptySpace max="-2" attributes="0"/>
-              <Group type="103" groupAlignment="0" max="-2" attributes="0">
-                  <Group type="102" attributes="0">
-                      <Component id="handlerL" min="-2" max="-2" attributes="0"/>
+                      <Group type="103" groupAlignment="1" attributes="0">
+                          <Group type="102" attributes="0">
+                              <Component id="handlerL" min="-2" max="-2" attributes="0"/>
+                              <EmptySpace max="-2" attributes="0"/>
+                              <Component id="handlerTF" min="-2" max="-2" attributes="0"/>
+                          </Group>
+                          <Component id="handlerB" min="-2" pref="50" max="-2" attributes="0"/>
+                      </Group>
                       <EmptySpace max="-2" attributes="0"/>
-                      <Component id="handlerTF" min="-2" max="-2" attributes="0"/>
-                  </Group>
-                  <Component id="handlerB" max="32767" attributes="0"/>
-              </Group>
-              <EmptySpace max="-2" attributes="0"/>
-              <Group type="103" groupAlignment="0" max="-2" attributes="0">
-                  <Group type="102" attributes="0">
-                      <Component id="markupL" min="-2" max="-2" attributes="0"/>
+                      <Group type="103" groupAlignment="1" attributes="0">
+                          <Group type="102" attributes="0">
+                              <Component id="markupL" min="-2" max="-2" attributes="0"/>
+                              <EmptySpace max="-2" attributes="0"/>
+                              <Component id="markupTF" min="-2" max="-2" attributes="0"/>
+                          </Group>
+                          <Component id="markupB" min="-2" pref="50" max="-2" attributes="0"/>
+                      </Group>
                       <EmptySpace max="-2" attributes="0"/>
-                      <Component id="markupTF" min="-2" max="-2" attributes="0"/>
-                  </Group>
-                  <Component id="markupB" max="32767" attributes="0"/>
-              </Group>
-              <EmptySpace max="-2" attributes="0"/>
-              <Group type="103" groupAlignment="0" max="-2" attributes="0">
-                  <Group type="102" attributes="0">
-                      <Component id="serverL" min="-2" max="-2" attributes="0"/>
+                      <Group type="103" groupAlignment="1" attributes="0">
+                          <Group type="102" attributes="0">
+                              <Component id="serverL" min="-2" max="-2" attributes="0"/>
+                              <EmptySpace max="-2" attributes="0"/>
+                              <Component id="serverTF" min="-2" max="-2" attributes="0"/>
+                          </Group>
+                          <Component id="serverB" min="-2" pref="50" max="-2" attributes="0"/>
+                      </Group>
                       <EmptySpace max="-2" attributes="0"/>
-                      <Component id="serverTF" min="-2" max="-2" attributes="0"/>
-                  </Group>
-                  <Component id="serverB" max="32767" attributes="0"/>
-              </Group>
-              <EmptySpace max="-2" attributes="0"/>
-              <Group type="103" groupAlignment="0" max="-2" attributes="0">
-                  <Group type="102" attributes="0">
-                      <Component id="taskL" min="-2" max="-2" attributes="0"/>
-                      <EmptySpace min="-2" pref="7" max="-2" attributes="0"/>
-                      <Component id="taskTF" min="-2" max="-2" attributes="0"/>
-                  </Group>
-                  <Component id="taskB" max="32767" attributes="0"/>
-              </Group>
-              <EmptySpace max="-2" attributes="0"/>
-              <Group type="103" groupAlignment="0" max="-2" attributes="0">
-                  <Group type="102" alignment="0" attributes="0">
+                      <Group type="103" groupAlignment="1" attributes="0">
+                          <Group type="102" attributes="0">
+                              <Component id="taskL" min="-2" max="-2" attributes="0"/>
+                              <EmptySpace max="-2" attributes="0"/>
+                              <Component id="taskTF" min="-2" max="-2" attributes="0"/>
+                          </Group>
+                          <Component id="taskB" min="-2" pref="51" max="-2" attributes="0"/>
+                      </Group>
+                      <EmptySpace max="-2" attributes="0"/>
                       <Component id="uiL" min="-2" max="-2" attributes="0"/>
                       <EmptySpace max="-2" attributes="0"/>
                       <Component id="uiTF" min="-2" max="-2" attributes="0"/>
                   </Group>
-                  <Component id="uiB" alignment="1" min="-2" pref="50" max="-2" attributes="0"/>
+                  <Component id="uiB" min="-2" pref="50" max="-2" attributes="0"/>
               </Group>
               <EmptySpace max="-2" attributes="0"/>
               <Group type="103" groupAlignment="0" max="-2" attributes="0">
                   <Component id="completeB" max="32767" attributes="0"/>
-                  <Component id="saveAsB" alignment="0" pref="40" max="32767" attributes="0"/>
-                  <Component id="openB" alignment="0" pref="40" max="32767" attributes="0"/>
-                  <Component id="saveB" alignment="0" pref="40" max="32767" attributes="0"/>
+                  <Component id="saveAsB" alignment="0" max="32767" attributes="0"/>
+                  <Component id="openB" alignment="0" max="32767" attributes="0"/>
+                  <Component id="saveB" alignment="0" min="-2" pref="40" max="-2" attributes="0"/>
               </Group>
               <EmptySpace max="32767" attributes="0"/>
           </Group>
