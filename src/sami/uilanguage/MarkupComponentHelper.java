@@ -95,7 +95,8 @@ public class MarkupComponentHelper {
                     }
                 }
             } else {
-                if (supportedCreationClasses.contains(creationClass)) {
+                if (supportedCreationClasses.contains(creationClass)
+                        || (creationClass.isEnum() && supportedCreationClasses.contains(Enum.class))) {
                     score = 0;
                     if (score >= 0) {
                         for (Markup markup : markups) {
@@ -213,7 +214,8 @@ public class MarkupComponentHelper {
                     }
                 }
             } else {
-                if (supportedSelectionClasses.contains(selectionClass)) {
+                if (supportedSelectionClasses.contains(selectionClass)
+                        || (selectionClass.isEnum() && supportedSelectionClasses.contains(Enum.class))) {
                     score = 0;
                     for (Markup markup : markups) {
                         try {
@@ -326,7 +328,8 @@ public class MarkupComponentHelper {
                     }
                 }
             } else {
-                if (supportedCreationClasses.contains(creationClass)) {
+                if (supportedCreationClasses.contains(creationClass)
+                        || (creationClass.isEnum() && supportedCreationClasses.contains(Enum.class))) {
                     score = 0;
                 }
             }
@@ -385,7 +388,8 @@ public class MarkupComponentHelper {
                     }
                 }
             } else {
-                if (supportedSelectionClasses.contains(selectionClass)) {
+                if (supportedSelectionClasses.contains(selectionClass)
+                        || (selectionClass.isEnum() && supportedSelectionClasses.contains(Enum.class))) {
                     score = 0;
                 }
             }
