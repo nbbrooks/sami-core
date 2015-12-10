@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.logging.Logger;
 import javax.swing.tree.DefaultMutableTreeNode;
+import sami.variable.VariableReference;
 
 /**
  *
@@ -305,6 +306,66 @@ public class ProjectSpecification implements java.io.Serializable {
         }
         return variableNames;
     }
+    
+    public ArrayList<String> getMissionSpecVariables(Class targetClass, MissionPlanSpecification mSpec) {
+        ArrayList<String> variableNames = new ArrayList<String>();
+        if (targetClass == null) {
+            LOGGER.warning("Called getMissionSpecVariables with NULL targetClass");
+            return variableNames;
+        }
+        if (mSpec == null) {
+            LOGGER.warning("Called getMissionSpecVariables with NULL mSpec");
+            return variableNames;
+        }
+
+        if (mSpec.getTransientGraph() != null && mSpec.getTransientGraph().getEdges() != null) {
+            for (Vertex v : mSpec.getTransientGraph().getVertices()) {
+                if (mSpec.getEventSpecList(v) != null) {
+                    for (ReflectedEventSpecification eventSpec : mSpec.getEventSpecList(v)) {
+                        try {
+                            Class eventClass = Class.forName(eventSpec.getClassName());
+                            HashMap<String, String> writeVariables = eventSpec.getWriteVariables();
+                            for (String writeFieldName : writeVariables.keySet()) {
+                                boolean match = false;
+                                
+                                // For each field with a write variable assigned to it
+                                Field writeField = eventClass.getField(writeFieldName);
+                                if (java.util.Hashtable.class.isAssignableFrom(targetClass) && java.util.Hashtable.class.isAssignableFrom(writeField.getType())) {
+                                    // Hashtable check
+                                    LOGGER.warning("Cannot check Hashtable key and value classes from Class, assuming a match");
+                                    match = true;
+                                } else if (java.util.List.class.isAssignableFrom(targetClass) && java.util.List.class.isAssignableFrom(writeField.getType())) {
+                                    // List check
+                                    LOGGER.warning("Cannot check List item class from Class, assuming a match");
+                                    match = true;
+                                } else if (writeField.getType() instanceof Class && (Class) writeField.getType() == VariableReference.class) {
+                                    if (classTypeMatch(targetClass, (Class) writeField.getType())) {
+                                        match = true;
+                                    }
+                                } else if (writeField.getType() instanceof Class) {
+                                    if (classTypeMatch(targetClass, (Class) writeField.getType())) {
+                                        match = true;
+                                    }
+                                }
+                                if (match) {
+                                    String writeVariable = writeVariables.get(writeFieldName);
+                                    if (!variableNames.contains(writeVariable)) {
+                                        variableNames.add(writeVariable);
+                                    }
+                                    LOGGER.fine("Adding " + writeVariable + " to variable list");
+                                }
+                            }
+                        } catch (ClassNotFoundException ex) {
+                            ex.printStackTrace();
+                        } catch (NoSuchFieldException ex) {
+                            ex.printStackTrace();
+                        }
+                    }
+                }
+            }
+        }
+        return variableNames;
+    }
 
     public ArrayList<String> getVariablesInScope(Field targetField, MissionPlanSpecification mSpecScope) {
         ArrayList<String> useableVariableNames = new ArrayList<String>();
@@ -330,6 +391,10 @@ public class ProjectSpecification implements java.io.Serializable {
         // Add compatible global variables
         for (String variable : globalVariables.keySet()) {
             Object globalValue = globalVariables.get(variable);
+            if(globalValue == null) { 
+                LOGGER.severe("Global variable \"" + variable + "\" has NULL definition, skipping");
+                continue;
+            }
             boolean match = false;
 
             if (java.util.Hashtable.class.isAssignableFrom(targetField.getType()) && java.util.Hashtable.class.isAssignableFrom(globalValue.getClass())) {
@@ -388,6 +453,58 @@ public class ProjectSpecification implements java.io.Serializable {
             } else if (primitiveTypeMatch(targetField.getType(), globalVariables.get(variable).getClass())) {
                 match = true;
             } else if (targetField.getType().isAssignableFrom(globalVariables.get(variable).getClass())) {
+                match = true;
+            }
+
+            if (match && !useableVariableNames.contains(variable)) {
+                useableVariableNames.add(variable);
+            }
+            LOGGER.fine("Adding " + variable + " to variable list");
+        }
+        return useableVariableNames;
+    }
+    
+    public ArrayList<String> getVariablesInScope(Class targetClass, MissionPlanSpecification mSpecScope) {
+        ArrayList<String> useableVariableNames = new ArrayList<String>();
+
+        // Add compatible variables in current PM, if one exists
+        if (mSpecScope != null) {
+            ArrayList<String> mSpecVariableNames = getMissionSpecVariables(targetClass, mSpecScope);
+            for (String variableName : mSpecVariableNames) {
+                useableVariableNames.add(variableName);
+            }
+            // Add compatible variables from parent PMs, if any exist
+            MissionPlanSpecification recursiveScope = mSpecScope;
+            while (childToParent.containsKey(recursiveScope) && childToParent.get(recursiveScope) != null) {
+                recursiveScope = childToParent.get(recursiveScope);
+                mSpecVariableNames = getMissionSpecVariables(targetClass, recursiveScope);
+                for (String variableName : mSpecVariableNames) {
+                    if (!useableVariableNames.contains(variableName)) {
+                        useableVariableNames.add(variableName);
+                    }
+                }
+            }
+        }
+        // Add compatible global variables
+        for (String variable : globalVariables.keySet()) {
+            Object globalValue = globalVariables.get(variable);
+            if(globalValue == null) { 
+                LOGGER.severe("Global variable \"" + variable + "\" has NULL definition, skipping");
+                continue;
+            }
+            boolean match = false;
+
+            if (java.util.Hashtable.class.isAssignableFrom(targetClass) && java.util.Hashtable.class.isAssignableFrom(globalValue.getClass())) {
+                // Hashtable check
+                LOGGER.warning("Cannot check Hashtable key and value classes from Class, assuming a match");
+                match = true;
+            } else if (java.util.List.class.isAssignableFrom(targetClass) && java.util.List.class.isAssignableFrom(globalValue.getClass())) {
+                // List check
+                LOGGER.warning("Cannot check List item class from Class, assuming a match");
+                match = true;
+            } else if (primitiveTypeMatch(targetClass, globalVariables.get(variable).getClass())) {
+                match = true;
+            } else if (targetClass.isAssignableFrom(globalVariables.get(variable).getClass())) {
                 match = true;
             }
 
