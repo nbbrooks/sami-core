@@ -1,6 +1,7 @@
 package sami.uilanguage.toui;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.UUID;
@@ -8,6 +9,7 @@ import java.util.logging.Logger;
 import sami.event.OperatorCreateOutputEvent;
 import sami.event.ReflectedEventSpecification;
 import sami.event.ReflectionHelper;
+import sami.variable.Variable;
 import sami.variable.VariableName;
 
 /**
@@ -20,12 +22,14 @@ public class CreationMessage extends ToUiMessage {
     protected final Hashtable<ReflectedEventSpecification, Hashtable<Field, String>> eventSpecToFieldDescriptions;
     protected final Hashtable<Field, String> fieldToDescriptions;
     protected final Hashtable<VariableName, String> variableNameToDescription;
-
+    protected final ArrayList<Variable> variablesToDefine;
+    
     public CreationMessage(UUID relevantOutputEventId, UUID missionId, int priority, Hashtable<ReflectedEventSpecification, Hashtable<Field, String>> eventSpecToFieldDescriptions) {
         super(relevantOutputEventId, missionId, priority);
         this.eventSpecToFieldDescriptions = eventSpecToFieldDescriptions;
         this.fieldToDescriptions = null;
         this.variableNameToDescription = null;
+        this.variablesToDefine = null;
     }
 
     public CreationMessage(UUID relevantOutputEventId, UUID missionId, int priority, Hashtable<VariableName, String> variableNameToDescription, int erasureThrowaway) {
@@ -33,12 +37,23 @@ public class CreationMessage extends ToUiMessage {
         this.eventSpecToFieldDescriptions = null;
         this.fieldToDescriptions = null;
         this.variableNameToDescription = variableNameToDescription;
+        this.variablesToDefine = null;
+    }
+
+    public CreationMessage(UUID relevantOutputEventId, UUID missionId, int priority, ArrayList<Variable> variablesToDefine) {
+        //@todo this isn't handled in getFromUiMessage or QueueItem
+        super(relevantOutputEventId, missionId, priority);
+        this.eventSpecToFieldDescriptions = null;
+        this.fieldToDescriptions = null;
+        this.variableNameToDescription = null;
+        this.variablesToDefine = variablesToDefine;
     }
 
     public CreationMessage(UUID relevantOutputEventId, UUID missionId, int priority, OperatorCreateOutputEvent ooe) {
         super(relevantOutputEventId, missionId, priority);
         this.eventSpecToFieldDescriptions = null;
         this.variableNameToDescription = null;
+        this.variablesToDefine = null;
 
         fieldToDescriptions = new Hashtable<Field, String>();
         try {
@@ -71,6 +86,7 @@ public class CreationMessage extends ToUiMessage {
     @Override
     public String toString() {
         return "CreationMessage [" + (eventSpecToFieldDescriptions != null ? eventSpecToFieldDescriptions.toString() : "null") + ", "
+                + (variablesToDefine != null ? variableNameToDescription.toString() : "null")  + ", "
                 + (variableNameToDescription != null ? variableNameToDescription.toString() : "null") + "]";
     }
 }
