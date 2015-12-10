@@ -34,12 +34,11 @@ public class UTMCoordinate implements Serializable {
         }
     }
 
-    public UTMCoordinate(double northing, double easting, String zone) {
-        this.northing = northing;
+    public UTMCoordinate(double easting, double northing, String zone) {
         this.easting = easting;
+        this.northing = northing;
         this.zone = zone;
         hemisphere = ((int) zone.charAt(zone.length() - 1)) - ((int) 'N') >= 0 ? Hemisphere.NORTH : Hemisphere.SOUTH;
-
     }
 
     public double getNorthing() {
@@ -83,6 +82,6 @@ public class UTMCoordinate implements Serializable {
     }
 
     public String toString() {
-        return "UTMCoordinate: [" + northing + ", " + easting + ", " + zone + "]";
+        return "UTMCoordinate: [" + easting + ", " + northing + ", " + zone + "]";
     }
 }

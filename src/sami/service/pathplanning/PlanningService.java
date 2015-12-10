@@ -107,7 +107,7 @@ public class PlanningService {
                     // Add a slight offset to the current location, otherwise
                     //  the proxy will spin in place indefinitely
                     Location start = objective.getStartLocation();
-                    Location startOffset = new Location(new UTMCoordinate(start.getCoordinate().getNorthing() + 1, start.getCoordinate().getEasting(), start.getCoordinate().getZone()), start.getAltitude());
+                    Location startOffset = new Location(new UTMCoordinate(start.getCoordinate().getEasting(), start.getCoordinate().getNorthing() + 1, start.getCoordinate().getZone()), start.getAltitude());
                     wps.add(startOffset);
                     wps.add(objective.getEndLocation());
                     PathUtm path = new PathUtm(wps);
@@ -118,7 +118,7 @@ public class PlanningService {
                         // Add a slight offset to the current location, otherwise
                         //  the proxy will spin in place indefinitely
                         start = objective.getStartLocation();
-                        startOffset = new Location(new UTMCoordinate(start.getCoordinate().getNorthing() + 1, start.getCoordinate().getEasting(), start.getCoordinate().getZone()), start.getAltitude());
+                        startOffset = new Location(new UTMCoordinate(start.getCoordinate().getEasting(), start.getCoordinate().getNorthing() + 1, start.getCoordinate().getZone()), start.getAltitude());
                         altWps.add(startOffset);
                         altWps.add(objective.getEndLocation());
                         altPaths.add(new PathUtm(altWps));
