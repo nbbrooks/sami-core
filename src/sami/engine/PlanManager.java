@@ -423,8 +423,11 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         //  in finishSetup() if there were missing parameters
         enterPlace(drmStartPlace, tokens, true);
     }
-
     private synchronized boolean checkTransition(Transition transition) {
+        return checkTransitionForAbort(transition, false);
+    }
+
+    private synchronized boolean checkTransitionForAbort(Transition transition, boolean ignoreSubMissions) {
         Level logLevel = CHECK_T_LVL;
         LOGGER.log(logLevel, "Checking " + transition);
 
@@ -454,16 +457,18 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 // Get incoming Place
                 Place inPlace = inEdge.getStart();
 
-                ////
-                // Check that if there is a sub-mission that it has completed
-                ////
-                boolean allSubMFinished = !placeToActiveSmPlanManagers.containsKey(inPlace) || (placeToActiveSmPlanManagers.containsKey(inPlace) && placeToActiveSmPlanManagers.get(inPlace).isEmpty());
-                if (!allSubMFinished) {
-                    LOGGER.log(logLevel, "\tSub-missions " + placeToActiveSmPlanManagers.get(inPlace) + " on " + inPlace + " are not yet complete");
-                    failure = true;
-                    break check;
-                } else if (allSubMFinished && placeToActiveSmPlanManagers.containsKey(inPlace)) {
-                    LOGGER.log(logLevel, "\tSub-missions on " + inPlace + " are complete");
+                if(!ignoreSubMissions) {
+                    ////
+                    // Check that if there is a sub-mission that it has completed
+                    ////
+                    boolean allSubMFinished = !placeToActiveSmPlanManagers.containsKey(inPlace) || (placeToActiveSmPlanManagers.containsKey(inPlace) && placeToActiveSmPlanManagers.get(inPlace).isEmpty());
+                    if (!allSubMFinished) {
+                        LOGGER.log(logLevel, "\tSub-missions " + placeToActiveSmPlanManagers.get(inPlace) + " on " + inPlace + " are not yet complete");
+                        failure = true;
+                        break check;
+                    } else if (allSubMFinished && placeToActiveSmPlanManagers.containsKey(inPlace)) {
+                        LOGGER.log(logLevel, "\tSub-missions on " + inPlace + " are complete");
+                    }
                 }
 
                 ////
@@ -2745,6 +2750,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         if (updatedParamEvent.toString().contains("ProxyPoseUpdated")) {
             detailsLogLevel = Level.FINEST;
         }
+        boolean checkingForAbort = updatedParamEvent instanceof AbortMissionReceived;
 
         InputEvent generatorEvent = updatedParamEvent.getGeneratorEvent();
         if (!inputEventToTransitionMap.containsKey(updatedParamEvent)) {
@@ -2844,7 +2850,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             // Repaint viewer
             Engine.getInstance().repaintPlan(this);
 
-            boolean execute = checkTransition(transition);
+            boolean execute = checkTransitionForAbort(transition, checkingForAbort);
             if (execute) {
                 executeTransition(transition);
             }
