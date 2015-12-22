@@ -423,6 +423,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
         //  in finishSetup() if there were missing parameters
         enterPlace(drmStartPlace, tokens, true);
     }
+
     private synchronized boolean checkTransition(Transition transition) {
         return checkTransitionForAbort(transition, false);
     }
@@ -457,7 +458,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                 // Get incoming Place
                 Place inPlace = inEdge.getStart();
 
-                if(!ignoreSubMissions) {
+                if (!ignoreSubMissions) {
                     ////
                     // Check that if there is a sub-mission that it has completed
                     ////
@@ -1932,8 +1933,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             if (place.removeToken(token)) {
                 LOGGER.log(Level.FINE, "\tRemoved " + token + " from " + place);
             } else {
-                LOGGER.log(Level.SEVERE, "\tTrying to leave " + place + ", but am missing " + token);
-                System.exit(0);
+                LOGGER.severe("\tTrying to leave " + place + ", but am missing " + token);
             }
         }
 
@@ -2376,7 +2376,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             if (generatedEvent.getRelevantOutputEventId() != null) {
                 match = false;
                 if (paramEvent.getRelevantOutputEventId() != null) {
-                        LOGGER.log(detailsLogLevel, "\t\tparamEvent has relevant OE UUID: " + paramEvent.getRelevantOutputEventId());
+                    LOGGER.log(detailsLogLevel, "\t\tparamEvent has relevant OE UUID: " + paramEvent.getRelevantOutputEventId());
                     //  We set a relevant OE UUID the OIR during its instantiation so each interrupt is distinct
                     if (paramEvent.getRelevantOutputEventId().equals(generatedEvent.getRelevantOutputEventId())) {
                         LOGGER.log(detailsLogLevel, "\t\tMatching success on relevant OE UUID: " + paramEvent.getId() + " found in paramEvent");
@@ -2388,7 +2388,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                     ArrayList<Place> inPlaces = transition.getInPlaces();
                     for (Place inPlace : inPlaces) {
                         for (OutputEvent oe : inPlace.getOutputEvents()) {
-                                LOGGER.log(detailsLogLevel, "\t\t\tcomparing " + oe.getId() + " and " + generatedEvent.getRelevantOutputEventId());
+                            LOGGER.log(detailsLogLevel, "\t\t\tcomparing " + oe.getId() + " and " + generatedEvent.getRelevantOutputEventId());
                             if (oe.getId().equals(generatedEvent.getRelevantOutputEventId())) {
                                 LOGGER.log(detailsLogLevel, "\t\tMatching success on relevant OE UUID: " + oe.getId() + " found on incoming Place: " + inPlace);
                                 match = true;
@@ -2407,16 +2407,16 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             } else {
                 LOGGER.log(detailsLogLevel, "\t\tMatching success on UUID - no UUID to match against");
             }
-            
+
             // Special case for OperatorInterruptReceived
             if (generatedEvent instanceof OperatorInterruptReceived && paramEvent instanceof OperatorInterruptReceived) {
                 match = ((OperatorInterruptReceived) generatedEvent).getInterruptName().equals(((OperatorInterruptReceived) paramEvent).getInterruptName());
-                if(match) {
-                    LOGGER.log(detailsLogLevel, "\t\tMatching success on OperatorInterruptReceived interrupt name: " +
-                            ((OperatorInterruptReceived) generatedEvent).getInterruptName());
+                if (match) {
+                    LOGGER.log(detailsLogLevel, "\t\tMatching success on OperatorInterruptReceived interrupt name: "
+                            + ((OperatorInterruptReceived) generatedEvent).getInterruptName());
                 } else {
-                    LOGGER.log(detailsLogLevel, "\t\tMatching failure on OperatorInterruptReceived interrupt name: " 
-                            + ((OperatorInterruptReceived) generatedEvent).getInterruptName() + " v " 
+                    LOGGER.log(detailsLogLevel, "\t\tMatching failure on OperatorInterruptReceived interrupt name: "
+                            + ((OperatorInterruptReceived) generatedEvent).getInterruptName() + " v "
                             + ((OperatorInterruptReceived) paramEvent).getInterruptName());
                     continue;
                 }
@@ -2612,7 +2612,6 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                             if (hasRtReq) {
                                 if (!(inEdge.getStart() instanceof Place)) {
                                     LOGGER.severe("Incoming edge to a transition was not a place!");
-                                    System.exit(0);
                                 }
                                 for (Token token : ((Place) inEdge.getStart()).getTokens()) {
                                     if (token.getType() == TokenType.Task && !tasksToCheck.contains(token.getTask())) {

@@ -238,7 +238,6 @@ public class MissionPlanSpecification implements java.io.Serializable {
             }
         }
         Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, "MissionPlanSpecification has no start state!");
-        System.exit(0);
         return null;
     }
 
@@ -259,8 +258,7 @@ public class MissionPlanSpecification implements java.io.Serializable {
                 } else if (vertex instanceof Place && e instanceof OutputEvent) {
                     ((Place) vertex).addOutputEvent((OutputEvent) e);
                 } else {
-                    Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, "Have a mismatch of classes in vertexToEventSpecListMap!");
-                    System.exit(0);
+                    LOGGER.severe("Have a mismatch of classes in vertexToEventSpecListMap!");
                 }
             }
         }

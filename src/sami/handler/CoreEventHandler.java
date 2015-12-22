@@ -17,8 +17,11 @@ import sami.event.CompleteMission;
 import sami.event.GeneratedEventListenerInt;
 import sami.event.GeneratedInputEventSubscription;
 import sami.event.GetAllProxyTokens;
+import sami.event.InputEvent;
 import sami.event.OutputEvent;
 import sami.event.ProxyAbortMissionReceived;
+import sami.event.ProxyStartTimer;
+import sami.event.ProxyTimerExpired;
 import sami.event.RefreshTasks;
 import sami.event.ReturnValue;
 import sami.event.SendAbortMission;
@@ -42,8 +45,10 @@ import sami.service.information.InformationServiceProviderInt;
 public class CoreEventHandler implements EventHandlerInt, InformationServiceProviderInt {
 
     private static final Logger LOGGER = Logger.getLogger(CoreEventHandler.class.getName());
-    ArrayList<GeneratedEventListenerInt> listeners = new ArrayList<GeneratedEventListenerInt>();
+    final ArrayList<GeneratedEventListenerInt> listeners = new ArrayList<GeneratedEventListenerInt>();
     HashMap<GeneratedEventListenerInt, Integer> listenerGCCount = new HashMap<GeneratedEventListenerInt, Integer>();
+    HashMap<UUID, Timer> timerLookup = new HashMap<UUID, Timer>();
+    HashMap<UUID, HashMap<ProxyInt, Timer>> proxyTimerLookup = new HashMap<UUID, HashMap<ProxyInt, Timer>>();
 
     public CoreEventHandler() {
         InformationServer.addServiceProvider(this);
@@ -76,12 +81,43 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
                     for (OutputEvent proxyOe : outputEvents) {
                         if (!missionIds.contains(proxyOe.getMissionId())) {
                             missionIds.add(proxyOe.getMissionId());
+
+                            // Check that PM has an active ProxyAbortMissionReceived that will handle this
+                            //  Shared SMs may not currently have any active places, so the IE will not trigger a transition
+                            //  Non-shared SMs should have an active place which will trigger a transition, but check just in case
+                            PlanManager eventPm = Engine.getInstance().getPlanManager(proxyOe.getMissionId());
+                            if (eventPm == null) {
+                                //severe
+                                continue;
+                            }
+                            boolean found = false;
+                            ArrayList<InputEvent> eventPmActiveInputEvents = eventPm.getActiveInputEventsClone();
+                            for (InputEvent ie : eventPmActiveInputEvents) {
+                                if (ie instanceof ProxyAbortMissionReceived) {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found) {
+                                // No active AbortMissionReceived in the SM
+                                if (!eventPm.getIsSharedSm()) {
+                                    LOGGER.severe("Want to send ProxyAbortMissionReceived to non-shared SM, but it has no active IE, manually aborting proxy from SM");
+                                }
+                                        // Abort this PM manually
+                                //@todo this only goes one layer deep - what if SM has SM also without ProxyAbortMissionReceived?
+                                token.getProxy().abortMission(eventPm.missionId);
+                            } else {
+                                eventPm.eventGenerated(new ProxyAbortMissionReceived(eventPm.missionId, relevantProxies));
+                            }
                         }
                     }
                     // Send proxy abort mission for each mission
                     for (UUID missionId : missionIds) {
                         ProxyAbortMissionReceived pamr = new ProxyAbortMissionReceived(missionId, relevantProxies);
-                        ArrayList<GeneratedEventListenerInt> listenersCopy = (ArrayList<GeneratedEventListenerInt>) listeners.clone();
+                        ArrayList<GeneratedEventListenerInt> listenersCopy;
+                        synchronized (listeners) {
+                            listenersCopy = (ArrayList<GeneratedEventListenerInt>) listeners.clone();
+                        }
                         for (GeneratedEventListenerInt listener : listenersCopy) {
                             listener.eventGenerated(pamr);
                         }
@@ -110,7 +146,10 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
                     // Send proxy abort mission for each mission
                     for (UUID missionId : missionIds) {
                         ProxyAbortMissionReceived pamr = new ProxyAbortMissionReceived(missionId, relevantProxies);
-                        ArrayList<GeneratedEventListenerInt> listenersCopy = (ArrayList<GeneratedEventListenerInt>) listeners.clone();
+                        ArrayList<GeneratedEventListenerInt> listenersCopy;
+                        synchronized (listeners) {
+                            listenersCopy = (ArrayList<GeneratedEventListenerInt>) listeners.clone();
+                        }
                         for (GeneratedEventListenerInt listener : listenersCopy) {
                             listener.eventGenerated(pamr);
                         }
@@ -121,24 +160,80 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
             // We will move all tokens out of all places in the plan and be in an end Recovery place
             //  Do nothing (abort mission is handled by PlanManager)
             AbortMissionReceived amr = new AbortMissionReceived(oe.getMissionId());
-            ArrayList<GeneratedEventListenerInt> listenersCopy = (ArrayList<GeneratedEventListenerInt>) listeners.clone();
+            ArrayList<GeneratedEventListenerInt> listenersCopy;
+            synchronized (listeners) {
+                listenersCopy = (ArrayList<GeneratedEventListenerInt>) listeners.clone();
+            }
             for (GeneratedEventListenerInt listener : listenersCopy) {
                 listener.eventGenerated(amr);
             }
         } else if (oe instanceof StartTimer) {
+            // When looping back via non TimerExpired branch and starting a new StartTimer, first one could expire and trigger 
+            // Solution: OE UUID -> Timer lookup, kill/modify it if it already exists
+            if (oe.getId() == null) {
+                oe.setId(UUID.randomUUID());
+                LOGGER.severe("StartTimer OE had no OE ID, created one: " + oe.getId());
+            }
+            if (timerLookup.containsKey(oe.getId())) {
+                timerLookup.get(oe.getId()).stop();
+            }
             Timer timer = new Timer(((StartTimer) oe).timerDuration * 1000, new ActionListener() {
 
                 @Override
                 public void actionPerformed(ActionEvent ae) {
                     TimerExpired te = new TimerExpired(oe.getId(), oe.getMissionId());
-                    ArrayList<GeneratedEventListenerInt> listenersCopy = (ArrayList<GeneratedEventListenerInt>) listeners.clone();
+                    ArrayList<GeneratedEventListenerInt> listenersCopy;
+                    synchronized (listeners) {
+                        listenersCopy = (ArrayList<GeneratedEventListenerInt>) listeners.clone();
+                    }
                     for (GeneratedEventListenerInt listener : listenersCopy) {
                         listener.eventGenerated(te);
                     }
                 }
             });
+            timerLookup.put(oe.getId(), timer);
             timer.setRepeats(false);
             timer.start();
+        } else if (oe instanceof ProxyStartTimer) {
+            // When looping back via non ProxyTimerExpired branch and starting a new ProxyStartTimer, first one could expire and trigger 
+            // Solution: OE UUID -> Proxy -> Timer lookup, kill/modify it if it already exists
+            if (oe.getId() == null) {
+                oe.setId(UUID.randomUUID());
+                LOGGER.severe("ProxyStartTimer OE had no OE ID, created one: " + oe.getId());
+            }
+            HashMap<ProxyInt, Timer> lookup;
+            if (proxyTimerLookup.containsKey(oe.getId())) {
+                lookup = proxyTimerLookup.get(oe.getId());
+            } else {
+                lookup = new HashMap<ProxyInt, Timer>();
+                proxyTimerLookup.put(oe.getId(), lookup);
+            }
+            for (final Token token : tokens) {
+                if (token.getProxy() != null) {
+                    if (lookup.containsKey(token.getProxy())) {
+                        lookup.get(token.getProxy()).stop();
+                    }
+                    Timer timer = new Timer(((ProxyStartTimer) oe).timerDuration * 1000, new ActionListener() {
+
+                        @Override
+                        public void actionPerformed(ActionEvent ae) {
+                            ArrayList<ProxyInt> expiredProxies = new ArrayList<ProxyInt>();
+                            expiredProxies.add(token.getProxy());
+                            ProxyTimerExpired pte = new ProxyTimerExpired(oe.getId(), oe.getMissionId(), expiredProxies);
+                            ArrayList<GeneratedEventListenerInt> listenersCopy;
+                            synchronized (listeners) {
+                                listenersCopy = (ArrayList<GeneratedEventListenerInt>) listeners.clone();
+                            }
+                            for (GeneratedEventListenerInt listener : listenersCopy) {
+                                listener.eventGenerated(pte);
+                            }
+                        }
+                    });
+                    lookup.put(token.getProxy(), timer);
+                    timer.setRepeats(false);
+                    timer.start();
+                }
+            }
         } else if (oe instanceof ReturnValue) {
             ReturnValue returnValue = (ReturnValue) oe;
             PlanManager pm = Engine.getInstance().getPlanManager(returnValue.getMissionId());
@@ -195,7 +290,10 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
             }
         } else if (oe instanceof GetAllProxyTokens) {
             TokensReturned tr = new TokensReturned(oe.getId(), oe.getMissionId(), Engine.getInstance().getAllProxies());
-            ArrayList<GeneratedEventListenerInt> listenersCopy = (ArrayList<GeneratedEventListenerInt>) listeners.clone();
+            ArrayList<GeneratedEventListenerInt> listenersCopy;
+            synchronized (listeners) {
+                listenersCopy = (ArrayList<GeneratedEventListenerInt>) listeners.clone();
+            }
             for (GeneratedEventListenerInt listener : listenersCopy) {
                 listener.eventGenerated(tr);
             }
@@ -212,18 +310,22 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
     @Override
     public boolean offer(GeneratedInputEventSubscription sub) {
         LOGGER.log(Level.FINE, "CoreEventHandler offered subscription: " + sub);
-        if (sub.getSubscriptionClass() == AbortMissionReceived.class
-                || sub.getSubscriptionClass() == TimerExpired.class
-                || sub.getSubscriptionClass() == TokensReturned.class) {
-            LOGGER.log(Level.FINE, "\tCoreEventHandler took subscription request: " + sub);
-            if (!listeners.contains(sub.getListener())) {
-                LOGGER.log(Level.FINE, "\t\tCoreEventHandler adding listener: " + sub.getListener());
-                listeners.add(sub.getListener());
-                listenerGCCount.put(sub.getListener(), 1);
+        synchronized (listeners) {
+            if (sub.getSubscriptionClass() == AbortMissionReceived.class
+                    || sub.getSubscriptionClass() == ProxyAbortMissionReceived.class
+                    || sub.getSubscriptionClass() == TimerExpired.class
+                    || sub.getSubscriptionClass() == ProxyTimerExpired.class
+                    || sub.getSubscriptionClass() == TokensReturned.class) {
+                LOGGER.log(Level.FINE, "\tCoreEventHandler took subscription request: " + sub);
+                if (!listeners.contains(sub.getListener())) {
+                    LOGGER.log(Level.FINE, "\t\tCoreEventHandler adding listener: " + sub.getListener());
+                    listeners.add(sub.getListener());
+                    listenerGCCount.put(sub.getListener(), 1);
+                }
+                return true;
             }
-            return true;
+            return false;
         }
-        return false;
     }
 
     /**
@@ -237,12 +339,16 @@ public class CoreEventHandler implements EventHandlerInt, InformationServiceProv
     @Override
     public boolean cancel(GeneratedInputEventSubscription sub) {
         LOGGER.log(Level.FINE, "CoreEventHandler asked to cancel subscription: " + sub);
-        if ((sub.getSubscriptionClass() == AbortMissionReceived.class
-                || sub.getSubscriptionClass() == TimerExpired.class
-                || sub.getSubscriptionClass() == TokensReturned.class)
-                && listeners.contains(sub.getListener())) {
-            return true;
+        synchronized (listeners) {
+            if ((sub.getSubscriptionClass() == AbortMissionReceived.class
+                    || sub.getSubscriptionClass() == ProxyAbortMissionReceived.class
+                    || sub.getSubscriptionClass() == TimerExpired.class
+                    || sub.getSubscriptionClass() == ProxyTimerExpired.class
+                    || sub.getSubscriptionClass() == TokensReturned.class)
+                    && listeners.contains(sub.getListener())) {
+                return true;
+            }
+            return false;
         }
-        return false;
     }
 }

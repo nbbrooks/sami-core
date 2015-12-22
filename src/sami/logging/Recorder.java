@@ -30,6 +30,13 @@ import sami.ui.MissionMonitor;
  */
 public class Recorder {
 
+    private static final Logger LOGGER = Logger.getLogger(Recorder.class.getName());
+    /*
+    IMPORTANT!!!
+    WHEN CHANGING ENABLED, FORCE A CLEAN AND REBUILD ON EVERY FILE THAT REFERENCES THIS BECAUSE NETBEANS DOESN'T!
+    A FORCED CLEAN AND REBUILD ON PROJECT DOENS'T SEEM TO BE SUFFICIENT?
+    //@todo verify
+    */
     public static final boolean ENABLED = false;
 
     FileWriter playbackWriter;
@@ -138,7 +145,7 @@ public class Recorder {
             }
         }
     }
-
+    
     public void recordPlanState(PlanManager pm) {
         if (!ENABLED) {
             return;

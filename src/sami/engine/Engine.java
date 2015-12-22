@@ -334,6 +334,15 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
         return missionIdToPlanManager.get(missionId);
     }
 
+    public ArrayList<PlanManager> getSubPlanManagers(UUID parentMissionId) {
+        PlanManager parentPm = missionIdToPlanManager.get(parentMissionId);
+        if (pmToSubPms.containsKey(parentPm)) {
+            return ((ArrayList< PlanManager>) pmToSubPms.get(parentPm).clone());
+        } else {
+            return new ArrayList<PlanManager>();
+        }
+    }
+
     public void linkTask(Task task, PlanManager planManager) {
         taskToPlanManager.put(task, planManager);
     }
@@ -556,10 +565,10 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
 
         //@todo add CompleteMission events so we can comment this out again
         // Do this in CoreEventHandler
-        for(ProxyInt proxy : proxies) {
+        for (ProxyInt proxy : proxies) {
             proxy.completeMission(planManager.missionId);
         }
-        
+
         // Now force completion of any sub-missions
         //  Only do immediate children, as this will recurse
         if (pmToSubPms.containsKey(planManager)) {
@@ -639,9 +648,10 @@ public class Engine implements ProxyServerListenerInt, ObserverServerListenerInt
                 if (!found) {
                     // No active AbortMissionReceived in the SM
                     if (!subPm.getIsSharedSm()) {
-                        LOGGER.severe("Want to send AbortMissionReceived to non-shared SM, but it has no active IE, manually ending SM");
+                        LOGGER.severe("Want to send AbortMissionReceived to non-shared SM, but it has no active IE, manually aborting SM");
                     }
                     // Abort this PM manually
+                    //@todo this only goes one layer deep - what if SM has SM also without AbortMissionReceived?
                     abort(subPm);
                 } else {
                     subPm.eventGenerated(new AbortMissionReceived(subPm.missionId));

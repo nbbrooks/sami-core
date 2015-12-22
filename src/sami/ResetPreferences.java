@@ -26,6 +26,13 @@ public class ResetPreferences {
                 p.put("LAST_DREAAM_DCF_NAME", "");
                 p.put("LAST_DREAAM_DCF_FOLDER", "");
                 p.put("LAST_DREAAM_CFG_FOLDER", "");
+                p.put("LAST_DRM_NAME_CRW", "");
+                p.put("LAST_DRM_FOLDER_CRW", "");
+                p.put("LAST_EPF_NAME_CRW", "");
+                p.put("LAST_EPF_FOLDER_CRW", "");
+                p.put("LAST_DREAAM_DCF_NAME_CRW", "");
+                p.put("LAST_DREAAM_DCF_FOLDER_CRW", "");
+                p.put("LAST_DREAAM_CFG_FOLDER_CRW", "");
             }
         } catch (AccessControlException e) {
             LOGGER.severe("Preferences.userRoot access control exception: " + e.toString());

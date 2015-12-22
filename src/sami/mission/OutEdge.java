@@ -118,6 +118,9 @@ public class OutEdge extends Edge {
     private void readObject(ObjectInputStream ois) {
         try {
             ois.defaultReadObject();
+            if (lockedTokenRequirements == null) {
+                lockedTokenRequirements = new ArrayList<OutTokenRequirement>();
+            }
             updateTag();
         } catch (IOException ex) {
         } catch (ClassNotFoundException ex) {
