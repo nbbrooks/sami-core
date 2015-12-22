@@ -34,16 +34,16 @@ public class RelevantProxy extends Markup {
     };
 
     static {
-//        enumFieldNames.add("proxies");
+        enumFieldNames.add("proxies");
         enumFieldNames.add("showPaths");
 
-//        enumNameToDescription.put("proxies", "Which proxies are relevant?");
-//        enumNameToDescription.put("showPaths", "Show proxies' paths?");
+        enumNameToDescription.put("proxies", "Which proxies are relevant?");
+        enumNameToDescription.put("showPaths", "Show proxies' paths?");
 
-//        enumValueToFieldName.put(Proxies.ALL_PROXIES, null);
-//        enumValueToFieldName.put(Proxies.RELEVANT_PROXIES, null);
-//        enumValueToFieldName.put(ShowPaths.NO, null);
-//        enumValueToFieldName.put(ShowPaths.YES, null);
+        enumValueToFieldName.put(Proxies.ALL_PROXIES, null);
+        enumValueToFieldName.put(Proxies.RELEVANT_PROXIES, null);
+        enumValueToFieldName.put(ShowPaths.NO, null);
+        enumValueToFieldName.put(ShowPaths.YES, null);
     }
 
     public RelevantProxy() {
