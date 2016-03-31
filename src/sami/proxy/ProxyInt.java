@@ -24,6 +24,8 @@ public interface ProxyInt {
 
     public void handleEvent(OutputEvent oe, Task task);
 
+    public void handleEvent(OutputEvent oe, Task task, Class returnIeClassHint);
+
     public OutputEvent getCurrentEvent();
 
     public ArrayList<OutputEvent> getEvents();
