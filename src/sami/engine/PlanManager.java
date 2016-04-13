@@ -2,6 +2,8 @@ package sami.engine;
 
 import com.perc.mitpas.adi.mission.planning.task.ITask;
 import com.perc.mitpas.adi.mission.planning.task.Task;
+import edu.uci.ics.jung.visualization.VisualizationViewer;
+import java.awt.Point;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -10,6 +12,7 @@ import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import sami.DreaamHelper;
 import sami.event.AbortMission;
 import sami.event.AbortMissionReceived;
 import sami.event.CheckReturn;
@@ -28,6 +31,7 @@ import sami.logging.Recorder;
 import sami.markup.Description;
 import sami.markup.ReflectedMarkupSpecification;
 import sami.markupOption.TextOption;
+import sami.mission.Edge;
 import sami.mission.InEdge;
 import sami.mission.InTokenRequirement;
 import sami.mission.MissionPlanSpecification;
@@ -210,10 +214,19 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
             // Create vertices to get missing parameters
             missingParamsStartPlace = new Place("Get Params", FunctionMode.Nominal, Mediator.getInstance().getProject().getAndIncLastElementId());
             Transition missingParamsTransition = new Transition("Got Params", FunctionMode.Nominal, Mediator.getInstance().getProject().getAndIncLastElementId());
+            VisualizationViewer<Vertex, Edge> vv = new VisualizationViewer<Vertex, Edge>(mSpec.getLayout());
+            Point transitionPoint = DreaamHelper.getVertexFreePoint(vv, mSpec.getLocations().get(startPlace).getX(), mSpec.getLocations().get(startPlace).getY(), new int[]{7});
+            mSpec.addTransition(missingParamsTransition, transitionPoint);
+            Point placePoint = DreaamHelper.getVertexFreePoint(vv, transitionPoint.getX(), transitionPoint.getY(), new int[]{5});
+            mSpec.addPlace(missingParamsStartPlace, placePoint);
             InEdge edge1 = new InEdge(missingParamsStartPlace, missingParamsTransition, FunctionMode.Nominal, Mediator.getInstance().getProject().getAndIncLastElementId());
             edge1.addTokenRequirement(new InTokenRequirement(TokenRequirement.MatchCriteria.None, null));
+            mSpec.addEdge(edge1, missingParamsStartPlace, missingParamsTransition);
             OutEdge edge2 = new OutEdge(missingParamsTransition, startPlace, FunctionMode.Nominal, Mediator.getInstance().getProject().getAndIncLastElementId());
             edge2.addTokenRequirement(new OutTokenRequirement(TokenRequirement.MatchCriteria.AnyToken, TokenRequirement.MatchQuantity.All, TokenRequirement.MatchAction.Take));
+            mSpec.addEdge(edge2, missingParamsTransition, startPlace);
+            startPlace.setIsStart(false);
+            missingParamsStartPlace.setIsStart(true);
             startPlace = missingParamsStartPlace;
 
             // Make list of missing/editable parameter fields

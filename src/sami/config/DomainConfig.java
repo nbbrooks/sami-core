@@ -227,6 +227,12 @@ public class DomainConfig implements java.io.Serializable {
             while ((line = br.readLine()) != null) {
                 success = false;
                 line = line.trim();
+                
+                
+                if (line.startsWith("#")) {
+                    // Comment line
+                    continue;
+                }
                 if (line.matches(pattern.toString())) {
                     int quote1 = line.indexOf("\"");
                     int quote2 = line.indexOf("\"", quote1 + 1);
@@ -259,6 +265,12 @@ public class DomainConfig implements java.io.Serializable {
             while ((line = br.readLine()) != null) {
                 success = false;
                 line = line.trim();
+                
+                
+                if (line.startsWith("#")) {
+                    // Comment line
+                    continue;
+                }
                 if (line.matches(pattern.toString())) {
                     int quote1 = line.indexOf("\"");
                     int quote2 = line.indexOf("\"", quote1 + 1);
@@ -297,6 +309,11 @@ public class DomainConfig implements java.io.Serializable {
             while ((line = br.readLine()) != null) {
                 success = false;
                 line = line.trim();
+                
+                if (line.startsWith("#")) {
+                    // Comment line
+                    continue;
+                }
                 if (line.matches(categoryPattern.toString())) {
                     tabCount = 0;
                     while (line.charAt(tabCount) == '>' && tabCount < line.length()) {

@@ -306,7 +306,7 @@ public class ProjectSpecification implements java.io.Serializable {
         }
         return variableNames;
     }
-    
+
     public ArrayList<String> getMissionSpecVariables(Class targetClass, MissionPlanSpecification mSpec) {
         ArrayList<String> variableNames = new ArrayList<String>();
         if (targetClass == null) {
@@ -327,7 +327,7 @@ public class ProjectSpecification implements java.io.Serializable {
                             HashMap<String, String> writeVariables = eventSpec.getWriteVariables();
                             for (String writeFieldName : writeVariables.keySet()) {
                                 boolean match = false;
-                                
+
                                 // For each field with a write variable assigned to it
                                 Field writeField = eventClass.getField(writeFieldName);
                                 if (java.util.Hashtable.class.isAssignableFrom(targetClass) && java.util.Hashtable.class.isAssignableFrom(writeField.getType())) {
@@ -391,7 +391,7 @@ public class ProjectSpecification implements java.io.Serializable {
         // Add compatible global variables
         for (String variable : globalVariables.keySet()) {
             Object globalValue = globalVariables.get(variable);
-            if(globalValue == null) { 
+            if (globalValue == null) {
                 LOGGER.severe("Global variable \"" + variable + "\" has NULL definition, skipping");
                 continue;
             }
@@ -463,7 +463,7 @@ public class ProjectSpecification implements java.io.Serializable {
         }
         return useableVariableNames;
     }
-    
+
     public ArrayList<String> getVariablesInScope(Class targetClass, MissionPlanSpecification mSpecScope) {
         ArrayList<String> useableVariableNames = new ArrayList<String>();
 
@@ -488,7 +488,7 @@ public class ProjectSpecification implements java.io.Serializable {
         // Add compatible global variables
         for (String variable : globalVariables.keySet()) {
             Object globalValue = globalVariables.get(variable);
-            if(globalValue == null) { 
+            if (globalValue == null) {
                 LOGGER.severe("Global variable \"" + variable + "\" has NULL definition, skipping");
                 continue;
             }
@@ -596,6 +596,10 @@ public class ProjectSpecification implements java.io.Serializable {
 
     public HashMap<String, Object> getGlobalVariableToValue() {
         return globalVariables;
+    }
+
+    public void setGlobalVariableToValue(HashMap<String, Object> globalVariables) {
+        this.globalVariables = globalVariables;
     }
 
     public void printDetails() {
