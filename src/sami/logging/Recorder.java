@@ -37,7 +37,7 @@ public class Recorder {
     A FORCED CLEAN AND REBUILD ON PROJECT DOENS'T SEEM TO BE SUFFICIENT?
     //@todo verify
     */
-    public static final boolean ENABLED = false;
+    public static final boolean ENABLED = true;
 
     FileWriter playbackWriter;
 

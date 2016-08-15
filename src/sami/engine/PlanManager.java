@@ -309,6 +309,7 @@ public class PlanManager implements GeneratedEventListenerInt, PlanManagerListen
                         }
 
                         if (fieldNameToValue.get(fieldName) == null
+								&& fieldNameToEditable.containsKey(fieldName)
                                 && !fieldNameToEditable.get(fieldName)) {
                             LOGGER.severe("Have a non-editable field: " + fieldName + " with no value!");
                         }

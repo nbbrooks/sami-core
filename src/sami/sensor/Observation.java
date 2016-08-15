@@ -42,4 +42,9 @@ public class Observation {
     public long getTime() {
         return time;
     }
+    
+    @Override
+    public String toString() {
+        return variable + ": " + value + " from " + source + " at " + location + " at " + time;
+    }
 }
